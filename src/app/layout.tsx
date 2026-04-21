@@ -16,6 +16,7 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Emporium - Sistema de Distribución",
   description: "Sistema de gestión para negocios de distribución",
+  icons: { icon: '/icon', apple: '/icon' },
 };
 
 export default function RootLayout({
