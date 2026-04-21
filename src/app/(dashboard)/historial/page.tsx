@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { formatCurrency, formatDate, ESTADO_PEDIDO_COLORS, ESTADO_PEDIDO_LABELS, ESTADO_FACTURA_COLORS, ESTADO_FACTURA_LABELS } from '@/lib/utils'
 import { History, TrendingUp, ReceiptText, ShoppingCart } from 'lucide-react'
+import { Profile } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +18,12 @@ interface PageProps {
 
 export default async function HistorialPage({ searchParams }: PageProps) {
   const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  if ((profile as Profile | null)?.rol !== 'admin') redirect('/dashboard')
+
   const { cliente_id, fecha_inicio, fecha_fin, tipo = 'facturas' } = searchParams
 
   // Load clientes for filter dropdown

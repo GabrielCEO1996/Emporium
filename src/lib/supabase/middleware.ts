@@ -32,7 +32,13 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rutas públicas
-  if (pathname.startsWith('/login') || pathname.startsWith('/api')) {
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password')
+  ) {
     return supabaseResponse
   }
 

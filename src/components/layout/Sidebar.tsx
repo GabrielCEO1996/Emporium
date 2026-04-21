@@ -31,7 +31,7 @@ interface NavItem {
   shortLabel?: string
 }
 
-const navItems: NavItem[] = [
+const allNavItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', shortLabel: 'Inicio', icon: LayoutDashboard },
   { href: '/productos', label: 'Productos', icon: PackageSearch },
   { href: '/clientes', label: 'Clientes', icon: Users },
@@ -43,8 +43,8 @@ const navItems: NavItem[] = [
   { href: '/configuracion', label: 'Configuración', shortLabel: 'Config', icon: Settings },
 ]
 
-// Items que se muestran en el bottom nav de móvil (max 5)
-const bottomNavItems = navItems.slice(0, 5)
+// Rutas bloqueadas para vendedores
+const adminOnlyHrefs = new Set(['/historial', '/configuracion'])
 
 interface SidebarProps {
   profile: Profile | null
@@ -57,6 +57,10 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  const isAdmin = profile?.rol === 'admin'
+  const navItems = isAdmin ? allNavItems : allNavItems.filter(i => !adminOnlyHrefs.has(i.href))
+  const bottomNavItems = navItems.slice(0, 5)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

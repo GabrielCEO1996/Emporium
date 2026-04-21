@@ -19,6 +19,8 @@ export default async function ConfiguracionPage() {
 
   const isAdmin = (profile as Profile | null)?.rol === 'admin'
 
+  if (!isAdmin) redirect('/dashboard')
+
   return (
     <div className="min-h-full bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-6 py-5">
