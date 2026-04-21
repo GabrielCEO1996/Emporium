@@ -62,7 +62,6 @@ export default async function FacturaDetailPage({ params }: PageProps) {
   const isAdmin = (profile as Profile | null)?.rol === 'admin'
   const overdue = isOverdue(f)
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
-  const tasaImpuesto = f.tasa_impuesto ?? 16
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -300,14 +299,6 @@ export default async function FacturaDetailPage({ params }: PageProps) {
                 <span className="text-red-600">- {formatCurrency(f.descuento)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Base Imponible</span>
-              <span className="text-slate-900">{formatCurrency(f.base_imponible)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">IVA ({tasaImpuesto}%)</span>
-              <span className="text-slate-900">{formatCurrency(f.impuesto)}</span>
-            </div>
             <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold text-base">
               <span className="text-slate-900">Total</span>
               <span className="text-slate-900">{formatCurrency(f.total)}</span>

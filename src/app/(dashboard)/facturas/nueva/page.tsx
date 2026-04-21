@@ -255,7 +255,6 @@ export default function NuevaFacturaPage() {
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [items, setItems] = useState<LineItem[]>([])
   const [descuentoGlobal, setDescuentoGlobal] = useState(0)
-  const [tasaImpuesto, setTasaImpuesto] = useState(16)
   const [fechaVencimiento, setFechaVencimiento] = useState('')
   const [notas, setNotas] = useState('')
   const [loading, setLoading] = useState(false)
@@ -311,9 +310,7 @@ export default function NuevaFacturaPage() {
   // ── Totals ─────────────────────────────────────────────────────────────────
 
   const subtotal = items.reduce((a, i) => a + i.subtotal, 0)
-  const baseImponible = Math.max(0, subtotal - descuentoGlobal)
-  const impuesto = baseImponible * (tasaImpuesto / 100)
-  const total = baseImponible + impuesto
+  const total = Math.max(0, subtotal - descuentoGlobal)
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
@@ -336,7 +333,7 @@ export default function NuevaFacturaPage() {
         subtotal: i.subtotal,
       })),
       descuento: descuentoGlobal,
-      tasa_impuesto: tasaImpuesto,
+      tasa_impuesto: 0,
       fecha_vencimiento: fechaVencimiento || null,
       notas: notas || null,
     }
@@ -576,33 +573,18 @@ export default function NuevaFacturaPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left: config fields */}
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      Descuento Global ($)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={descuentoGlobal}
-                      onChange={e => setDescuentoGlobal(Number(e.target.value))}
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-                      IVA (%)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={tasaImpuesto}
-                      onChange={e => setTasaImpuesto(Number(e.target.value))}
-                      className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    Descuento Global ($)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={descuentoGlobal}
+                    onChange={e => setDescuentoGlobal(Number(e.target.value))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
                 <div>
@@ -648,14 +630,6 @@ export default function NuevaFacturaPage() {
                         <span className="font-medium text-red-600">− {formatCurrency(descuentoGlobal)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">Base Imponible</span>
-                      <span className="font-medium text-slate-700">{formatCurrency(baseImponible)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">IVA ({tasaImpuesto}%)</span>
-                      <span className="font-medium text-slate-700">{formatCurrency(impuesto)}</span>
-                    </div>
                     <div className="border-t border-slate-200 pt-3 flex justify-between">
                       <span className="font-bold text-slate-800 text-base">TOTAL</span>
                       <span className="font-bold text-indigo-700 text-xl">{formatCurrency(total)}</span>

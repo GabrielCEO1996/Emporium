@@ -6,6 +6,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   Svg,
   Rect,
   Circle,
@@ -360,13 +361,13 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
   const f = factura
   const empresa = {
     nombre: empresaConfig?.nombre ?? 'EMPORIUM',
-    rif: empresaConfig?.rif ?? 'J-000000000-0',
+    rif: empresaConfig?.rif ?? '',
     direccion: empresaConfig?.direccion ?? '',
     telefono: empresaConfig?.telefono ?? '',
     email: empresaConfig?.email ?? '',
-    mensaje_factura: empresaConfig?.mensaje_factura ?? 'Gracias por su preferencia',
+    logo_url: empresaConfig?.logo_url ?? '',
+    mensaje_factura: empresaConfig?.mensaje_factura ?? 'Thank you for your business',
   }
-  const tasaImpuesto = f.tasa_impuesto ?? 16
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
   const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.blue }
 
@@ -385,17 +386,21 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
             {/* Left: Logo + company info */}
             <View>
               <View style={S.logoBox}>
-                <View style={S.logoIcon}>
-                  <Text style={S.logoIconText}>{empresa.nombre.charAt(0).toUpperCase()}</Text>
-                </View>
+                {empresa.logo_url ? (
+                  <Image src={empresa.logo_url} style={{ width: 44, height: 44, borderRadius: 8 }} />
+                ) : (
+                  <View style={S.logoIcon}>
+                    <Text style={S.logoIconText}>{empresa.nombre.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
                 <View>
                   <Text style={S.companyName}>{empresa.nombre.toUpperCase()}</Text>
-                  <Text style={S.companyTagline}>DISTRIBUCIÓN COMERCIAL</Text>
+                  <Text style={S.companyTagline}>COMMERCIAL DISTRIBUTION</Text>
                 </View>
               </View>
               <Text style={S.companyContact}>
                 {[
-                  empresa.rif ? `RIF: ${empresa.rif}` : null,
+                  empresa.rif ? `EIN: ${empresa.rif}` : null,
                   empresa.telefono ? `Tel: ${empresa.telefono}` : null,
                   empresa.email || null,
                   empresa.direccion || null,
@@ -456,7 +461,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
               </Text>
               {f.cliente?.rif && (
                 <View style={S.metaItem}>
-                  <Text style={S.metaLabel}>RIF / Cédula</Text>
+                  <Text style={S.metaLabel}>EIN</Text>
                   <Text style={S.metaValue}>{f.cliente.rif}</Text>
                 </View>
               )}
@@ -528,14 +533,6 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
                   <Text style={[S.tValue, { color: C.red }]}>− {fmtCurrency(f.descuento)}</Text>
                 </View>
               )}
-              <View style={S.tRow}>
-                <Text style={S.tLabel}>Base Imponible</Text>
-                <Text style={S.tValue}>{fmtCurrency(f.base_imponible)}</Text>
-              </View>
-              <View style={S.tRow}>
-                <Text style={S.tLabel}>IVA ({tasaImpuesto}%)</Text>
-                <Text style={S.tValue}>{fmtCurrency(f.impuesto)}</Text>
-              </View>
               <View style={S.tRowTotal}>
                 <Text style={S.tLabelTotal}>TOTAL</Text>
                 <Text style={S.tValueTotal}>{fmtCurrency(f.total)}</Text>
@@ -563,7 +560,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
 
           {/* ── Legal note ── */}
           <Text style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', marginTop: 8 }}>
-            {`${empresa.mensaje_factura}  ·  ${empresa.nombre}${empresa.rif ? ` · RIF ${empresa.rif}` : ''}`}
+            {`${empresa.mensaje_factura}  ·  ${empresa.nombre}${empresa.rif ? ` · EIN ${empresa.rif}` : ''}`}
           </Text>
         </View>
 

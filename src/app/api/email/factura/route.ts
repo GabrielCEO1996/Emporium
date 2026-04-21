@@ -51,7 +51,7 @@ function buildHtml(factura: any, empresa: any): string {
     : `<div style="width:44px;height:44px;background:#1e4db7;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;font-family:sans-serif">${emp.nombre.charAt(0).toUpperCase()}</div>`
 
   const contactLines = [
-    emp.rif ? `RIF: ${emp.rif}` : null,
+    emp.rif ? `EIN: ${emp.rif}` : null,
     emp.telefono ? `📞 ${emp.telefono}` : null,
     emp.email ? `✉️ ${emp.email}` : null,
     emp.direccion ? `📍 ${emp.direccion}` : null,
@@ -138,8 +138,6 @@ function buildHtml(factura: any, empresa: any): string {
     <table cellpadding="0" cellspacing="0" style="margin-left:auto;width:260px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
       <tr><td style="padding:8px 14px;color:#64748b;font-size:13px;background:#ffffff;border-bottom:1px solid #e2e8f0">Subtotal</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:13px;color:#1e293b;background:#ffffff;border-bottom:1px solid #e2e8f0">${fmt(factura.subtotal)}</td></tr>
       ${discountRow}
-      <tr><td style="padding:8px 14px;color:#64748b;font-size:13px;background:#ffffff;border-bottom:1px solid #e2e8f0">Base Imponible</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:13px;color:#1e293b;background:#ffffff;border-bottom:1px solid #e2e8f0">${fmt(factura.base_imponible)}</td></tr>
-      <tr><td style="padding:8px 14px;color:#64748b;font-size:13px;background:#ffffff;border-bottom:1px solid #e2e8f0">IVA (${factura.tasa_impuesto ?? 16}%)</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:13px;color:#1e293b;background:#ffffff;border-bottom:1px solid #e2e8f0">${fmt(factura.impuesto)}</td></tr>
       <tr style="background:#0f2044"><td style="padding:12px 14px;font-size:14px;font-weight:800;color:#ffffff">TOTAL</td><td style="padding:12px 14px;text-align:right;font-size:14px;font-weight:800;color:#93c5fd">${fmt(factura.total)}</td></tr>
       <tr style="background:#dbeafe"><td style="padding:8px 14px;font-size:13px;font-weight:600;color:#0f2044">Saldo pendiente</td><td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:700;color:#0f2044">${fmt(saldo)}</td></tr>
     </table>
@@ -200,9 +198,7 @@ export async function POST(request: Request) {
     }
 
     const nombreEmpresa = empresa?.nombre ?? 'Emporium'
-    const emailOrigen = empresa?.email
-      ? `${nombreEmpresa} <${empresa.email}>`
-      : `${nombreEmpresa} <onboarding@resend.dev>`
+    const emailOrigen = `${nombreEmpresa} <onboarding@resend.dev>`
 
     const html = buildHtml(factura, empresa)
 

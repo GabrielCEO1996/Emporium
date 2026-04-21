@@ -212,11 +212,13 @@ function StepProductos({
   onAdd,
   onRemove,
   onChangeQty,
+  showCosto,
 }: {
   items: CartItem[]
   onAdd: (p: Presentacion & { producto?: { nombre: string; categoria?: string } }) => void
   onRemove: (id: string) => void
   onChangeQty: (id: string, qty: number) => void
+  showCosto: boolean
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<
@@ -308,6 +310,11 @@ function StepProductos({
                       <span className="text-xs font-semibold text-blue-700">
                         {formatCurrency(pres.precio)}
                       </span>
+                      {showCosto && pres.costo > 0 && (
+                        <span className="text-xs text-slate-400">
+                          costo: {formatCurrency(pres.costo)}
+                        </span>
+                      )}
                       <span
                         className={cn(
                           'text-xs font-medium',
@@ -445,9 +452,7 @@ function StepResumen({
 }) {
   const subtotalItems = form.items.reduce((s, i) => s + i.subtotal, 0)
   const descuento = form.descuento_global
-  const baseImponible = subtotalItems - descuento
-  const impuesto = baseImponible * 0.16
-  const total = baseImponible + impuesto
+  const total = Math.max(0, subtotalItems - descuento)
 
   return (
     <div className="space-y-5">
@@ -567,14 +572,6 @@ function StepResumen({
                 <span className="text-red-600">− {formatCurrency(descuento)}</span>
               </div>
             )}
-            <div className="flex justify-between text-slate-600">
-              <span>Base imponible</span>
-              <span>{formatCurrency(baseImponible)}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>IVA (16%)</span>
-              <span>{formatCurrency(impuesto)}</span>
-            </div>
             <div className="border-t border-slate-200 pt-2 flex justify-between font-semibold text-slate-900 text-base">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>
@@ -609,6 +606,7 @@ export default function NuevoPedidoForm() {
   const [step, setStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCosto, setShowCosto] = useState(false)
 
   const [form, setForm] = useState<FormState>({
     cliente: null,
@@ -632,6 +630,17 @@ export default function NuevoPedidoForm() {
         if (data) setForm((f) => ({ ...f, cliente: data as Cliente }))
       })
   }, [preClienteId])
+
+  // Check if current user can see cost prices
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('rol').eq('id', user.id).single().then(({ data }) => {
+        if (data?.rol === 'admin' || data?.rol === 'vendedor') setShowCosto(true)
+      })
+    })
+  }, [])
 
   const updateForm = (partial: Partial<FormState>) =>
     setForm((f) => ({ ...f, ...partial }))
@@ -669,9 +678,7 @@ export default function NuevoPedidoForm() {
 
   // Computed totals
   const subtotalItems = form.items.reduce((s, i) => s + i.subtotal, 0)
-  const baseImponible = subtotalItems - form.descuento_global
-  const impuesto = baseImponible * 0.16
-  const total = baseImponible + impuesto
+  const total = Math.max(0, subtotalItems - form.descuento_global)
 
   // Validation per step
   const canProceed = () => {
@@ -696,7 +703,7 @@ export default function NuevoPedidoForm() {
         })),
         subtotal: subtotalItems,
         descuento: form.descuento_global,
-        impuesto,
+        impuesto: 0,
         total,
         notas: form.notas || null,
         direccion_entrega: form.direccion_entrega || form.cliente.direccion || null,
@@ -739,6 +746,7 @@ export default function NuevoPedidoForm() {
             onAdd={addItem}
             onRemove={removeItem}
             onChangeQty={changeQty}
+            showCosto={showCosto}
           />
         )}
         {step === 3 && (

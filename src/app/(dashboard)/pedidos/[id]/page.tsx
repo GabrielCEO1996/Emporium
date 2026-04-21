@@ -121,7 +121,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
 
       <div className="p-6 space-y-5 max-w-6xl">
         {/* Stats row */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
               Subtotal
@@ -138,15 +138,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
               {formatCurrency(p.descuento)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-              IVA (16%)
-            </p>
-            <p className="mt-1 text-lg font-bold text-slate-900">
-              {formatCurrency(p.impuesto)}
-            </p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm col-span-2 sm:col-span-1">
             <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
               Total
             </p>
@@ -365,12 +357,6 @@ export default async function PedidoDetailPage({ params }: PageProps) {
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between w-48">
-                        <span className="text-slate-500">IVA (16%)</span>
-                        <span className="font-medium text-slate-900">
-                          {formatCurrency(p.impuesto)}
-                        </span>
-                      </div>
                       <div className="flex justify-between w-48 border-t border-slate-200 pt-1.5 mt-0.5">
                         <span className="font-semibold text-slate-900">Total</span>
                         <span className="font-bold text-blue-700">
