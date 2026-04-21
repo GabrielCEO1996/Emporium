@@ -17,6 +17,7 @@ import {
   Menu,
   PackageSearch,
   X,
+  Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { href: '/notas-credito', label: 'Notas de Crédito', shortLabel: 'N. Crédito', icon: FileMinus },
   { href: '/historial', label: 'Historial', icon: History },
   { href: '/rutas', label: 'Rutas de Entrega', shortLabel: 'Rutas', icon: Truck },
+  { href: '/configuracion', label: 'Configuración', shortLabel: 'Config', icon: Settings },
 ]
 
 // Items que se muestran en el bottom nav de móvil (max 5)

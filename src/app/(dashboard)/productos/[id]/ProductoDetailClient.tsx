@@ -133,7 +133,16 @@ export default function ProductoDetailClient({ producto }: Props) {
         <div className="border-b border-slate-200 px-6 py-4">
           <h2 className="text-base font-semibold text-slate-900">Información general</h2>
         </div>
-        <div className="grid grid-cols-2 gap-6 p-6 sm:grid-cols-3">
+        <div className="p-6 flex gap-6">
+          {/* Thumbnail */}
+          <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+            {producto.imagen_url ? (
+              <img src={producto.imagen_url} alt={producto.nombre} className="h-full w-full object-cover" />
+            ) : (
+              <Package2 className="h-12 w-12 text-slate-300" />
+            )}
+          </div>
+          <div className="flex-1 grid grid-cols-2 gap-6 sm:grid-cols-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Nombre</p>
             <p className="mt-1 font-medium text-slate-900">{producto.nombre}</p>
@@ -159,6 +168,7 @@ export default function ProductoDetailClient({ producto }: Props) {
               <p className="mt-1 text-sm text-slate-700">{producto.descripcion}</p>
             </div>
           )}
+          </div>
         </div>
       </div>
 

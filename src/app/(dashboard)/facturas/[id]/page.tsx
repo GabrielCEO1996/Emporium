@@ -23,6 +23,8 @@ import {
 import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
 import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
+import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
+import { Profile } from '@/lib/types'
 
 interface PageProps {
   params: { id: string }
@@ -39,24 +41,24 @@ function isOverdue(factura: Factura): boolean {
 export default async function FacturaDetailPage({ params }: PageProps) {
   const supabase = createClient()
 
-  const { data: factura, error } = await supabase
-    .from('facturas')
-    .select(
-      `
-      *,
-      cliente:clientes(*),
-      vendedor:profiles(*),
-      items:factura_items(*)
-      `
-    )
-    .eq('id', params.id)
-    .single()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const [{ data: factura, error }, { data: profile }, { data: empresaConfig }] = await Promise.all([
+    supabase
+      .from('facturas')
+      .select('*, cliente:clientes(*), vendedor:profiles(*), items:factura_items(*)')
+      .eq('id', params.id)
+      .single(),
+    user ? supabase.from('profiles').select('rol').eq('id', user.id).single() : Promise.resolve({ data: null }),
+    supabase.from('empresa_config').select('*').limit(1).maybeSingle(),
+  ])
 
   if (error || !factura) {
     notFound()
   }
 
   const f = factura as Factura
+  const isAdmin = (profile as Profile | null)?.rol === 'admin'
   const overdue = isOverdue(f)
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
   const tasaImpuesto = f.tasa_impuesto ?? 16
@@ -99,7 +101,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <WhatsAppButton tipo="factura" factura={f} />
-            <FacturaPrintButton factura={f} />
+            <FacturaPrintButton factura={f} empresaConfig={empresaConfig ?? undefined} />
 
             {f.estado !== 'pagada' && f.estado !== 'anulada' && (
               <MarcarPagadaButton facturaId={f.id} />
@@ -112,6 +114,11 @@ export default async function FacturaDetailPage({ params }: PageProps) {
               <FileMinus className="h-4 w-4" />
               Nota de Crédito
             </Link>
+            <EliminarFacturaButton
+              facturaId={f.id}
+              facturaNumero={f.numero}
+              isAdmin={isAdmin}
+            />
           </div>
         </div>
       </div>

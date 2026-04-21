@@ -2,14 +2,25 @@
 
 import { Printer, Download, Loader2 } from 'lucide-react'
 import { Factura } from '@/lib/types'
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+
+export interface EmpresaConfig {
+  nombre?: string
+  rif?: string
+  direccion?: string
+  telefono?: string
+  email?: string
+  logo_url?: string
+  mensaje_factura?: string
+}
 
 interface FacturaPrintButtonProps {
   factura: Factura
+  empresaConfig?: EmpresaConfig
 }
 
 // Inner component that only renders on client after PDF modules are loaded
-function PDFDownloadButton({ factura }: { factura: Factura }) {
+function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empresaConfig?: EmpresaConfig }) {
   const [modules, setModules] = useState<{
     PDFDownloadLink: any
     FacturaPDF: any
@@ -46,7 +57,7 @@ function PDFDownloadButton({ factura }: { factura: Factura }) {
 
   return (
     <PDFDownloadLink
-      document={<FacturaPDF factura={factura} />}
+      document={<FacturaPDF factura={factura} empresaConfig={empresaConfig} />}
       fileName={fileName}
     >
       {({
@@ -78,7 +89,7 @@ function PDFDownloadButton({ factura }: { factura: Factura }) {
   )
 }
 
-export default function FacturaPrintButton({ factura }: FacturaPrintButtonProps) {
+export default function FacturaPrintButton({ factura, empresaConfig }: FacturaPrintButtonProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -102,7 +113,7 @@ export default function FacturaPrintButton({ factura }: FacturaPrintButtonProps)
       </button>
 
       {/* PDF download — client-side only to avoid SSR issues with @react-pdf/renderer */}
-      {mounted && <PDFDownloadButton factura={factura} />}
+      {mounted && <PDFDownloadButton factura={factura} empresaConfig={empresaConfig} />}
     </div>
   )
 }

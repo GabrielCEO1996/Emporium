@@ -341,12 +341,31 @@ const ESTADO_CFG: Record<string, { label: string; bg: string; color: string }> =
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-interface FacturaPDFProps {
-  factura: Factura
+interface EmpresaConfig {
+  nombre?: string
+  rif?: string
+  direccion?: string
+  telefono?: string
+  email?: string
+  logo_url?: string
+  mensaje_factura?: string
 }
 
-export default function FacturaPDF({ factura }: FacturaPDFProps) {
+interface FacturaPDFProps {
+  factura: Factura
+  empresaConfig?: EmpresaConfig
+}
+
+export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) {
   const f = factura
+  const empresa = {
+    nombre: empresaConfig?.nombre ?? 'EMPORIUM',
+    rif: empresaConfig?.rif ?? 'J-000000000-0',
+    direccion: empresaConfig?.direccion ?? '',
+    telefono: empresaConfig?.telefono ?? '',
+    email: empresaConfig?.email ?? '',
+    mensaje_factura: empresaConfig?.mensaje_factura ?? 'Gracias por su preferencia',
+  }
   const tasaImpuesto = f.tasa_impuesto ?? 16
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
   const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.blue }
@@ -354,7 +373,7 @@ export default function FacturaPDF({ factura }: FacturaPDFProps) {
   return (
     <Document
       title={`Factura ${f.numero}`}
-      author="EMPORIUM Distribución"
+      author={empresa.nombre}
       subject={`Factura ${f.numero} — ${f.cliente?.nombre ?? ''}`}
     >
       <Page size="A4" style={S.page}>
@@ -367,15 +386,20 @@ export default function FacturaPDF({ factura }: FacturaPDFProps) {
             <View>
               <View style={S.logoBox}>
                 <View style={S.logoIcon}>
-                  <Text style={S.logoIconText}>E</Text>
+                  <Text style={S.logoIconText}>{empresa.nombre.charAt(0).toUpperCase()}</Text>
                 </View>
                 <View>
-                  <Text style={S.companyName}>EMPORIUM</Text>
+                  <Text style={S.companyName}>{empresa.nombre.toUpperCase()}</Text>
                   <Text style={S.companyTagline}>DISTRIBUCIÓN COMERCIAL</Text>
                 </View>
               </View>
               <Text style={S.companyContact}>
-                {'RIF: J-000000000-0  ·  Tel: +58 212 000 0000\ncontacto@emporium.com  ·  www.emporium.com'}
+                {[
+                  empresa.rif ? `RIF: ${empresa.rif}` : null,
+                  empresa.telefono ? `Tel: ${empresa.telefono}` : null,
+                  empresa.email || null,
+                  empresa.direccion || null,
+                ].filter(Boolean).join('  ·  ')}
               </Text>
             </View>
 
@@ -539,16 +563,15 @@ export default function FacturaPDF({ factura }: FacturaPDFProps) {
 
           {/* ── Legal note ── */}
           <Text style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', marginTop: 8 }}>
-            Este documento es válido como comprobante de transacción comercial.
-            {'  '}EMPORIUM Distribución Comercial · RIF J-000000000-0
+            {`${empresa.mensaje_factura}  ·  ${empresa.nombre}${empresa.rif ? ` · RIF ${empresa.rif}` : ''}`}
           </Text>
         </View>
 
         {/* ══ FOOTER BAND ══ */}
         <View style={S.footer} fixed>
           <Text style={S.footerText}>Generado el {fmtDate(new Date().toISOString())}</Text>
-          <Text style={S.footerMid}>EMPORIUM · {f.numero}</Text>
-          <Text style={S.footerText}>Gracias por su preferencia</Text>
+          <Text style={S.footerMid}>{empresa.nombre} · {f.numero}</Text>
+          <Text style={S.footerText}>{empresa.mensaje_factura}</Text>
         </View>
 
       </Page>

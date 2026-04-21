@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Package, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Package, AlertCircle, Upload, X as XIcon, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Producto, Presentacion } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface PresentacionDraft {
   id?: string
@@ -55,16 +56,44 @@ function toDraft(p: Presentacion): PresentacionDraft {
 
 export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
   const router = useRouter()
+  const supabase = createClient()
+  const fileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
+  const [uploadingImg, setUploadingImg] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [nombre, setNombre] = useState(initialData?.nombre ?? '')
   const [descripcion, setDescripcion] = useState(initialData?.descripcion ?? '')
   const [categoria, setCategoria] = useState(initialData?.categoria ?? '')
   const [activo, setActivo] = useState(initialData?.activo ?? true)
+  const [imagenUrl, setImagenUrl] = useState(initialData?.imagen_url ?? '')
   const [presentaciones, setPresentaciones] = useState<PresentacionDraft[]>(
     initialData?.presentaciones?.map(toDraft) ?? [emptyPresentacion()]
   )
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 3 * 1024 * 1024) { setError('La imagen no puede superar 3 MB'); return }
+
+    setUploadingImg(true)
+    setError(null)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { data, error: upErr } = await supabase.storage
+        .from('productos')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('productos').getPublicUrl(data.path)
+      setImagenUrl(publicUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir imagen')
+    } finally {
+      setUploadingImg(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   const addPresentacion = () => setPresentaciones(prev => [...prev, emptyPresentacion()])
 
@@ -108,6 +137,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
       descripcion: descripcion.trim() || null,
       categoria: categoria || null,
       activo,
+      imagen_url: imagenUrl || null,
       presentaciones: presentaciones.map(p => ({
         ...(p.id ? { id: p.id } : {}),
         nombre: p.nombre.trim(),
@@ -222,6 +252,43 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
               placeholder="Descripción opcional del producto..."
               className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
+          </div>
+
+          {/* Imagen */}
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Foto del producto</label>
+            <div className="flex items-start gap-4">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 overflow-hidden">
+                {imagenUrl ? (
+                  <img src={imagenUrl} alt="Producto" className="h-full w-full object-cover" />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-slate-300" />
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploadingImg}
+                  className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                >
+                  {uploadingImg
+                    ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />Subiendo...</>
+                    : <><Upload className="h-4 w-4" />Subir foto</>}
+                </button>
+                {imagenUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setImagenUrl('')}
+                    className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
+                  >
+                    <XIcon className="h-4 w-4" />Quitar foto
+                  </button>
+                )}
+                <p className="text-xs text-slate-400">JPG, PNG, WebP · máx. 3 MB</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

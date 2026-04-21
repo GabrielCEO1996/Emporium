@@ -103,8 +103,14 @@ export default function ProductosTable({ productos }: Props) {
                   <tr key={producto.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                          <Package2 className="h-4 w-4" />
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-slate-100">
+                          {producto.imagen_url ? (
+                            <img src={producto.imagen_url} alt={producto.nombre} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-blue-50">
+                              <Package2 className="h-5 w-5 text-blue-400" />
+                            </div>
+                          )}
                         </div>
                         <div>
                           <p className="font-medium text-slate-900">{producto.nombre}</p>
