@@ -63,7 +63,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
     rif: cliente?.rif || '',
     email: cliente?.email || '',
     telefono: cliente?.telefono || '',
-    whatsapp: (cliente as any)?.whatsapp || '',
+    whatsapp: cliente?.whatsapp || '',
     direccion: cliente?.direccion || '',
     ciudad: cliente?.ciudad || '',
     zona: cliente?.zona || '',

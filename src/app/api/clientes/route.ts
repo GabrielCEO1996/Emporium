@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       rif: body.rif?.trim() || null,
       email: body.email?.trim() || null,
       telefono: body.telefono?.trim() || null,
+      whatsapp: body.whatsapp?.trim() || null,
       direccion: body.direccion?.trim() || null,
       ciudad: body.ciudad?.trim() || null,
       zona: body.zona?.trim() || null,
