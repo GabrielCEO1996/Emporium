@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Package2, Eye, EyeOff } from 'lucide-react'
+import { Package2, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 function GoogleIcon() {
   return (
-    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" aria-hidden>
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -17,43 +17,55 @@ function GoogleIcon() {
 }
 
 export default function LoginPage() {
+  // useMemo ensures one stable client instance for the lifetime of the component
+  const supabase = useMemo(() => createClient(), [])
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
 
+  // ── Email / password login ──────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading || googleLoading) return
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError('Correo o contraseña incorrectos.')
+    if (authError || !data.session) {
+      setError(
+        authError?.message?.includes('Email not confirmed')
+          ? 'Debes confirmar tu correo antes de ingresar. Revisa tu bandeja de entrada.'
+          : 'Correo o contraseña incorrectos.'
+      )
       setLoading(false)
       return
     }
 
-    // Hard redirect so middleware picks up the fresh session cookie
+    // Full-page navigation so the middleware reads the new session cookie
     window.location.href = '/dashboard'
   }
 
+  // ── Google OAuth ───────────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
+    if (loading || googleLoading) return
     setGoogleLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithOAuth({
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
-    if (error) {
+
+    if (oauthError) {
       setError('No se pudo conectar con Google. Intenta de nuevo.')
       setGoogleLoading(false)
     }
-    // if no error, browser will redirect — loading stays true
+    // On success the browser navigates away — no need to reset googleLoading
   }
 
   const busy = loading || googleLoading
@@ -82,7 +94,7 @@ export default function LoginPage() {
             disabled={busy}
             className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 font-semibold py-3 rounded-lg transition-colors shadow"
           >
-            <GoogleIcon />
+            {googleLoading ? <Loader2 className="w-5 h-5 animate-spin text-slate-500" /> : <GoogleIcon />}
             {googleLoading ? 'Redirigiendo...' : 'Continuar con Google'}
           </button>
 
@@ -93,13 +105,14 @@ export default function LoginPage() {
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
-          {/* ── Email / Password form ── */}
-          <form onSubmit={handleLogin} className="space-y-4">
+          {/* ── Email / Password ── */}
+          <form onSubmit={handleLogin} className="space-y-4" noValidate>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
                 Correo electrónico
               </label>
               <input
+                id="email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -113,7 +126,7 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-slate-300">
+                <label htmlFor="password" className="block text-sm font-medium text-slate-300">
                   Contraseña
                 </label>
                 <Link
@@ -125,6 +138,7 @@ export default function LoginPage() {
               </div>
               <div className="relative">
                 <input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -139,6 +153,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
                   tabIndex={-1}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -154,8 +169,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
             >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
           </form>

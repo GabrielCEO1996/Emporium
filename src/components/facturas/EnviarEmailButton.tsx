@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react'
 
 interface Props {
   facturaId: string
@@ -11,7 +11,7 @@ interface Props {
 
 export default function EnviarEmailButton({ facturaId, clienteEmail, clienteId }: Props) {
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'ok' | 'error'>('idle')
+  const [sent, setSent] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   if (!clienteEmail) {
@@ -30,8 +30,8 @@ export default function EnviarEmailButton({ facturaId, clienteEmail, clienteId }
   const handleSend = async () => {
     if (loading) return
     setLoading(true)
-    setStatus('idle')
     setErrorMsg('')
+    setSent(false)
 
     try {
       const res = await fetch('/api/email/factura', {
@@ -40,22 +40,19 @@ export default function EnviarEmailButton({ facturaId, clienteEmail, clienteId }
         body: JSON.stringify({ factura_id: facturaId }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Error al enviar')
-      setStatus('ok')
-      setTimeout(() => setStatus('idle'), 4000)
+      if (!res.ok) throw new Error(data.error ?? 'Error al enviar el email')
+      setSent(true)
     } catch (err) {
-      setStatus('error')
-      setErrorMsg(err instanceof Error ? err.message : 'Error al enviar')
-      setTimeout(() => setStatus('idle'), 5000)
+      setErrorMsg(err instanceof Error ? err.message : 'Error al enviar el email')
     } finally {
       setLoading(false)
     }
   }
 
-  if (status === 'ok') {
+  if (sent) {
     return (
       <button
-        disabled
+        onClick={() => setSent(false)}
         className="flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white"
       >
         <CheckCircle className="h-4 w-4" />
@@ -64,28 +61,27 @@ export default function EnviarEmailButton({ facturaId, clienteEmail, clienteId }
     )
   }
 
-  if (status === 'error') {
-    return (
+  return (
+    <div className="flex flex-col items-end gap-1.5">
       <button
         onClick={handleSend}
-        title={errorMsg}
-        className="flex items-center gap-2 rounded-lg bg-red-500 hover:bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors"
+        disabled={loading}
+        title={`Enviar a ${clienteEmail}`}
+        className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors disabled:opacity-60"
       >
-        <AlertCircle className="h-4 w-4" />
-        Error — reintentar
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+        {loading ? 'Enviando...' : 'Enviar por Email'}
       </button>
-    )
-  }
 
-  return (
-    <button
-      onClick={handleSend}
-      disabled={loading}
-      title={`Enviar a ${clienteEmail}`}
-      className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors disabled:opacity-60"
-    >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-      {loading ? 'Enviando...' : 'Enviar por Email'}
-    </button>
+      {errorMsg && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 max-w-xs text-right">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <span className="flex-1">{errorMsg}</span>
+          <button onClick={() => setErrorMsg('')} className="flex-shrink-0 text-red-400 hover:text-red-600">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

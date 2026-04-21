@@ -171,7 +171,15 @@ function buildHtml(factura: any, empresa: any): string {
 
 export async function POST(request: Request) {
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Falta la clave RESEND_API_KEY en las variables de entorno del servidor.' },
+        { status: 500 }
+      )
+    }
+
+    const resend = new Resend(apiKey)
     const supabase = createClient()
     const { factura_id } = await request.json()
 
@@ -198,24 +206,28 @@ export async function POST(request: Request) {
     }
 
     const nombreEmpresa = empresa?.nombre ?? 'Emporium'
-    const emailOrigen = `${nombreEmpresa} <onboarding@resend.dev>`
 
     const html = buildHtml(factura, empresa)
 
     const { data, error: sendError } = await resend.emails.send({
-      from: emailOrigen,
+      from: `${nombreEmpresa} <onboarding@resend.dev>`,
       to: emailDestino,
       subject: `Factura ${factura.numero} — ${nombreEmpresa}`,
       html,
     })
 
     if (sendError) {
-      return NextResponse.json({ error: sendError.message }, { status: 500 })
+      // Resend plan gratuito solo permite enviar al email de la cuenta Resend.
+      // Para enviar a clientes externos se necesita un dominio verificado.
+      const msg = sendError.message.toLowerCase().includes('testing')
+        ? `Plan gratuito de Resend: solo puedes enviar al email de tu cuenta Resend. Para enviar a "${emailDestino}" necesitas verificar un dominio en resend.com.`
+        : sendError.message
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, id: data?.id })
-  } catch (err) {
+  } catch (err: any) {
     console.error('[POST /api/email/factura]', err)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+    return NextResponse.json({ error: err?.message ?? 'Error interno del servidor' }, { status: 500 })
   }
 }
