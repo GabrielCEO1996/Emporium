@@ -34,6 +34,7 @@ export async function updateSession(request: NextRequest) {
   // Rutas públicas
   if (
     pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/forgot-password') ||
