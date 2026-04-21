@@ -57,12 +57,11 @@ export default async function PedidoDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  // Fetch conductores for the actions component
-  const { data: conductores } = await supabase
-    .from('conductores')
-    .select('id, nombre, telefono')
-    .eq('activo', true)
-    .order('nombre')
+  // Fetch conductores + empresa config
+  const [{ data: conductores }, { data: empresaConfig }] = await Promise.all([
+    supabase.from('conductores').select('id, nombre, telefono').eq('activo', true).order('nombre'),
+    supabase.from('empresa_config').select('nombre,telefono,email,direccion').limit(1).maybeSingle(),
+  ])
 
   const p = pedido as Pedido
   const items = (p.items ?? []) as PedidoItem[]
@@ -109,7 +108,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
 
           {/* Actions: change estado, generar factura */}
           <div className="flex flex-wrap items-center gap-2">
-            <WhatsAppButton tipo="pedido" pedido={p} />
+            <WhatsAppButton tipo="pedido" pedido={p} empresa={empresaConfig ?? undefined} />
             <PedidoActions
               pedidoId={p.id}
               currentEstado={p.estado}

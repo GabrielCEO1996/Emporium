@@ -24,6 +24,7 @@ import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
 import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
+import EnviarEmailButton from '@/components/facturas/EnviarEmailButton'
 import { Profile } from '@/lib/types'
 
 interface PageProps {
@@ -100,7 +101,12 @@ export default async function FacturaDetailPage({ params }: PageProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <WhatsAppButton tipo="factura" factura={f} />
+            <WhatsAppButton tipo="factura" factura={f} empresa={empresaConfig ?? undefined} />
+            <EnviarEmailButton
+              facturaId={f.id}
+              clienteEmail={f.cliente?.email}
+              clienteId={f.cliente_id}
+            />
             <FacturaPrintButton factura={f} empresaConfig={empresaConfig ?? undefined} />
 
             {f.estado !== 'pagada' && f.estado !== 'anulada' && (

@@ -50,12 +50,12 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
       const ext = file.name.split('.').pop()
       const path = `logo-${Date.now()}.${ext}`
       const { data, error: uploadError } = await supabase.storage
-        .from('logos')
+        .from('empresa')
         .upload(path, file, { upsert: true, contentType: file.type })
 
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(data.path)
+      const { data: { publicUrl } } = supabase.storage.from('empresa').getPublicUrl(data.path)
       setForm(prev => ({ ...prev, logo_url: publicUrl }))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al subir imagen')
