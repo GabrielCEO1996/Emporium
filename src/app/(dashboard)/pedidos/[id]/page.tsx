@@ -22,6 +22,7 @@ import {
   Receipt,
 } from 'lucide-react'
 import PedidoActions from '@/components/pedidos/PedidoActions'
+import WhatsAppButton from '@/components/shared/WhatsAppButton'
 
 interface PageProps {
   params: { id: string }
@@ -107,12 +108,15 @@ export default async function PedidoDetailPage({ params }: PageProps) {
           </div>
 
           {/* Actions: change estado, generar factura */}
-          <PedidoActions
-            pedidoId={p.id}
-            currentEstado={p.estado}
-            currentConductorId={p.conductor_id ?? null}
-            conductores={conductores ?? []}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <WhatsAppButton tipo="pedido" pedido={p} />
+            <PedidoActions
+              pedidoId={p.id}
+              currentEstado={p.estado}
+              currentConductorId={p.conductor_id ?? null}
+              conductores={conductores ?? []}
+            />
+          </div>
         </div>
       </div>
 

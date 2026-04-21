@@ -44,6 +44,7 @@ export interface Cliente {
   rif?: string
   email?: string
   telefono?: string
+  whatsapp?: string
   direccion?: string
   ciudad?: string
   zona?: string

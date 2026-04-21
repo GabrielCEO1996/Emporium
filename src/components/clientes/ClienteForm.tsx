@@ -30,6 +30,7 @@ interface FormData {
   rif: string
   email: string
   telefono: string
+  whatsapp: string
   direccion: string
   ciudad: string
   zona: string
@@ -62,6 +63,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
     rif: cliente?.rif || '',
     email: cliente?.email || '',
     telefono: cliente?.telefono || '',
+    whatsapp: (cliente as any)?.whatsapp || '',
     direccion: cliente?.direccion || '',
     ciudad: cliente?.ciudad || '',
     zona: cliente?.zona || '',
@@ -247,6 +249,26 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
                 className={cn(inputClass, 'pl-9')}
               />
             </div>
+          </div>
+
+          {/* WhatsApp */}
+          <div>
+            <label htmlFor="whatsapp" className={labelClass}>
+              WhatsApp
+            </label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-2.5 h-4 w-4 text-green-500" />
+              <input
+                id="whatsapp"
+                name="whatsapp"
+                type="tel"
+                value={formData.whatsapp}
+                onChange={handleChange}
+                placeholder="58412-1234567"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Con código de país, ej: 584121234567</p>
           </div>
 
           {/* Activo */}

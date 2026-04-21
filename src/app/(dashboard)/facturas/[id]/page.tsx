@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
 import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
+import WhatsAppButton from '@/components/shared/WhatsAppButton'
 
 interface PageProps {
   params: { id: string }
@@ -97,6 +98,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <WhatsAppButton tipo="factura" factura={f} />
             <FacturaPrintButton factura={f} />
 
             {f.estado !== 'pagada' && f.estado !== 'anulada' && (
