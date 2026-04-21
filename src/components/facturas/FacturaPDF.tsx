@@ -6,7 +6,10 @@ import {
   View,
   Text,
   StyleSheet,
-  Font,
+  Svg,
+  Rect,
+  Circle,
+  Path,
 } from '@react-pdf/renderer'
 import { Factura } from '@/lib/types'
 
@@ -29,292 +32,312 @@ function fmtDate(dateString?: string | null): string {
   }).format(new Date(dateString))
 }
 
-// ─── Styles ─────────────────────────────────────────────────────────────────
+// ─── Color palette (Navy blue theme) ─────────────────────────────────────────
 
-const colors = {
-  primary: '#4f46e5',   // indigo-600
-  primaryDark: '#3730a3',
-  accent: '#e0e7ff',    // indigo-100
-  text: '#1e293b',      // slate-900
-  textMuted: '#64748b', // slate-500
-  border: '#e2e8f0',    // slate-200
-  bg: '#f8fafc',        // slate-50
-  white: '#ffffff',
-  green: '#16a34a',
-  orange: '#ea580c',
-  red: '#dc2626',
+const C = {
+  navy:       '#0f2044',   // cabecera principal
+  navyMid:    '#1a3560',   // gradiente / fila alternada encabezado
+  blue:       '#1e4db7',   // acentos
+  blueLight:  '#dbeafe',   // fondos suaves
+  blueUltra:  '#eff6ff',   // fondos ultra suaves
+  white:      '#ffffff',
+  text:       '#1e293b',
+  textMid:    '#475569',
+  textMuted:  '#94a3b8',
+  border:     '#e2e8f0',
+  green:      '#16a34a',
+  greenLight: '#dcfce7',
+  red:        '#dc2626',
+  amber:      '#d97706',
+  amberLight: '#fef3c7',
+  bgPage:     '#f8fafc',
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const S = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
-    fontSize: 10,
-    color: colors.text,
-    backgroundColor: colors.white,
-    padding: 40,
-    lineHeight: 1.4,
+    fontSize: 9,
+    color: C.text,
+    backgroundColor: C.bgPage,
+    paddingBottom: 48,
   },
 
-  // ── Header ──
-  header: {
+  // ── Navy header band ──
+  headerBand: {
+    backgroundColor: C.navy,
+    paddingHorizontal: 40,
+    paddingTop: 28,
+    paddingBottom: 24,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 28,
-    paddingBottom: 20,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
   },
-  companyBlock: {
-    flex: 1,
+
+  // Logo block
+  logoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoIcon: {
+    width: 38,
+    height: 38,
+    backgroundColor: C.blue,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoIconText: {
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+    color: C.white,
   },
   companyName: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: 'Helvetica-Bold',
-    color: colors.primary,
+    color: C.white,
+    letterSpacing: 1,
+  },
+  companyTagline: {
+    fontSize: 8,
+    color: '#93c5fd',
+    marginTop: 2,
     letterSpacing: 0.5,
   },
-  companySubtitle: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  companyDetails: {
+  companyContact: {
+    fontSize: 7.5,
+    color: '#bfdbfe',
     marginTop: 6,
-    fontSize: 9,
-    color: colors.textMuted,
-    lineHeight: 1.5,
+    lineHeight: 1.6,
   },
-  invoiceBlock: {
+
+  // Invoice title block (right side of header)
+  invoiceTitleBlock: {
     alignItems: 'flex-end',
   },
-  invoiceLabel: {
-    fontSize: 22,
+  invoiceWordLabel: {
+    fontSize: 26,
     fontFamily: 'Helvetica-Bold',
-    color: colors.text,
-    letterSpacing: 0.5,
+    color: C.white,
+    letterSpacing: 2,
+    opacity: 0.9,
   },
-  invoiceNumber: {
-    fontSize: 14,
+  invoiceNumberBig: {
+    fontSize: 13,
     fontFamily: 'Helvetica-Bold',
-    color: colors.primary,
-    marginTop: 4,
-  },
-  invoiceBadge: {
-    marginTop: 6,
-    backgroundColor: colors.accent,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  invoiceBadgeText: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.primary,
-    textTransform: 'uppercase',
+    color: '#93c5fd',
+    marginTop: 2,
     letterSpacing: 0.5,
   },
 
-  // ── Meta row (dates + client) ──
-  metaSection: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
+  // Estado badge
+  estadoBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignSelf: 'flex-end',
   },
-  metaBox: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    borderRadius: 6,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  metaBoxTitle: {
+  estadoBadgeText: {
     fontSize: 8,
     fontFamily: 'Helvetica-Bold',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 8,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  metaLabel: {
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  metaValue: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.text,
-  },
-  metaValueLarge: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.text,
+    letterSpacing: 1,
   },
 
-  // ── Items Table ──
-  tableSection: {
+  // ── Accent stripe under header ──
+  accentStripe: {
+    height: 4,
+    backgroundColor: C.blue,
+  },
+
+  // ── Body content ──
+  body: {
+    paddingHorizontal: 40,
+    paddingTop: 20,
+  },
+
+  // ── Meta row: dates + client ──
+  metaRow: {
+    flexDirection: 'row',
+    gap: 14,
     marginBottom: 20,
   },
-  tableTitle: {
-    fontSize: 9,
+  metaCard: {
+    flex: 1,
+    backgroundColor: C.white,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  metaCardTitle: {
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: colors.textMuted,
+    color: C.blue,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.blueLight,
+    paddingBottom: 4,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metaLabel: { fontSize: 8, color: C.textMuted },
+  metaValue: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: C.text },
+  metaValueAccent: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: C.navy },
+
+  // ── Items table ──
+  tableSectionTitle: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: C.navy,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: 6,
+  },
+  tableWrapper: {
+    marginBottom: 20,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: C.border,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: colors.primary,
-    borderRadius: 4,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    marginBottom: 1,
+    backgroundColor: C.navy,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  tableHeaderCell: {
-    fontSize: 9,
+  thCell: {
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
-    color: colors.white,
+    color: C.white,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    backgroundColor: C.white,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
   },
   tableRowAlt: {
-    backgroundColor: colors.bg,
+    backgroundColor: C.blueUltra,
   },
-  tableCell: {
-    fontSize: 9,
-    color: colors.text,
+  tdCell: {
+    fontSize: 8.5,
+    color: C.text,
   },
-  tableCellMuted: {
-    fontSize: 9,
-    color: colors.textMuted,
+  tdCellMuted: {
+    fontSize: 8.5,
+    color: C.textMuted,
   },
 
-  // Column widths
-  colDesc: { flex: 4 },
-  colQty: { flex: 1, textAlign: 'right' },
-  colPrice: { flex: 2, textAlign: 'right' },
-  colDisc: { flex: 1, textAlign: 'right' },
-  colSub: { flex: 2, textAlign: 'right' },
+  // Column sizes
+  cDesc:  { flex: 5 },
+  cQty:   { flex: 1, textAlign: 'right' as const },
+  cPrice: { flex: 2, textAlign: 'right' as const },
+  cDisc:  { flex: 1.5, textAlign: 'right' as const },
+  cSub:   { flex: 2, textAlign: 'right' as const },
 
   // ── Totals ──
-  totalsSection: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 24,
-  },
-  totalsBox: {
-    width: 220,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
   totalsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  totalsLabel: {
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  totalsValue: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.text,
-  },
-  totalsRowTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.primary,
-  },
-  totalsLabelTotal: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.white,
-  },
-  totalsValueTotal: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.white,
-  },
-  totalsRowSaldo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: colors.accent,
-  },
-  saldoLabel: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.primary,
-  },
-  saldoValue: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.primary,
-  },
-
-  // ── Notes + Footer ──
-  notesSection: {
+    justifyContent: 'flex-end',
     marginBottom: 20,
-    padding: 12,
-    backgroundColor: colors.bg,
-    borderRadius: 6,
+  },
+  totalsBox: {
+    width: 230,
+    borderRadius: 8,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: C.border,
+  },
+  tRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: C.white,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  tLabel: { fontSize: 8.5, color: C.textMid },
+  tValue: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: C.text },
+  tRowTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: C.navy,
+  },
+  tLabelTotal: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: C.white },
+  tValueTotal: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#93c5fd' },
+  tRowSaldo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    backgroundColor: C.blueLight,
+  },
+  tLabelSaldo: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: C.navy },
+  tValueSaldo: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: C.navy },
+
+  // ── Notes ──
+  notesBox: {
+    backgroundColor: C.white,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 16,
   },
   notesTitle: {
-    fontSize: 8,
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: colors.textMuted,
+    color: C.blue,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
     marginBottom: 4,
   },
-  notesText: {
-    fontSize: 9,
-    color: colors.text,
-    lineHeight: 1.5,
-  },
+  notesText: { fontSize: 8.5, color: C.textMid, lineHeight: 1.5 },
+
+  // ── Footer ──
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: C.navy,
+    paddingHorizontal: 40,
+    paddingVertical: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  footerText: {
-    fontSize: 8,
-    color: colors.textMuted,
-  },
-  footerBold: {
-    fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.textMuted,
-  },
+  footerText: { fontSize: 7.5, color: '#93c5fd' },
+  footerMid: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white },
 })
+
+// ─── Estado config ────────────────────────────────────────────────────────────
+
+const ESTADO_CFG: Record<string, { label: string; bg: string; color: string }> = {
+  emitida:         { label: 'EMITIDA',          bg: C.blueLight,   color: C.blue },
+  pagada:          { label: 'PAGADA',            bg: C.greenLight,  color: C.green },
+  anulada:         { label: 'ANULADA',           bg: '#fee2e2',     color: C.red },
+  con_nota_credito:{ label: 'CON NOTA CRÉDITO',  bg: C.amberLight,  color: C.amber },
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -326,200 +349,206 @@ export default function FacturaPDF({ factura }: FacturaPDFProps) {
   const f = factura
   const tasaImpuesto = f.tasa_impuesto ?? 16
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
-
-  const ESTADO_LABELS: Record<string, string> = {
-    emitida: 'EMITIDA',
-    pagada: 'PAGADA',
-    anulada: 'ANULADA',
-    con_nota_credito: 'CON NOTA DE CRÉDITO',
-  }
+  const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.blue }
 
   return (
     <Document
       title={`Factura ${f.numero}`}
-      author="EMPORIUM - Distribución"
-      subject={`Factura ${f.numero} - ${f.cliente?.nombre ?? ''}`}
+      author="EMPORIUM Distribución"
+      subject={`Factura ${f.numero} — ${f.cliente?.nombre ?? ''}`}
     >
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={S.page}>
 
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.companyBlock}>
-            <Text style={styles.companyName}>EMPORIUM</Text>
-            <Text style={styles.companySubtitle}>Distribución Comercial</Text>
-            <Text style={styles.companyDetails}>
-              {'RIF: J-000000000-0\nTel: +58 212 000 0000\ncontacto@emporium.com'}
-            </Text>
-          </View>
-          <View style={styles.invoiceBlock}>
-            <Text style={styles.invoiceLabel}>FACTURA</Text>
-            <Text style={styles.invoiceNumber}>{f.numero}</Text>
-            <View style={styles.invoiceBadge}>
-              <Text style={styles.invoiceBadgeText}>
-                {ESTADO_LABELS[f.estado] ?? f.estado.toUpperCase()}
+        {/* ══ NAVY HEADER BAND ══ */}
+        <View style={S.headerBand}>
+          <View style={S.headerRow}>
+
+            {/* Left: Logo + company info */}
+            <View>
+              <View style={S.logoBox}>
+                <View style={S.logoIcon}>
+                  <Text style={S.logoIconText}>E</Text>
+                </View>
+                <View>
+                  <Text style={S.companyName}>EMPORIUM</Text>
+                  <Text style={S.companyTagline}>DISTRIBUCIÓN COMERCIAL</Text>
+                </View>
+              </View>
+              <Text style={S.companyContact}>
+                {'RIF: J-000000000-0  ·  Tel: +58 212 000 0000\ncontacto@emporium.com  ·  www.emporium.com'}
               </Text>
+            </View>
+
+            {/* Right: FACTURA + number + estado */}
+            <View style={S.invoiceTitleBlock}>
+              <Text style={S.invoiceWordLabel}>FACTURA</Text>
+              <Text style={S.invoiceNumberBig}>{f.numero}</Text>
+              <View style={[S.estadoBadge, { backgroundColor: estadoCfg.bg }]}>
+                <Text style={[S.estadoBadgeText, { color: estadoCfg.color }]}>
+                  {estadoCfg.label}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* ── Dates + Client ── */}
-        <View style={styles.metaSection}>
-          {/* Dates */}
-          <View style={styles.metaBox}>
-            <Text style={styles.metaBoxTitle}>Información de Factura</Text>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Fecha de Emisión</Text>
-              <Text style={styles.metaValue}>{fmtDate(f.fecha_emision)}</Text>
+        {/* Blue accent stripe */}
+        <View style={S.accentStripe} />
+
+        {/* ══ BODY ══ */}
+        <View style={S.body}>
+
+          {/* ── Meta: dates + client ── */}
+          <View style={S.metaRow}>
+
+            {/* Dates card */}
+            <View style={S.metaCard}>
+              <Text style={S.metaCardTitle}>Información de Factura</Text>
+              <View style={S.metaItem}>
+                <Text style={S.metaLabel}>Número</Text>
+                <Text style={S.metaValueAccent}>{f.numero}</Text>
+              </View>
+              <View style={S.metaItem}>
+                <Text style={S.metaLabel}>Fecha de Emisión</Text>
+                <Text style={S.metaValue}>{fmtDate(f.fecha_emision)}</Text>
+              </View>
+              <View style={S.metaItem}>
+                <Text style={S.metaLabel}>Fecha de Vencimiento</Text>
+                <Text style={S.metaValue}>{fmtDate(f.fecha_vencimiento)}</Text>
+              </View>
+              {f.vendedor && (
+                <View style={S.metaItem}>
+                  <Text style={S.metaLabel}>Vendedor</Text>
+                  <Text style={S.metaValue}>{f.vendedor.nombre}</Text>
+                </View>
+              )}
             </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Fecha de Vencimiento</Text>
-              <Text style={styles.metaValue}>{fmtDate(f.fecha_vencimiento)}</Text>
-            </View>
-            {f.vendedor && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Vendedor</Text>
-                <Text style={styles.metaValue}>{f.vendedor.nombre}</Text>
-              </View>
-            )}
-          </View>
 
-          {/* Client */}
-          <View style={styles.metaBox}>
-            <Text style={styles.metaBoxTitle}>Cliente</Text>
-            <Text style={[styles.metaValueLarge, { marginBottom: 4 }]}>
-              {f.cliente?.nombre ?? '—'}
-            </Text>
-            {f.cliente?.rif && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>RIF</Text>
-                <Text style={styles.metaValue}>{f.cliente.rif}</Text>
-              </View>
-            )}
-            {f.cliente?.telefono && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Teléfono</Text>
-                <Text style={styles.metaValue}>{f.cliente.telefono}</Text>
-              </View>
-            )}
-            {f.cliente?.email && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Email</Text>
-                <Text style={styles.metaValue}>{f.cliente.email}</Text>
-              </View>
-            )}
-            {f.cliente?.direccion && (
-              <View style={[styles.metaRow, { marginTop: 2 }]}>
-                <Text style={styles.metaLabel}>Dirección</Text>
-                <Text style={[styles.metaValue, { flex: 1, textAlign: 'right' }]}>
-                  {f.cliente.direccion}
-                  {f.cliente.ciudad ? `, ${f.cliente.ciudad}` : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ── Items Table ── */}
-        <View style={styles.tableSection}>
-          <Text style={styles.tableTitle}>Detalle de Artículos</Text>
-
-          {/* Table header */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.colDesc]}>Descripción</Text>
-            <Text style={[styles.tableHeaderCell, styles.colQty]}>Cant.</Text>
-            <Text style={[styles.tableHeaderCell, styles.colPrice]}>Precio Unit.</Text>
-            <Text style={[styles.tableHeaderCell, styles.colDisc]}>Desc.</Text>
-            <Text style={[styles.tableHeaderCell, styles.colSub]}>Subtotal</Text>
-          </View>
-
-          {/* Rows */}
-          {(!f.items || f.items.length === 0) ? (
-            <View style={[styles.tableRow]}>
-              <Text style={[styles.tableCellMuted, { flex: 1, textAlign: 'center' }]}>
-                Sin artículos
+            {/* Client card */}
+            <View style={S.metaCard}>
+              <Text style={S.metaCardTitle}>Cliente</Text>
+              <Text style={[S.metaValueAccent, { marginBottom: 6 }]}>
+                {f.cliente?.nombre ?? '—'}
               </Text>
+              {f.cliente?.rif && (
+                <View style={S.metaItem}>
+                  <Text style={S.metaLabel}>RIF / Cédula</Text>
+                  <Text style={S.metaValue}>{f.cliente.rif}</Text>
+                </View>
+              )}
+              {f.cliente?.telefono && (
+                <View style={S.metaItem}>
+                  <Text style={S.metaLabel}>Teléfono</Text>
+                  <Text style={S.metaValue}>{f.cliente.telefono}</Text>
+                </View>
+              )}
+              {f.cliente?.email && (
+                <View style={S.metaItem}>
+                  <Text style={S.metaLabel}>Email</Text>
+                  <Text style={S.metaValue}>{f.cliente.email}</Text>
+                </View>
+              )}
+              {f.cliente?.direccion && (
+                <View style={[S.metaItem, { marginTop: 2 }]}>
+                  <Text style={S.metaLabel}>Dirección</Text>
+                  <Text style={[S.metaValue, { flex: 1, textAlign: 'right' }]}>
+                    {f.cliente.direccion}{f.cliente.ciudad ? `, ${f.cliente.ciudad}` : ''}
+                  </Text>
+                </View>
+              )}
             </View>
-          ) : (
-            f.items.map((item, index) => (
-              <View
-                key={item.id}
-                style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}
-              >
-                <Text style={[styles.tableCell, styles.colDesc]}>{item.descripcion}</Text>
-                <Text style={[styles.tableCell, styles.colQty]}>{item.cantidad}</Text>
-                <Text style={[styles.tableCell, styles.colPrice]}>
-                  {fmtCurrency(item.precio_unitario)}
-                </Text>
-                <Text style={[styles.tableCellMuted, styles.colDisc]}>
-                  {item.descuento > 0 ? `${item.descuento}%` : '—'}
-                </Text>
-                <Text style={[styles.tableCell, styles.colSub]}>
-                  {fmtCurrency(item.subtotal)}
-                </Text>
+          </View>
+
+          {/* ── Items table ── */}
+          <Text style={S.tableSectionTitle}>Detalle de Artículos</Text>
+          <View style={S.tableWrapper}>
+            {/* Header */}
+            <View style={S.tableHeader}>
+              <Text style={[S.thCell, S.cDesc]}>Descripción</Text>
+              <Text style={[S.thCell, S.cQty]}>Cant.</Text>
+              <Text style={[S.thCell, S.cPrice]}>Precio Unit.</Text>
+              <Text style={[S.thCell, S.cDisc]}>Desc.</Text>
+              <Text style={[S.thCell, S.cSub]}>Subtotal</Text>
+            </View>
+
+            {/* Rows */}
+            {(!f.items || f.items.length === 0) ? (
+              <View style={[S.tableRow, { justifyContent: 'center' }]}>
+                <Text style={S.tdCellMuted}>Sin artículos registrados</Text>
               </View>
-            ))
+            ) : (
+              f.items.map((item, index) => (
+                <View key={item.id} style={[S.tableRow, index % 2 === 1 ? S.tableRowAlt : {}]}>
+                  <Text style={[S.tdCell, S.cDesc]}>{item.descripcion}</Text>
+                  <Text style={[S.tdCell, S.cQty]}>{item.cantidad}</Text>
+                  <Text style={[S.tdCellMuted, S.cPrice]}>{fmtCurrency(item.precio_unitario)}</Text>
+                  <Text style={[S.tdCellMuted, S.cDisc]}>
+                    {item.descuento > 0 ? `${item.descuento}%` : '—'}
+                  </Text>
+                  <Text style={[S.tdCell, S.cSub]}>{fmtCurrency(item.subtotal)}</Text>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* ── Totals ── */}
+          <View style={S.totalsRow}>
+            <View style={S.totalsBox}>
+              <View style={S.tRow}>
+                <Text style={S.tLabel}>Subtotal</Text>
+                <Text style={S.tValue}>{fmtCurrency(f.subtotal)}</Text>
+              </View>
+              {f.descuento > 0 && (
+                <View style={S.tRow}>
+                  <Text style={S.tLabel}>Descuento</Text>
+                  <Text style={[S.tValue, { color: C.red }]}>− {fmtCurrency(f.descuento)}</Text>
+                </View>
+              )}
+              <View style={S.tRow}>
+                <Text style={S.tLabel}>Base Imponible</Text>
+                <Text style={S.tValue}>{fmtCurrency(f.base_imponible)}</Text>
+              </View>
+              <View style={S.tRow}>
+                <Text style={S.tLabel}>IVA ({tasaImpuesto}%)</Text>
+                <Text style={S.tValue}>{fmtCurrency(f.impuesto)}</Text>
+              </View>
+              <View style={S.tRowTotal}>
+                <Text style={S.tLabelTotal}>TOTAL</Text>
+                <Text style={S.tValueTotal}>{fmtCurrency(f.total)}</Text>
+              </View>
+              {f.monto_pagado > 0 && (
+                <View style={[S.tRow, { borderBottomWidth: 0 }]}>
+                  <Text style={S.tLabel}>Abonado</Text>
+                  <Text style={[S.tValue, { color: C.green }]}>{fmtCurrency(f.monto_pagado)}</Text>
+                </View>
+              )}
+              <View style={S.tRowSaldo}>
+                <Text style={S.tLabelSaldo}>Saldo Pendiente</Text>
+                <Text style={S.tValueSaldo}>{fmtCurrency(saldo)}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Notes ── */}
+          {f.notas && (
+            <View style={S.notesBox}>
+              <Text style={S.notesTitle}>Observaciones</Text>
+              <Text style={S.notesText}>{f.notas}</Text>
+            </View>
           )}
+
+          {/* ── Legal note ── */}
+          <Text style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', marginTop: 8 }}>
+            Este documento es válido como comprobante de transacción comercial.
+            {'  '}EMPORIUM Distribución Comercial · RIF J-000000000-0
+          </Text>
         </View>
 
-        {/* ── Totals ── */}
-        <View style={styles.totalsSection}>
-          <View style={styles.totalsBox}>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Subtotal</Text>
-              <Text style={styles.totalsValue}>{fmtCurrency(f.subtotal)}</Text>
-            </View>
-            {f.descuento > 0 && (
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>Descuento</Text>
-                <Text style={[styles.totalsValue, { color: colors.red }]}>
-                  - {fmtCurrency(f.descuento)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Base Imponible</Text>
-              <Text style={styles.totalsValue}>{fmtCurrency(f.base_imponible)}</Text>
-            </View>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>IVA ({tasaImpuesto}%)</Text>
-              <Text style={styles.totalsValue}>{fmtCurrency(f.impuesto)}</Text>
-            </View>
-            <View style={styles.totalsRowTotal}>
-              <Text style={styles.totalsLabelTotal}>TOTAL</Text>
-              <Text style={styles.totalsValueTotal}>{fmtCurrency(f.total)}</Text>
-            </View>
-            {f.monto_pagado > 0 && (
-              <View style={[styles.totalsRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.totalsLabel}>Monto Pagado</Text>
-                <Text style={[styles.totalsValue, { color: colors.green }]}>
-                  {fmtCurrency(f.monto_pagado)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.totalsRowSaldo}>
-              <Text style={styles.saldoLabel}>Saldo Pendiente</Text>
-              <Text style={styles.saldoValue}>{fmtCurrency(saldo)}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Notes ── */}
-        {f.notas && (
-          <View style={styles.notesSection}>
-            <Text style={styles.notesTitle}>Notas</Text>
-            <Text style={styles.notesText}>{f.notas}</Text>
-          </View>
-        )}
-
-        {/* ── Footer ── */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Generado por EMPORIUM · {fmtDate(new Date().toISOString())}
-          </Text>
-          <Text style={styles.footerBold}>{f.numero}</Text>
-          <Text style={styles.footerText}>
-            Gracias por su preferencia
-          </Text>
+        {/* ══ FOOTER BAND ══ */}
+        <View style={S.footer} fixed>
+          <Text style={S.footerText}>Generado el {fmtDate(new Date().toISOString())}</Text>
+          <Text style={S.footerMid}>EMPORIUM · {f.numero}</Text>
+          <Text style={S.footerText}>Gracias por su preferencia</Text>
         </View>
 
       </Page>

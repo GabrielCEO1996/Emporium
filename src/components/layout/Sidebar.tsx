@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Users,
-  FileText,
   ReceiptText,
   FileMinus,
   History,
@@ -17,6 +16,7 @@ import {
   ChevronLeft,
   Menu,
   PackageSearch,
+  X,
 } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -27,25 +27,29 @@ interface NavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  roles?: string[]
+  shortLabel?: string
 }
 
 const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', shortLabel: 'Inicio', icon: LayoutDashboard },
   { href: '/productos', label: 'Productos', icon: PackageSearch },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/facturas', label: 'Facturas', icon: ReceiptText },
-  { href: '/notas-credito', label: 'Notas de Crédito', icon: FileMinus },
+  { href: '/notas-credito', label: 'Notas de Crédito', shortLabel: 'N. Crédito', icon: FileMinus },
   { href: '/historial', label: 'Historial', icon: History },
-  { href: '/rutas', label: 'Rutas de Entrega', icon: Truck },
+  { href: '/rutas', label: 'Rutas de Entrega', shortLabel: 'Rutas', icon: Truck },
 ]
+
+// Items que se muestran en el bottom nav de móvil (max 5)
+const bottomNavItems = navItems.slice(0, 5)
 
 interface SidebarProps {
   profile: Profile | null
+  stockAlertas?: number
 }
 
-export default function Sidebar({ profile }: SidebarProps) {
+export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -55,18 +59,19 @@ export default function Sidebar({ profile }: SidebarProps) {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+    setMobileOpen(false)
   }
 
-  const NavLink = ({ item }: { item: NavItem }) => {
+  const NavLink = ({ item, onClick }: { item: NavItem; onClick?: () => void }) => {
     const isActive = pathname.startsWith(item.href)
     const Icon = item.icon
 
     return (
       <Link
         href={item.href}
-        onClick={() => setMobileOpen(false)}
+        onClick={onClick}
         className={cn(
-          'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+          'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
           isActive
             ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
             : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -74,54 +79,79 @@ export default function Sidebar({ profile }: SidebarProps) {
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
         {!collapsed && <span className="truncate">{item.label}</span>}
+        {item.href === '/productos' && stockAlertas > 0 && (
+          <span className={cn(
+            'flex-shrink-0 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center',
+            isActive ? 'bg-white text-blue-600' : 'bg-red-500 text-white',
+            collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'
+          )}>
+            {stockAlertas > 9 ? '9+' : stockAlertas}
+          </span>
+        )}
       </Link>
     )
   }
 
-  const SidebarContent = () => (
+  const SidebarContent = ({ onClose }: { onClose?: () => void }) => (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className={cn('flex items-center px-4 py-5', collapsed ? 'justify-center' : 'justify-between')}>
+      <div className={cn(
+        'flex items-center px-4 py-5 border-b border-white/10',
+        collapsed ? 'justify-center' : 'justify-between'
+      )}>
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
               <Package2 className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-white text-lg">Emporium</span>
+            <div>
+              <span className="font-bold text-white text-base tracking-tight">Emporium</span>
+              <p className="text-slate-500 text-xs">Distribución</p>
+            </div>
           </div>
         )}
         {collapsed && (
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
             <Package2 className="w-5 h-5 text-white" />
           </div>
         )}
+        {/* Desktop collapse */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex text-slate-400 hover:text-white transition p-1 rounded"
+          className="hidden lg:flex text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-white/10"
         >
-          <ChevronLeft className={cn('w-5 h-5 transition-transform', collapsed && 'rotate-180')} />
+          <ChevronLeft className={cn('w-4 h-4 transition-transform duration-300', collapsed && 'rotate-180')} />
         </button>
+        {/* Mobile close */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
-          <NavLink key={item.href} item={item} />
+          <NavLink key={item.href} item={item} onClick={onClose} />
         ))}
       </nav>
 
       {/* User / Logout */}
-      <div className="px-3 py-4 border-t border-white/10">
+      <div className="px-3 py-4 border-t border-white/10 space-y-2">
         {!collapsed && profile && (
-          <div className="mb-3 px-2">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Sesión</p>
-            <p className="text-sm text-white font-medium truncate">{profile.nombre}</p>
-            <p className="text-xs text-slate-400 capitalize">{profile.rol}</p>
+          <div className="px-3 py-2 rounded-xl bg-white/5">
+            <p className="text-xs text-slate-500 mb-0.5">Sesión activa</p>
+            <p className="text-sm text-white font-semibold truncate">{profile.nombre}</p>
+            <p className="text-xs text-blue-400 capitalize">{profile.rol}</p>
           </div>
         )}
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span>Cerrar Sesión</span>}
@@ -132,33 +162,34 @@ export default function Sidebar({ profile }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile toggle */}
+      {/* ── Mobile hamburger button ── */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 bg-slate-800 p-2 rounded-lg text-white shadow-lg"
-        onClick={() => setMobileOpen(!mobileOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 bg-slate-800 p-2.5 rounded-xl text-white shadow-lg border border-white/10 active:scale-95 transition-transform"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Abrir menú"
       >
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Mobile overlay */}
+      {/* ── Mobile overlay ── */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/60 z-40"
+          className="lg:hidden fixed inset-0 bg-black/70 z-40 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile sidebar */}
+      {/* ── Mobile sidebar (slide-in) ── */}
       <aside
         className={cn(
-          'lg:hidden fixed left-0 top-0 bottom-0 z-50 w-64 bg-slate-900 border-r border-white/10 transition-transform duration-300',
+          'lg:hidden fixed left-0 top-0 bottom-0 z-50 w-72 bg-slate-900 border-r border-white/10 transition-transform duration-300 ease-out shadow-2xl',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <SidebarContent />
+        <SidebarContent onClose={() => setMobileOpen(false)} />
       </aside>
 
-      {/* Desktop sidebar */}
+      {/* ── Desktop sidebar ── */}
       <aside
         className={cn(
           'hidden lg:flex flex-col bg-slate-900 border-r border-white/10 transition-all duration-300 flex-shrink-0',
@@ -167,6 +198,39 @@ export default function Sidebar({ profile }: SidebarProps) {
       >
         <SidebarContent />
       </aside>
+
+      {/* ── Mobile bottom navigation bar ── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-900 border-t border-white/10 flex items-center justify-around px-2 py-1 safe-area-pb">
+        {bottomNavItems.map((item) => {
+          const isActive = pathname.startsWith(item.href)
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0 flex-1 relative',
+                isActive ? 'text-blue-400' : 'text-slate-500'
+              )}
+            >
+              <div className="relative">
+                <Icon className="w-6 h-6" />
+                {item.href === '/productos' && stockAlertas > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                    {stockAlertas > 9 ? '9+' : stockAlertas}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs truncate w-full text-center">
+                {item.shortLabel || item.label}
+              </span>
+              {isActive && (
+                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full" />
+              )}
+            </Link>
+          )
+        })}
+      </nav>
     </>
   )
 }
