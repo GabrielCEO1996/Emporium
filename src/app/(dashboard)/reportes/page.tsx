@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import { BarChart2, TrendingUp, Users, Package } from 'lucide-react'
-import AnimatedPage from '@/components/ui/AnimatedPage'
 import VentasMensualesChart from '@/components/dashboard/VentasMensualesChart'
 import TopProductosChart from '@/components/dashboard/TopProductosChart'
 
@@ -31,7 +30,7 @@ export default async function ReportesPage() {
       .neq('estado', 'anulada'),
   ])
 
-  // ── Monthly sales for chart ───────────────────────────────────────────────
+  // ── Monthly sales ─────────────────────────────────────────────────────────
   const monthlyMap: Record<number, number> = {}
   for (const f of facturasAnio ?? []) {
     const m = new Date(f.fecha_emision).getMonth()
@@ -75,7 +74,7 @@ export default async function ReportesPage() {
   const variacion = mesAnterior > 0 ? ((mesActual - mesAnterior) / mesAnterior) * 100 : 0
 
   return (
-    <AnimatedPage className="p-4 lg:p-8 space-y-6">
+    <div className="p-4 lg:p-8 space-y-6">
 
       {/* Header */}
       <div className="flex items-center justify-between pt-2 lg:pt-0">
@@ -92,60 +91,50 @@ export default async function ReportesPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[
-          {
-            label: `Total ${now.getFullYear()}`,
-            value: formatCurrency(totalAnio),
-            icon: TrendingUp,
-            color: 'text-teal-600',
-            bg: 'bg-teal-50 dark:bg-teal-900/20',
-          },
-          {
-            label: `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`,
-            value: formatCurrency(mesActual),
-            icon: BarChart2,
-            color: 'text-violet-600',
-            bg: 'bg-violet-50 dark:bg-violet-900/20',
-            sub: variacion !== 0 ? `${variacion > 0 ? '+' : ''}${variacion.toFixed(1)}% vs mes anterior` : undefined,
-          },
-          {
-            label: 'Clientes activos',
-            value: topClientes.length.toString(),
-            icon: Users,
-            color: 'text-emerald-600',
-            bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-          },
-        ].map(card => {
-          const Icon = card.icon
-          return (
-            <div key={card.label} className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{card.label}</p>
-                <div className={`w-8 h-8 ${card.bg} rounded-lg flex items-center justify-center`}>
-                  <Icon className={`w-4 h-4 ${card.color}`} />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-white">{card.value}</p>
-              {card.sub && (
-                <p className={`text-xs mt-1 font-medium ${variacion >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {card.sub}
-                </p>
-              )}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Total {now.getFullYear()}</p>
+            <div className="w-8 h-8 bg-teal-50 dark:bg-teal-900/20 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-teal-600" />
             </div>
-          )
-        })}
+          </div>
+          <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatCurrency(totalAnio)}</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{MONTH_NAMES[now.getMonth()]} {now.getFullYear()}</p>
+            <div className="w-8 h-8 bg-violet-50 dark:bg-violet-900/20 rounded-lg flex items-center justify-center">
+              <BarChart2 className="w-4 h-4 text-violet-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatCurrency(mesActual)}</p>
+          {variacion !== 0 && (
+            <p className={`text-xs mt-1 font-medium ${variacion >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {variacion > 0 ? '+' : ''}{variacion.toFixed(1)}% vs mes anterior
+            </p>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Clientes activos</p>
+            <div className="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg flex items-center justify-center">
+              <Users className="w-4 h-4 text-emerald-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-800 dark:text-white">{topClientes.length}</p>
+        </div>
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Area chart */}
         <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <h2 className="font-semibold text-slate-800 dark:text-white mb-1">Ventas Mensuales</h2>
           <p className="text-xs text-slate-400 mb-4">Facturas emitidas por mes — {now.getFullYear()}</p>
           <VentasMensualesChart data={ventasMensuales} />
         </div>
 
-        {/* Donut chart */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <div className="flex items-center gap-2 mb-1">
             <Package className="w-4 h-4 text-violet-500" />
@@ -203,6 +192,6 @@ export default async function ReportesPage() {
         </div>
       </div>
 
-    </AnimatedPage>
+    </div>
   )
 }
