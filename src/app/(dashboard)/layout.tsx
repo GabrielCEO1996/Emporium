@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import GlobalSearch from '@/components/layout/GlobalSearch'
 import StockAlertBanner from '@/components/layout/StockAlertBanner'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+import KeyboardShortcutsInit from '@/components/ui/KeyboardShortcutsInit'
 import { Profile } from '@/lib/types'
 
 export default async function DashboardLayout({
@@ -31,21 +33,23 @@ export default async function DashboardLayout({
   const stockAlertas = stockBajo?.length || 0
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      <KeyboardShortcutsInit />
       <Sidebar profile={profile as Profile | null} stockAlertas={stockAlertas} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar with search */}
-        <header className="hidden lg:flex h-14 bg-white border-b border-slate-200 items-center justify-between px-6 flex-shrink-0">
+        <header className="hidden lg:flex h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 flex-shrink-0">
           <div />
           <GlobalSearch />
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             {profile && (
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold">
                   {(profile as Profile).nombre?.charAt(0).toUpperCase()}
                 </div>
                 <div className="text-right hidden xl:block">
-                  <p className="text-sm font-medium text-slate-700 leading-tight">{(profile as Profile).nombre}</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-tight">{(profile as Profile).nombre}</p>
                   <p className="text-xs text-slate-400 capitalize">{(profile as Profile).rol}</p>
                 </div>
               </div>
@@ -55,7 +59,7 @@ export default async function DashboardLayout({
 
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           {/* Mobile search bar */}
-          <div className="lg:hidden bg-white border-b border-slate-100 px-4 pt-16 pb-3">
+          <div className="lg:hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 px-4 pt-16 pb-3">
             <GlobalSearch mobile />
           </div>
 

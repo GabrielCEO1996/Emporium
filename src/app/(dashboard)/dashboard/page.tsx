@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import VentasChart from '@/components/dashboard/VentasChart'
+import AnimatedPage from '@/components/ui/AnimatedPage'
+import CountUp from '@/components/ui/CountUp'
 
 export const dynamic = 'force-dynamic'
 
@@ -149,13 +151,13 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <AnimatedPage className="p-4 lg:p-8 space-y-6">
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between pt-2 lg:pt-0">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
             {new Date().toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
@@ -177,14 +179,16 @@ export default async function DashboardPage() {
         ].map(s => {
           const Icon = s.icon
           return (
-            <div key={s.label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+            <div key={s.label} className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-slate-500 font-medium">{s.label}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{s.label}</p>
                 <div className={`w-8 h-8 ${s.bg} rounded-lg flex items-center justify-center`}>
                   <Icon className={`w-4 h-4 ${s.color}`} />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-slate-800">{formatCurrency(s.value)}</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                <CountUp value={s.value} prefix="$" decimals={2} />
+              </p>
             </div>
           )
         })}
@@ -201,12 +205,12 @@ export default async function DashboardPage() {
           const Icon = s.icon
           return (
             <Link key={s.label} href={s.href}>
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
                 <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-3`}>
                   <Icon className={`w-4 h-4 ${s.text}`} />
                 </div>
-                <p className="text-xl font-bold text-slate-800">{s.value}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
+                <p className="text-xl font-bold text-slate-800 dark:text-white"><CountUp value={s.value} /></p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
               </div>
             </Link>
           )
@@ -217,9 +221,9 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Ventas 7 días — bar chart */}
-        <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold text-slate-800">Ventas — Últimos 7 días</h2>
+            <h2 className="font-semibold text-slate-800 dark:text-white">Ventas — Últimos 7 días</h2>
             <span className="text-xs text-slate-400">Facturas emitidas</span>
           </div>
           <p className="text-xs text-slate-400 mb-4">
@@ -229,10 +233,10 @@ export default async function DashboardPage() {
         </div>
 
         {/* Top 5 productos */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Star className="w-4 h-4 text-amber-500" />
-            <h2 className="font-semibold text-slate-800">Top 5 Productos</h2>
+            <h2 className="font-semibold text-slate-800 dark:text-white">Top 5 Productos</h2>
           </div>
           {topProductos.length > 0 ? (
             <div className="space-y-3">
@@ -276,11 +280,11 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Pedidos pendientes */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-500" />
-              <h2 className="font-semibold text-slate-800 text-sm">Pedidos Activos</h2>
+              <h2 className="font-semibold text-slate-800 dark:text-white text-sm">Pedidos Activos</h2>
             </div>
             <Link href="/pedidos" className="text-teal-600 text-xs hover:underline font-medium">Ver todos →</Link>
           </div>
@@ -312,10 +316,10 @@ export default async function DashboardPage() {
         </div>
 
         {/* Stock bajo */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700">
             <AlertCircle className="w-4 h-4 text-red-500" />
-            <h2 className="font-semibold text-slate-800 text-sm">Alertas de Stock</h2>
+            <h2 className="font-semibold text-slate-800 dark:text-white text-sm">Alertas de Stock</h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stockBajo && stockBajo.length > 0 ? (
@@ -353,18 +357,18 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Facturas recientes ── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2">
             <ReceiptText className="w-4 h-4 text-slate-500" />
-            <h2 className="font-semibold text-slate-800 text-sm">Facturas Recientes</h2>
+            <h2 className="font-semibold text-slate-800 dark:text-white text-sm">Facturas Recientes</h2>
           </div>
           <Link href="/facturas" className="text-teal-600 text-xs hover:underline font-medium">Ver todas →</Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
+              <tr className="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
                 <th className="text-left px-5 py-3">Número</th>
                 <th className="text-left px-5 py-3 hidden sm:table-cell">Cliente</th>
                 <th className="text-left px-5 py-3 hidden md:table-cell">Fecha</th>
@@ -410,6 +414,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-    </div>
+    </AnimatedPage>
   )
 }
