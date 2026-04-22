@@ -53,7 +53,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600">
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -65,7 +65,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
           </div>
           <Link
             href="/clientes/nuevo"
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
           >
             <Plus className="h-4 w-4" />
             Nuevo Cliente
@@ -82,8 +82,8 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Clientes</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{clientes?.length ?? 0}</p>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50">
-                <Users className="h-5 w-5 text-blue-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-50">
+                <Users className="h-5 w-5 text-teal-600" />
               </div>
             </div>
           </div>
@@ -121,13 +121,13 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                 name="search"
                 defaultValue={search}
                 placeholder="Buscar por nombre, RIF, ciudad o correo..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               />
             </div>
             <select
               name="activo"
               defaultValue={activoFilter || ''}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             >
               <option value="">Todos</option>
               <option value="true">Activos</option>
@@ -175,7 +175,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
               {!search && (
                 <Link
                   href="/clientes/nuevo"
-                  className="mt-5 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="mt-5 flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
                 >
                   <Plus className="h-4 w-4" />
                   Nuevo Cliente
@@ -273,7 +273,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                         <td className="px-5 py-4">
                           <Link
                             href={`/clientes/${cliente.id}`}
-                            className="flex items-center justify-end gap-1 text-xs font-medium text-blue-600 opacity-0 transition-opacity group-hover:opacity-100"
+                            className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 opacity-0 transition-opacity group-hover:opacity-100"
                           >
                             Ver detalle
                             <ChevronRight className="h-3.5 w-3.5" />

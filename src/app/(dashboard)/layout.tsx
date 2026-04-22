@@ -41,7 +41,7 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-3">
             {profile && (
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
+                <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold">
                   {(profile as Profile).nombre?.charAt(0).toUpperCase()}
                 </div>
                 <div className="text-right hidden xl:block">

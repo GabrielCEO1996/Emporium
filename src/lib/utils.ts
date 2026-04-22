@@ -43,8 +43,8 @@ export const ESTADO_PEDIDO_LABELS: Record<string, string> = {
 }
 
 export const ESTADO_PEDIDO_COLORS: Record<string, string> = {
-  borrador: 'bg-gray-100 text-gray-700',
-  confirmado: 'bg-blue-100 text-blue-700',
+  borrador: 'bg-amber-100 text-amber-700',
+  confirmado: 'bg-teal-100 text-teal-700',
   en_ruta: 'bg-yellow-100 text-yellow-700',
   entregado: 'bg-green-100 text-green-700',
   cancelado: 'bg-red-100 text-red-700',
@@ -53,13 +53,15 @@ export const ESTADO_PEDIDO_COLORS: Record<string, string> = {
 
 export const ESTADO_FACTURA_LABELS: Record<string, string> = {
   emitida: 'Emitida',
+  enviada: 'Enviada',
   pagada: 'Pagada',
   anulada: 'Anulada',
   con_nota_credito: 'Con N.C.',
 }
 
 export const ESTADO_FACTURA_COLORS: Record<string, string> = {
-  emitida: 'bg-blue-100 text-blue-700',
+  emitida: 'bg-teal-100 text-teal-700',
+  enviada: 'bg-purple-100 text-purple-700',
   pagada: 'bg-green-100 text-green-700',
   anulada: 'bg-red-100 text-red-700',
   con_nota_credito: 'bg-orange-100 text-orange-700',

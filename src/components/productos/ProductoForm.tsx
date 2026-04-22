@@ -189,7 +189,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
       {/* Producto info */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-4">
-          <Package className="h-5 w-5 text-blue-600" />
+          <Package className="h-5 w-5 text-teal-600" />
           <h2 className="text-base font-semibold text-slate-900">Información del Producto</h2>
         </div>
         <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2">
@@ -202,7 +202,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
               value={nombre}
               onChange={e => setNombre(e.target.value)}
               placeholder="Ej: Agua Mineral"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
@@ -211,7 +211,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
             <select
               value={categoria}
               onChange={e => setCategoria(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
               <option value="">Sin categoría</option>
               {CATEGORIAS.map(c => (
@@ -227,8 +227,8 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
               aria-checked={activo}
               onClick={() => setActivo(v => !v)}
               className={cn(
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-                activo ? 'bg-blue-600' : 'bg-slate-300'
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2',
+                activo ? 'bg-teal-600' : 'bg-slate-300'
               )}
             >
               <span
@@ -250,7 +250,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
               onChange={e => setDescripcion(e.target.value)}
               rows={3}
               placeholder="Descripción opcional del producto..."
-              className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
@@ -303,7 +303,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
           <button
             type="button"
             onClick={addPresentacion}
-            className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-100 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Agregar
@@ -326,7 +326,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     onClick={() => updatePresentacion(idx, 'activo', !p.activo)}
                     className={cn(
                       'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-                      p.activo ? 'bg-blue-600' : 'bg-slate-300'
+                      p.activo ? 'bg-teal-600' : 'bg-slate-300'
                     )}
                   >
                     <span className={cn(
@@ -357,7 +357,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     value={p.nombre}
                     onChange={e => updatePresentacion(idx, 'nombre', e.target.value)}
                     placeholder="Ej: 500ml, Caja x12"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
 
@@ -372,7 +372,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     value={p.precio}
                     onChange={e => updatePresentacion(idx, 'precio', e.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
 
@@ -387,7 +387,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     value={p.costo}
                     onChange={e => updatePresentacion(idx, 'costo', e.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
 
@@ -396,7 +396,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                   <select
                     value={p.unidad}
                     onChange={e => updatePresentacion(idx, 'unidad', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   >
                     {UNIDADES.map(u => (
                       <option key={u} value={u}>{u}</option>
@@ -411,7 +411,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     min="0"
                     value={p.stock}
                     onChange={e => updatePresentacion(idx, 'stock', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
 
@@ -422,7 +422,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     min="0"
                     value={p.stock_minimo}
                     onChange={e => updatePresentacion(idx, 'stock_minimo', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
 
@@ -433,7 +433,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     value={p.codigo_barras}
                     onChange={e => updatePresentacion(idx, 'codigo_barras', e.target.value)}
                     placeholder="Opcional"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
               </div>
@@ -455,7 +455,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
         <button
           type="submit"
           disabled={loading}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-50"
         >
           {loading && (
             <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">

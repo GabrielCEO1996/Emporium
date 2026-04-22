@@ -13,7 +13,7 @@ export default function NuevoPedidoPage() {
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
           <Link
             href="/pedidos"
-            className="flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-1.5 hover:text-teal-600 transition-colors"
           >
             <ShoppingCart className="h-3.5 w-3.5" />
             Pedidos
@@ -30,7 +30,7 @@ export default function NuevoPedidoPage() {
       <div className="p-6 max-w-5xl">
         <Suspense fallback={
           <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
           </div>
         }>
           <NuevoPedidoForm />

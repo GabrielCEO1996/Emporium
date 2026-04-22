@@ -48,7 +48,7 @@ interface FormErrors {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors'
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors'
 
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1'
 
@@ -164,7 +164,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <User className="h-4 w-4 text-blue-600" />
+            <User className="h-4 w-4 text-teal-600" />
             Información Principal
           </h2>
         </div>
@@ -279,7 +279,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
               type="checkbox"
               checked={formData.activo}
               onChange={handleChange}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />
             <label htmlFor="activo" className="text-sm font-medium text-slate-700">
               Cliente activo
@@ -292,7 +292,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <MapPin className="h-4 w-4 text-blue-600" />
+            <MapPin className="h-4 w-4 text-teal-600" />
             Ubicación
           </h2>
         </div>
@@ -360,7 +360,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <CreditCard className="h-4 w-4 text-blue-600" />
+            <CreditCard className="h-4 w-4 text-teal-600" />
             Condiciones de Crédito
           </h2>
         </div>
@@ -419,7 +419,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <StickyNote className="h-4 w-4 text-blue-600" />
+            <StickyNote className="h-4 w-4 text-teal-600" />
             Notas Adicionales
           </h2>
         </div>
@@ -452,7 +452,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
         <button
           type="submit"
           disabled={loading}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

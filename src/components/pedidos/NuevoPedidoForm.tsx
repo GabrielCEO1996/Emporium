@@ -61,9 +61,9 @@ function StepIndicator({ current }: { current: number }) {
                 className={cn(
                   'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors',
                   done
-                    ? 'border-blue-600 bg-blue-600 text-white'
+                    ? 'border-teal-600 bg-teal-600 text-white'
                     : active
-                    ? 'border-blue-600 bg-white text-blue-600'
+                    ? 'border-teal-600 bg-white text-teal-600'
                     : 'border-slate-200 bg-white text-slate-400'
                 )}
               >
@@ -72,7 +72,7 @@ function StepIndicator({ current }: { current: number }) {
               <span
                 className={cn(
                   'text-xs font-medium hidden sm:block',
-                  active ? 'text-blue-600' : done ? 'text-slate-600' : 'text-slate-400'
+                  active ? 'text-teal-600' : done ? 'text-slate-600' : 'text-slate-400'
                 )}
               >
                 {step.label}
@@ -82,7 +82,7 @@ function StepIndicator({ current }: { current: number }) {
               <div
                 className={cn(
                   'h-0.5 w-16 sm:w-24 mx-1 transition-colors',
-                  current > step.n ? 'bg-blue-600' : 'bg-slate-200'
+                  current > step.n ? 'bg-teal-600' : 'bg-slate-200'
                 )}
               />
             )}
@@ -145,7 +145,7 @@ function StepCliente({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Nombre, RIF o teléfono..."
-            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           />
           {loading && (
             <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-slate-400" />
@@ -165,8 +165,8 @@ function StepCliente({
                 setResults([])
               }}
               className={cn(
-                'w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors',
-                selected?.id === c.id && 'bg-blue-50'
+                'w-full text-left px-4 py-3 hover:bg-teal-50 transition-colors',
+                selected?.id === c.id && 'bg-teal-50'
               )}
             >
               <p className="text-sm font-medium text-slate-900">{c.nombre}</p>
@@ -179,9 +179,9 @@ function StepCliente({
       )}
 
       {selected && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-lg border border-teal-200 bg-teal-50 p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-bold text-sm shrink-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 text-white font-bold text-sm shrink-0">
               {selected.nombre.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -197,7 +197,7 @@ function StepCliente({
                 </p>
               )}
             </div>
-            <Check className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <Check className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" />
           </div>
         </div>
       )}
@@ -272,7 +272,7 @@ function StepProductos({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar producto o presentación..."
-          className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
         />
         {loading && (
           <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-slate-400" />
@@ -307,7 +307,7 @@ function StepProductos({
                       {pres.producto?.nombre ?? ''} — {pres.nombre}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs font-semibold text-blue-700">
+                      <span className="text-xs font-semibold text-teal-700">
                         {formatCurrency(pres.precio)}
                       </span>
                       {showCosto && pres.costo > 0 && (
@@ -339,7 +339,7 @@ function StepProductos({
                         ? 'bg-green-100 text-green-700'
                         : sinStock
                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
                     )}
                   >
                     {cartItem ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -406,7 +406,7 @@ function StepProductos({
                           )
                         }
                       }}
-                      className="w-12 text-center text-sm border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-12 text-center text-sm border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-teal-500"
                     />
                     <button
                       type="button"
@@ -515,7 +515,7 @@ function StepResumen({
               onChange={(e) =>
                 onChange({ descuento_global: Math.max(0, parseFloat(e.target.value) || 0) })
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
 
@@ -527,7 +527,7 @@ function StepResumen({
               type="date"
               value={form.fecha_entrega_estimada}
               onChange={(e) => onChange({ fecha_entrega_estimada: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
 
@@ -540,7 +540,7 @@ function StepResumen({
               value={form.direccion_entrega}
               onChange={(e) => onChange({ direccion_entrega: e.target.value })}
               placeholder={form.cliente?.direccion ?? 'Dirección de entrega...'}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
 
@@ -553,7 +553,7 @@ function StepResumen({
               value={form.notas}
               onChange={(e) => onChange({ notas: e.target.value })}
               placeholder="Observaciones, instrucciones de entrega..."
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
         </div>
@@ -780,7 +780,7 @@ export default function NuevoPedidoForm() {
               type="button"
               onClick={() => setStep((s) => s + 1)}
               disabled={!canProceed()}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Siguiente
               <ChevronRight className="h-4 w-4" />
@@ -791,7 +791,7 @@ export default function NuevoPedidoForm() {
               type="button"
               onClick={handleSubmit}
               disabled={submitting || form.items.length === 0 || !form.cliente}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

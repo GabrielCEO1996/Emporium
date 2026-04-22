@@ -24,7 +24,7 @@ interface Props {
   isAdmin: boolean
 }
 
-const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors disabled:bg-slate-50 disabled:text-slate-500'
+const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors disabled:bg-slate-50 disabled:text-slate-500'
 const labelClass = 'block text-sm font-medium text-slate-700 mb-1.5'
 
 export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
@@ -110,7 +110,7 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <ImageIcon className="h-4 w-4 text-blue-600" />
+            <ImageIcon className="h-4 w-4 text-teal-600" />
             Logo de la Empresa
           </h2>
         </div>
@@ -156,7 +156,7 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <Building2 className="h-4 w-4 text-blue-600" />
+            <Building2 className="h-4 w-4 text-teal-600" />
             Datos de la Empresa
           </h2>
         </div>
@@ -258,7 +258,7 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-teal-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:opacity-60 transition-colors"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {loading ? 'Guardando...' : 'Guardar configuración'}

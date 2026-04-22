@@ -44,7 +44,7 @@ function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empre
     return (
       <button
         disabled
-        className="flex items-center gap-2 rounded-lg bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-400 cursor-not-allowed"
+        className="flex items-center gap-2 rounded-lg bg-teal-100 px-4 py-2 text-sm font-medium text-teal-400 cursor-not-allowed"
         aria-label="Cargando PDF"
       >
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -70,7 +70,7 @@ function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empre
         blob: Blob | null
       }) =>
         loading ? (
-          <span className="flex items-center gap-2 rounded-lg bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-400 cursor-wait select-none">
+          <span className="flex items-center gap-2 rounded-lg bg-teal-100 px-4 py-2 text-sm font-medium text-teal-400 cursor-wait select-none">
             <Loader2 className="h-4 w-4 animate-spin" />
             Generando...
           </span>
@@ -79,7 +79,7 @@ function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empre
             Error al generar PDF
           </span>
         ) : (
-          <span className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors cursor-pointer select-none">
+          <span className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors cursor-pointer select-none">
             <Download className="h-4 w-4" />
             Descargar PDF
           </span>

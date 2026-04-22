@@ -38,7 +38,7 @@ export default function AsignarConductorButton({ pedidoId, conductores }: Props)
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-2 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
+        className="inline-flex items-center gap-2 text-sm bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
       >
         <Truck className="w-4 h-4" />
         Asignar
@@ -53,7 +53,7 @@ export default function AsignarConductorButton({ pedidoId, conductores }: Props)
                 key={c.id}
                 onClick={() => asignar(c.id)}
                 disabled={loading}
-                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 text-sm text-slate-700 transition"
+                className="w-full text-left px-3 py-2.5 hover:bg-teal-50 text-sm text-slate-700 transition"
               >
                 <p className="font-medium">{c.nombre}</p>
                 {c.zona && <p className="text-xs text-slate-400">{c.zona}</p>}

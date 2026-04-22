@@ -30,7 +30,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div className="bg-slate-900 text-white rounded-xl px-3 py-2 shadow-xl text-sm">
       <p className="font-semibold">{label}</p>
-      <p className="text-blue-300">${payload[0].value.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+      <p className="text-teal-300">${payload[0].value.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
     </div>
   )
 }

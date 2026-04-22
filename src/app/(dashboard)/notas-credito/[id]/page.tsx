@@ -7,7 +7,7 @@ import { ArrowLeft, FileMinus } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 const estadoColors: Record<string, string> = {
-  emitida: 'bg-blue-100 text-blue-700',
+  emitida: 'bg-teal-100 text-teal-700',
   aplicada: 'bg-green-100 text-green-700',
   anulada: 'bg-red-100 text-red-700',
 }
@@ -45,7 +45,7 @@ export default async function NotaCreditoDetailPage({ params }: { params: { id: 
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">Factura Referenciada</span>
-              <Link href={`/facturas/${nc.facturas?.id}`} className="text-blue-600 hover:underline font-medium">
+              <Link href={`/facturas/${nc.facturas?.id}`} className="text-teal-600 hover:underline font-medium">
                 {nc.facturas?.numero}
               </Link>
             </div>
@@ -84,7 +84,7 @@ export default async function NotaCreditoDetailPage({ params }: { params: { id: 
             </div>
             <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-base">
               <span className="text-slate-700">Total NC</span>
-              <span className="text-blue-600">{formatCurrency(nc.total)}</span>
+              <span className="text-teal-600">{formatCurrency(nc.total)}</span>
             </div>
           </div>
         </div>

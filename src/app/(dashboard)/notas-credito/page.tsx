@@ -6,7 +6,7 @@ import { FileMinus, Plus } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 const estadoColors: Record<string, string> = {
-  emitida: 'bg-blue-100 text-blue-700',
+  emitida: 'bg-teal-100 text-teal-700',
   aplicada: 'bg-green-100 text-green-700',
   anulada: 'bg-red-100 text-red-700',
 }
@@ -36,7 +36,7 @@ export default async function NotasCreditoPage() {
         </div>
         <Link
           href="/notas-credito/nueva"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           Nueva Nota
@@ -77,7 +77,7 @@ export default async function NotasCreditoPage() {
                 notas.map((nc: any) => (
                   <tr key={nc.id} className="hover:bg-slate-50 transition">
                     <td className="px-5 py-3">
-                      <Link href={`/notas-credito/${nc.id}`} className="font-medium text-blue-600 hover:underline text-sm">
+                      <Link href={`/notas-credito/${nc.id}`} className="font-medium text-teal-600 hover:underline text-sm">
                         {nc.numero}
                       </Link>
                     </td>

@@ -114,7 +114,7 @@ export default function GlobalSearch({ mobile = false }: Props) {
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="Buscar productos, clientes..."
-          className="w-full bg-slate-100 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+          className="w-full bg-slate-100 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
         />
         {query && (
           <button onClick={() => { setQuery(''); setResults([]) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -222,8 +222,8 @@ function SearchDropdown({
                   key={r.id}
                   onClick={() => onNavigate(r.href)}
                   className={cn(
-                    'w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 transition text-left',
-                    selected === i && 'bg-blue-50'
+                    'w-full flex items-center justify-between px-4 py-3 hover:bg-teal-50 transition text-left',
+                    selected === i && 'bg-teal-50'
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -253,8 +253,8 @@ function SearchDropdown({
                   key={r.id}
                   onClick={() => onNavigate(r.href)}
                   className={cn(
-                    'w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 transition text-left',
-                    selected === i && 'bg-blue-50'
+                    'w-full flex items-center justify-between px-4 py-3 hover:bg-teal-50 transition text-left',
+                    selected === i && 'bg-teal-50'
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">

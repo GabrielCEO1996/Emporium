@@ -141,7 +141,7 @@ export default function PedidoActions({
           <select
             value={estado}
             onChange={(e) => setEstado(e.target.value as EstadoPedido)}
-            className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           >
             {ESTADO_OPTIONS.map((e) => (
               <option key={e} value={e}>
@@ -157,7 +157,7 @@ export default function PedidoActions({
           <select
             value={conductorId}
             onChange={(e) => setConductorId(e.target.value)}
-            className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm text-slate-700 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           >
             <option value="">Sin conductor</option>
             {conductores.map((c) => (
@@ -190,7 +190,7 @@ export default function PedidoActions({
             type="button"
             onClick={handleConfirmar}
             disabled={confirmingPedido}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {confirmingPedido ? (
               <Loader2 className="h-4 w-4 animate-spin" />

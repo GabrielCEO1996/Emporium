@@ -43,7 +43,7 @@ export default function NuevoConductorPage() {
               value={(form as any)[key]}
               onChange={e => f(key, e.target.value)}
               placeholder={placeholder}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
         ))}
@@ -51,7 +51,7 @@ export default function NuevoConductorPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors"
+          className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors"
         >
           {loading ? 'Guardando...' : 'Registrar Conductor'}
         </button>

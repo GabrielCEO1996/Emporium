@@ -36,11 +36,11 @@ function fmtDate(dateString?: string | null): string {
 // ─── Color palette (Light blue theme) ────────────────────────────────────────
 
 const C = {
-  navy:       '#2563EB',   // cabecera principal (blue-600)
-  navyMid:    '#1D4ED8',   // hover / acento oscuro (blue-700)
-  blue:       '#3B82F6',   // acentos (blue-500)
-  blueLight:  '#DBEAFE',   // fondos suaves (blue-100)
-  blueUltra:  '#EFF6FF',   // fondos ultra suaves (blue-50)
+  navy:       '#0D9488',   // cabecera principal (teal-600)
+  navyMid:    '#0F766E',   // hover / acento oscuro (teal-700)
+  blue:       '#14B8A6',   // acentos (teal-500)
+  blueLight:  '#CCFBF1',   // fondos suaves (teal-100)
+  blueUltra:  '#F0FDFA',   // fondos ultra suaves (teal-50)
   white:      '#ffffff',
   text:       '#1e293b',
   textMid:    '#475569',
@@ -105,13 +105,13 @@ const S = StyleSheet.create({
   },
   companyTagline: {
     fontSize: 8,
-    color: '#93c5fd',
+    color: '#5EEAD4',
     marginTop: 2,
     letterSpacing: 0.5,
   },
   companyContact: {
     fontSize: 7.5,
-    color: '#bfdbfe',
+    color: '#99F6E4',
     marginTop: 6,
     lineHeight: 1.6,
   },
@@ -130,7 +130,7 @@ const S = StyleSheet.create({
   invoiceNumberBig: {
     fontSize: 13,
     fontFamily: 'Helvetica-Bold',
-    color: '#93c5fd',
+    color: '#5EEAD4',
     marginTop: 2,
     letterSpacing: 0.5,
   },
@@ -284,7 +284,7 @@ const S = StyleSheet.create({
     backgroundColor: C.navy,
   },
   tLabelTotal: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: C.white },
-  tValueTotal: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#93c5fd' },
+  tValueTotal: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#5EEAD4' },
   tRowSaldo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -327,7 +327,7 @@ const S = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  footerText: { fontSize: 7.5, color: '#93c5fd' },
+  footerText: { fontSize: 7.5, color: '#5EEAD4' },
   footerMid: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: C.white },
 })
 
@@ -335,6 +335,7 @@ const S = StyleSheet.create({
 
 const ESTADO_CFG: Record<string, { label: string; bg: string; color: string }> = {
   emitida:         { label: 'EMITIDA',          bg: C.blueLight,   color: C.blue },
+  enviada:         { label: 'ENVIADA',           bg: '#F3E8FF',     color: '#7C3AED' },
   pagada:          { label: 'PAGADA',            bg: C.greenLight,  color: C.green },
   anulada:         { label: 'ANULADA',           bg: '#fee2e2',     color: C.red },
   con_nota_credito:{ label: 'CON NOTA CRÉDITO',  bg: C.amberLight,  color: C.amber },

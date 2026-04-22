@@ -60,7 +60,7 @@ export default async function ConductorDetailPage({ params }: { params: { id: st
           <div className="grid grid-cols-2 gap-4">
             <div><p className="text-2xl font-bold text-slate-800">{pedidos?.length || 0}</p><p className="text-xs text-slate-500">Total pedidos</p></div>
             <div><p className="text-2xl font-bold text-slate-800">{totalEntregas}</p><p className="text-xs text-slate-500">Entregados</p></div>
-            <div className="col-span-2"><p className="text-xl font-bold text-blue-600">{formatCurrency(totalMonto)}</p><p className="text-xs text-slate-500">Monto total</p></div>
+            <div className="col-span-2"><p className="text-xl font-bold text-teal-600">{formatCurrency(totalMonto)}</p><p className="text-xs text-slate-500">Monto total</p></div>
           </div>
         </div>
       </div>
@@ -84,7 +84,7 @@ export default async function ConductorDetailPage({ params }: { params: { id: st
               {pedidos && pedidos.length > 0 ? pedidos.map((p: any) => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3">
-                    <Link href={`/pedidos/${p.id}`} className="text-blue-600 hover:underline text-sm font-medium">{p.numero}</Link>
+                    <Link href={`/pedidos/${p.id}`} className="text-teal-600 hover:underline text-sm font-medium">{p.numero}</Link>
                   </td>
                   <td className="px-5 py-3 text-sm text-slate-700">{p.clientes?.nombre}</td>
                   <td className="px-5 py-3 text-sm text-slate-500">{formatDate(p.fecha_pedido)}</td>

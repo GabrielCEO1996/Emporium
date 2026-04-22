@@ -139,11 +139,11 @@ export default async function DashboardPage() {
   // ── Estado colors ─────────────────────────────────────────────────────────
 
   const estadoColors: Record<string, string> = {
-    confirmado: 'bg-blue-100 text-blue-700',
+    confirmado: 'bg-teal-100 text-teal-700',
     en_ruta:    'bg-yellow-100 text-yellow-700',
     entregado:  'bg-green-100 text-green-700',
     facturado:  'bg-purple-100 text-purple-700',
-    emitida:    'bg-blue-100 text-blue-700',
+    emitida:    'bg-teal-100 text-teal-700',
     pagada:     'bg-green-100 text-green-700',
     anulada:    'bg-red-100 text-red-700',
   }
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/pedidos/nuevo"
-          className="hidden sm:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm shadow-blue-500/20 transition-colors"
+          className="hidden sm:inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm shadow-teal-500/20 transition-colors"
         >
           <ShoppingCart className="w-4 h-4" />
           Nuevo Pedido
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
       {/* ── Sales period cards (día / semana / mes) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Ventas Hoy', value: ventasHoy, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Ventas Hoy', value: ventasHoy, icon: Calendar, color: 'text-teal-600', bg: 'bg-teal-50' },
           { label: 'Esta Semana', value: ventasSemana, icon: TrendingUp, color: 'text-violet-600', bg: 'bg-violet-50' },
           { label: 'Este Mes', value: ventasMes, icon: ReceiptText, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(s => {
@@ -193,7 +193,7 @@ export default async function DashboardPage() {
       {/* ── Quick counters ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Pedidos', value: totalPedidos || 0, icon: ShoppingCart, bg: 'bg-blue-50', text: 'text-blue-600', href: '/pedidos' },
+          { label: 'Pedidos', value: totalPedidos || 0, icon: ShoppingCart, bg: 'bg-teal-50', text: 'text-teal-600', href: '/pedidos' },
           { label: 'Clientes', value: totalClientes || 0, icon: Users, bg: 'bg-emerald-50', text: 'text-emerald-600', href: '/clientes' },
           { label: 'Productos', value: totalProductos || 0, icon: Package, bg: 'bg-violet-50', text: 'text-violet-600', href: '/productos' },
           { label: 'Clientes Nuevos (mes)', value: clientesNuevosMes || 0, icon: Star, bg: 'bg-amber-50', text: 'text-amber-600', href: '/clientes' },
@@ -256,7 +256,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-1.5">
                     <div
-                      className="h-1.5 rounded-full bg-blue-500 transition-all"
+                      className="h-1.5 rounded-full bg-teal-500 transition-all"
                       style={{ width: `${(p.cantidad / maxCantidad) * 100}%` }}
                     />
                   </div>
@@ -282,7 +282,7 @@ export default async function DashboardPage() {
               <Clock className="w-4 h-4 text-slate-500" />
               <h2 className="font-semibold text-slate-800 text-sm">Pedidos Activos</h2>
             </div>
-            <Link href="/pedidos" className="text-blue-600 text-xs hover:underline font-medium">Ver todos →</Link>
+            <Link href="/pedidos" className="text-teal-600 text-xs hover:underline font-medium">Ver todos →</Link>
           </div>
           <div className="divide-y divide-slate-50">
             {pedidosPendientes && pedidosPendientes.length > 0 ? (
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
             )}
             {stockBajo && stockBajo.length > 0 && (
               <div className="px-5 py-3">
-                <Link href="/productos" className="text-xs text-blue-600 hover:underline font-medium">
+                <Link href="/productos" className="text-xs text-teal-600 hover:underline font-medium">
                   Ver todos los productos →
                 </Link>
               </div>
@@ -359,7 +359,7 @@ export default async function DashboardPage() {
             <ReceiptText className="w-4 h-4 text-slate-500" />
             <h2 className="font-semibold text-slate-800 text-sm">Facturas Recientes</h2>
           </div>
-          <Link href="/facturas" className="text-blue-600 text-xs hover:underline font-medium">Ver todas →</Link>
+          <Link href="/facturas" className="text-teal-600 text-xs hover:underline font-medium">Ver todas →</Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -377,7 +377,7 @@ export default async function DashboardPage() {
                 facturasRecientes.map((factura: any) => (
                   <tr key={factura.id} className="hover:bg-slate-50 transition">
                     <td className="px-5 py-3">
-                      <Link href={`/facturas/${factura.id}`} className="font-semibold text-blue-600 hover:underline text-sm">
+                      <Link href={`/facturas/${factura.id}`} className="font-semibold text-teal-600 hover:underline text-sm">
                         {factura.numero}
                       </Link>
                       <p className="text-xs text-slate-400 sm:hidden">{factura.clientes?.nombre}</p>

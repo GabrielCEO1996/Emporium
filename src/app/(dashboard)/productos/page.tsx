@@ -38,7 +38,7 @@ export default async function ProductosPage() {
           </div>
           <Link
             href="/productos/nuevo"
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Nuevo Producto
@@ -88,7 +88,7 @@ export default async function ProductosPage() {
 
 function StatCard({ label, value, color }: { label: string; value: string; color: 'blue' | 'green' | 'red' | 'yellow' }) {
   const colors = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    blue: 'bg-teal-50 text-teal-700 border-teal-200',
     green: 'bg-green-50 text-green-700 border-green-200',
     red: 'bg-red-50 text-red-700 border-red-200',
     yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',

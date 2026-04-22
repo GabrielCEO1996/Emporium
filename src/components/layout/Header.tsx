@@ -15,7 +15,7 @@ export default function Header({ title, profile }: HeaderProps) {
       <div className="flex items-center gap-3">
         {profile && (
           <div className="hidden sm:flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+            <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-semibold">
               {profile.nombre.charAt(0).toUpperCase()}
             </div>
             <div className="hidden md:block text-right">

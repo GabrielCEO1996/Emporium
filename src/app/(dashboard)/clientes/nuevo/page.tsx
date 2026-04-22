@@ -8,7 +8,7 @@ export default function NuevoClientePage() {
       {/* Header */}
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
-          <Link href="/clientes" className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
+          <Link href="/clientes" className="flex items-center gap-1.5 hover:text-teal-600 transition-colors">
             <Users className="h-3.5 w-3.5" />
             Clientes
           </Link>

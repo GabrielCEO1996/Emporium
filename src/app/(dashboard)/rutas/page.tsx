@@ -34,7 +34,7 @@ export default async function RutasPage() {
         </div>
         <Link
           href="/rutas/conductores/nuevo"
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           Nuevo Conductor
@@ -53,7 +53,7 @@ export default async function RutasPage() {
               <Link key={c.id} href={`/rutas/conductores/${c.id}`}>
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition cursor-pointer">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                    <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
                       {c.nombre.charAt(0)}
                     </div>
                     <div>
@@ -104,7 +104,7 @@ export default async function RutasPage() {
                 <div key={pedido.id} className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Link href={`/pedidos/${pedido.id}`} className="font-semibold text-blue-600 hover:underline text-sm">
+                      <Link href={`/pedidos/${pedido.id}`} className="font-semibold text-teal-600 hover:underline text-sm">
                         {pedido.numero}
                       </Link>
                       {pedido.fecha_entrega_estimada && (
@@ -142,7 +142,7 @@ export default async function RutasPage() {
       {/* Pedidos en ruta */}
       <div>
         <h2 className="text-base font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <Truck className="w-4 h-4 text-blue-500" />
+          <Truck className="w-4 h-4 text-teal-500" />
           Pedidos Asignados / En Ruta ({pedidosEnRuta?.length || 0})
         </h2>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -161,7 +161,7 @@ export default async function RutasPage() {
                 {pedidosEnRuta && pedidosEnRuta.length > 0 ? pedidosEnRuta.map((p: any) => (
                   <tr key={p.id} className="hover:bg-slate-50 transition">
                     <td className="px-5 py-3">
-                      <Link href={`/pedidos/${p.id}`} className="font-medium text-blue-600 hover:underline text-sm">{p.numero}</Link>
+                      <Link href={`/pedidos/${p.id}`} className="font-medium text-teal-600 hover:underline text-sm">{p.numero}</Link>
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-700">
                       <p>{p.clientes?.nombre}</p>

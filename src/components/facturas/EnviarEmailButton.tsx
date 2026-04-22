@@ -67,7 +67,7 @@ export default function EnviarEmailButton({ facturaId, clienteEmail, clienteId }
         onClick={handleSend}
         disabled={loading}
         title={`Enviar a ${clienteEmail}`}
-        className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors disabled:opacity-60"
+        className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 px-4 py-2 text-sm font-medium text-teal-700 transition-colors disabled:opacity-60"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
         {loading ? 'Enviando...' : 'Enviar por Email'}

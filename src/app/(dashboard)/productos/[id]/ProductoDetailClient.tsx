@@ -177,7 +177,7 @@ export default function ProductoDetailClient({ producto }: Props) {
         <div className="border-b border-slate-200 px-6 py-4">
           <h2 className="text-base font-semibold text-slate-900">
             Presentaciones{' '}
-            <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+            <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700">
               {pres.length}
             </span>
           </h2>
@@ -189,7 +189,7 @@ export default function ProductoDetailClient({ producto }: Props) {
             <p className="text-slate-500">No hay presentaciones registradas</p>
             <button
               onClick={() => setMode('edit')}
-              className="mt-3 text-sm font-medium text-blue-600 hover:underline"
+              className="mt-3 text-sm font-medium text-teal-600 hover:underline"
             >
               Agregar presentaciones
             </button>

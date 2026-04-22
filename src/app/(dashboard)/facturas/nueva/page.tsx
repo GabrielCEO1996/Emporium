@@ -84,9 +84,9 @@ function ClienteSelector({
 
   if (value) {
     return (
-      <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-xl px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">{value.nombre.charAt(0)}</span>
           </div>
           <div>
@@ -116,7 +116,7 @@ function ClienteSelector({
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder="Buscar cliente por nombre..."
-          className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full border border-slate-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
         />
         {loading && (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
@@ -130,7 +130,7 @@ function ClienteSelector({
               <button
                 key={c.id}
                 onClick={() => { onChange(c); setOpen(false); setQuery('') }}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition text-left border-b border-slate-50 last:border-0"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-teal-50 transition text-left border-b border-slate-50 last:border-0"
               >
                 <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="text-slate-600 font-semibold text-xs">{c.nombre.charAt(0)}</span>
@@ -199,7 +199,7 @@ function ProductoSearchRow({ onAdd }: { onAdd: (p: Presentacion) => void }) {
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder="Buscar producto o presentación para agregar..."
-          className="w-full border border-dashed border-slate-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 hover:bg-white transition"
+          className="w-full border border-dashed border-slate-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-slate-50 hover:bg-white transition"
         />
         {loading && (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
@@ -219,7 +219,7 @@ function ProductoSearchRow({ onAdd }: { onAdd: (p: Presentacion) => void }) {
                   setResults([])
                   setOpen(false)
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50 transition text-left border-b border-slate-50 last:border-0"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-teal-50 transition text-left border-b border-slate-50 last:border-0"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-slate-800 text-sm">
@@ -230,7 +230,7 @@ function ProductoSearchRow({ onAdd }: { onAdd: (p: Presentacion) => void }) {
                   </p>
                 </div>
                 <div className="flex-shrink-0 ml-4 text-right">
-                  <p className="font-semibold text-blue-700 text-sm">{formatCurrency(p.precio)}</p>
+                  <p className="font-semibold text-teal-700 text-sm">{formatCurrency(p.precio)}</p>
                   <span className="text-xs text-slate-400">por {p.unidad}</span>
                 </div>
               </button>
@@ -372,7 +372,7 @@ export default function NuevaFacturaPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
+            <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
               <ReceiptText className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -388,7 +388,7 @@ export default function NuevaFacturaPage() {
         {/* ── Paso 1: Cliente ── */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50">
-            <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center">
+            <div className="w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xs font-bold">1</span>
             </div>
             <h2 className="font-semibold text-slate-700">Cliente</h2>
@@ -400,7 +400,7 @@ export default function NuevaFacturaPage() {
             <ClienteSelector value={cliente} onChange={setCliente} />
             <p className="text-xs text-slate-400 mt-2">
               ¿Cliente nuevo?{' '}
-              <Link href="/clientes/nuevo" target="_blank" className="text-blue-600 hover:underline">
+              <Link href="/clientes/nuevo" target="_blank" className="text-teal-600 hover:underline">
                 Créalo aquí →
               </Link>
             </p>
@@ -410,12 +410,12 @@ export default function NuevaFacturaPage() {
         {/* ── Paso 2: Productos ── */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50">
-            <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center">
+            <div className="w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xs font-bold">2</span>
             </div>
             <h2 className="font-semibold text-slate-700">Productos</h2>
             {items.length > 0 && (
-              <span className="ml-auto text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+              <span className="ml-auto text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-medium">
                 {items.length} ítem{items.length > 1 ? 's' : ''}
               </span>
             )}
@@ -460,7 +460,7 @@ export default function NuevaFacturaPage() {
                               min={1}
                               value={item.cantidad}
                               onChange={e => updateItem(idx, 'cantidad', e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                             />
                           </div>
                           <div>
@@ -471,7 +471,7 @@ export default function NuevaFacturaPage() {
                               step="0.01"
                               value={item.precio_unitario}
                               onChange={e => updateItem(idx, 'precio_unitario', e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal-500"
                             />
                           </div>
                           <div>
@@ -482,7 +482,7 @@ export default function NuevaFacturaPage() {
                               max={100}
                               value={item.descuento}
                               onChange={e => updateItem(idx, 'descuento', e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                             />
                           </div>
                         </div>
@@ -508,7 +508,7 @@ export default function NuevaFacturaPage() {
                             min={1}
                             value={item.cantidad}
                             onChange={e => updateItem(idx, 'cantidad', e.target.value)}
-                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                           />
                         </div>
                         <div className="col-span-2 text-right">
@@ -518,7 +518,7 @@ export default function NuevaFacturaPage() {
                             step="0.01"
                             value={item.precio_unitario}
                             onChange={e => updateItem(idx, 'precio_unitario', e.target.value)}
-                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal-500"
                           />
                         </div>
                         <div className="col-span-1">
@@ -528,7 +528,7 @@ export default function NuevaFacturaPage() {
                             max={100}
                             value={item.descuento}
                             onChange={e => updateItem(idx, 'descuento', e.target.value)}
-                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-500"
                           />
                         </div>
                         <div className="col-span-1 text-right">
@@ -563,7 +563,7 @@ export default function NuevaFacturaPage() {
         {/* ── Paso 3: Totales y opciones ── */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 bg-slate-50">
-            <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center">
+            <div className="w-6 h-6 bg-teal-600 rounded-full flex items-center justify-center">
               <span className="text-white text-xs font-bold">3</span>
             </div>
             <h2 className="font-semibold text-slate-700">Totales y Opciones</h2>
@@ -583,7 +583,7 @@ export default function NuevaFacturaPage() {
                     step="0.01"
                     value={descuentoGlobal}
                     onChange={e => setDescuentoGlobal(Number(e.target.value))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
 
@@ -595,7 +595,7 @@ export default function NuevaFacturaPage() {
                     type="date"
                     value={fechaVencimiento}
                     onChange={e => setFechaVencimiento(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
 
@@ -608,7 +608,7 @@ export default function NuevaFacturaPage() {
                     value={notas}
                     onChange={e => setNotas(e.target.value)}
                     placeholder="Condiciones de pago, instrucciones especiales..."
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
                   />
                 </div>
               </div>
@@ -616,8 +616,8 @@ export default function NuevaFacturaPage() {
               {/* Right: totals summary */}
               <div>
                 <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
-                  <div className="px-5 py-3 bg-indigo-600">
-                    <p className="text-xs font-bold text-indigo-200 uppercase tracking-wider">Resumen</p>
+                  <div className="px-5 py-3 bg-teal-600">
+                    <p className="text-xs font-bold text-teal-200 uppercase tracking-wider">Resumen</p>
                   </div>
                   <div className="p-5 space-y-3">
                     <div className="flex justify-between text-sm">
@@ -632,7 +632,7 @@ export default function NuevaFacturaPage() {
                     )}
                     <div className="border-t border-slate-200 pt-3 flex justify-between">
                       <span className="font-bold text-slate-800 text-base">TOTAL</span>
-                      <span className="font-bold text-indigo-700 text-xl">{formatCurrency(total)}</span>
+                      <span className="font-bold text-teal-700 text-xl">{formatCurrency(total)}</span>
                     </div>
                   </div>
                 </div>
@@ -664,7 +664,7 @@ export default function NuevaFacturaPage() {
               'flex-1 flex items-center justify-center gap-2 px-8 py-3 rounded-xl font-semibold text-sm transition shadow-sm',
               loading || !cliente || items.length === 0
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/20'
+                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-500/20'
             )}
           >
             {loading ? (

@@ -81,7 +81,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
             <select
               name="cliente_id"
               defaultValue={cliente_id || ''}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="">Todos los clientes</option>
               {clientes?.map(c => (
@@ -95,7 +95,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
               type="date"
               name="fecha_inicio"
               defaultValue={fecha_inicio || ''}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
@@ -104,7 +104,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
               type="date"
               name="fecha_fin"
               defaultValue={fecha_fin || ''}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
@@ -112,7 +112,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
             <select
               name="tipo"
               defaultValue={tipo}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="facturas">Facturas</option>
               <option value="pedidos">Pedidos</option>
@@ -122,7 +122,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
         <div className="mt-4 flex gap-2">
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             Filtrar
           </button>
@@ -136,7 +136,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
           <div className="flex items-center gap-3 mb-2">
-            <ShoppingCart className="w-5 h-5 text-blue-500" />
+            <ShoppingCart className="w-5 h-5 text-teal-500" />
             <p className="text-sm text-slate-500">Pedidos encontrados</p>
           </div>
           <p className="text-2xl font-bold text-slate-800">{totalPedidos}</p>
@@ -183,7 +183,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
                 {facturas && facturas.length > 0 ? facturas.map((f: any) => (
                   <tr key={f.id} className="hover:bg-slate-50 transition">
                     <td className="px-5 py-3">
-                      <Link href={`/facturas/${f.id}`} className="font-medium text-blue-600 hover:underline text-sm">{f.numero}</Link>
+                      <Link href={`/facturas/${f.id}`} className="font-medium text-teal-600 hover:underline text-sm">{f.numero}</Link>
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-700">{f.clientes?.nombre}</td>
                     <td className="px-5 py-3 text-sm text-slate-500">{formatDate(f.fecha_emision)}</td>
@@ -219,7 +219,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
                 {pedidos && pedidos.length > 0 ? pedidos.map((p: any) => (
                   <tr key={p.id} className="hover:bg-slate-50 transition">
                     <td className="px-5 py-3">
-                      <Link href={`/pedidos/${p.id}`} className="font-medium text-blue-600 hover:underline text-sm">{p.numero}</Link>
+                      <Link href={`/pedidos/${p.id}`} className="font-medium text-teal-600 hover:underline text-sm">{p.numero}</Link>
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-700">{p.clientes?.nombre}</td>
                     <td className="px-5 py-3 text-sm text-slate-500">{formatDate(p.fecha_pedido)}</td>

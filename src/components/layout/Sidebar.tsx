@@ -79,8 +79,8 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
         className={cn(
           'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
           isActive
-            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-            : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
+            ? 'bg-teal-600 text-white shadow-md shadow-teal-500/30'
+            : 'text-slate-600 hover:text-teal-700 hover:bg-teal-50'
         )}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
@@ -88,7 +88,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
         {item.href === '/productos' && stockAlertas > 0 && (
           <span className={cn(
             'flex-shrink-0 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center',
-            isActive ? 'bg-white text-blue-600' : 'bg-red-500 text-white',
+            isActive ? 'bg-white text-teal-600' : 'bg-red-500 text-white',
             collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'
           )}>
             {stockAlertas > 9 ? '9+' : stockAlertas}
@@ -107,7 +107,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       )}>
         {!collapsed && (
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+            <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/30">
               <Package2 className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -117,7 +117,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
           </div>
         )}
         {collapsed && (
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
             <Package2 className="w-5 h-5 text-white" />
           </div>
         )}
@@ -152,7 +152,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
           <div className="px-3 py-2 rounded-xl bg-slate-50">
             <p className="text-xs text-slate-500 mb-0.5">Sesión activa</p>
             <p className="text-sm text-slate-900 font-semibold truncate">{profile.nombre}</p>
-            <p className="text-xs text-blue-600 capitalize">{profile.rol}</p>
+            <p className="text-xs text-teal-600 capitalize">{profile.rol}</p>
           </div>
         )}
         <button
@@ -170,7 +170,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
     <>
       {/* ── Mobile hamburger button ── */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 bg-blue-600 p-2.5 rounded-xl text-white shadow-lg active:scale-95 transition-transform"
+        className="lg:hidden fixed top-4 left-4 z-50 bg-teal-600 p-2.5 rounded-xl text-white shadow-lg active:scale-95 transition-transform"
         onClick={() => setMobileOpen(true)}
         aria-label="Abrir menú"
       >
@@ -216,7 +216,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
               href={item.href}
               className={cn(
                 'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0 flex-1 relative',
-                isActive ? 'text-blue-600' : 'text-slate-500'
+                isActive ? 'text-teal-600' : 'text-slate-500'
               )}
             >
               <div className="relative">
@@ -231,7 +231,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
                 {item.shortLabel || item.label}
               </span>
               {isActive && (
-                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full" />
+                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-600 rounded-full" />
               )}
             </Link>
           )

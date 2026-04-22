@@ -104,13 +104,13 @@ export default function NuevaNotaCreditoPage() {
               value={facturaId}
               onChange={e => setFacturaId(e.target.value)}
               placeholder="Pegar el ID de la factura"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           {facturaInfo && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-              <p className="font-medium text-blue-800">{facturaInfo.numero}</p>
-              <p className="text-blue-600">{facturaInfo.clientes?.nombre} — Total: {formatCurrency(facturaInfo.total)}</p>
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-sm">
+              <p className="font-medium text-teal-800">{facturaInfo.numero}</p>
+              <p className="text-teal-600">{facturaInfo.clientes?.nombre} — Total: {formatCurrency(facturaInfo.total)}</p>
             </div>
           )}
         </div>
@@ -124,7 +124,7 @@ export default function NuevaNotaCreditoPage() {
               <select
                 value={tipo}
                 onChange={e => setTipo(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 <option value="devolucion">Devolución</option>
                 <option value="descuento">Descuento</option>
@@ -136,7 +136,7 @@ export default function NuevaNotaCreditoPage() {
               <input
                 value={notas}
                 onChange={e => setNotas(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function NuevaNotaCreditoPage() {
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               rows={2}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               placeholder="Describa el motivo de la nota de crédito..."
             />
           </div>
@@ -159,7 +159,7 @@ export default function NuevaNotaCreditoPage() {
             <button
               type="button"
               onClick={() => setItems(p => [...p, { descripcion: '', cantidad: 1, precio_unitario: 0, subtotal: 0 }])}
-              className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
+              className="text-teal-600 hover:text-teal-700 text-sm flex items-center gap-1"
             >
               <Plus className="w-4 h-4" /> Agregar
             </button>
@@ -172,14 +172,14 @@ export default function NuevaNotaCreditoPage() {
                   value={item.descripcion}
                   onChange={e => updateItem(i, 'descripcion', e.target.value)}
                   placeholder="Descripción"
-                  className="col-span-5 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="col-span-5 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <input
                   type="number"
                   value={item.cantidad}
                   onChange={e => updateItem(i, 'cantidad', Number(e.target.value))}
                   min={1}
-                  className="col-span-2 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="col-span-2 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <input
                   type="number"
@@ -187,7 +187,7 @@ export default function NuevaNotaCreditoPage() {
                   onChange={e => updateItem(i, 'precio_unitario', Number(e.target.value))}
                   min={0}
                   step="0.01"
-                  className="col-span-3 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="col-span-3 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <div className="col-span-1 text-right text-sm font-medium text-slate-700">
                   {formatCurrency(item.subtotal)}
@@ -216,7 +216,7 @@ export default function NuevaNotaCreditoPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-3 rounded-lg transition-colors"
+          className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-semibold py-3 rounded-lg transition-colors"
         >
           {loading ? 'Guardando...' : 'Emitir Nota de Crédito'}
         </button>

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
 import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
+import MarcarEnviadaButton from '@/components/facturas/MarcarEnviadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
 import EnviarEmailButton from '@/components/facturas/EnviarEmailButton'
@@ -78,7 +79,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
             </Link>
             <span className="text-slate-300">/</span>
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
                 <FileText className="h-4 w-4 text-white" />
               </div>
               <span className="font-mono font-semibold text-slate-900">{f.numero}</span>
@@ -108,7 +109,11 @@ export default async function FacturaDetailPage({ params }: PageProps) {
             />
             <FacturaPrintButton factura={f} empresaConfig={empresaConfig ?? undefined} />
 
-            {f.estado !== 'pagada' && f.estado !== 'anulada' && (
+            {f.estado === 'emitida' && (
+              <MarcarEnviadaButton facturaId={f.id} />
+            )}
+
+            {(f.estado === 'enviada' || f.estado === 'emitida') && (
               <MarcarPagadaButton facturaId={f.id} />
             )}
 
@@ -171,7 +176,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
                     <dd>
                       <Link
                         href={`/pedidos/${f.pedido_id}`}
-                        className="text-indigo-600 hover:underline"
+                        className="text-teal-600 hover:underline"
                       >
                         Ver pedido
                       </Link>

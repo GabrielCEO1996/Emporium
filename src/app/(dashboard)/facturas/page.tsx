@@ -67,7 +67,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
     : allFacturas
 
   // Summary stats
-  const totalEmitidas = allFacturas.filter((f) => f.estado === 'emitida').length
+  const totalEmitidas = allFacturas.filter((f) => f.estado === 'emitida' || f.estado === 'enviada').length
   const totalPagadas = allFacturas.filter((f) => f.estado === 'pagada').length
   const totalAnuladas = allFacturas.filter((f) => f.estado === 'anulada').length
   const totalVencidas = allFacturas.filter(isOverdue).length
@@ -80,7 +80,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600">
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -92,7 +92,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
           </div>
           <Link
             href="/facturas/nueva"
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Nueva Factura
@@ -105,7 +105,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg bg-white border border-slate-200 p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-4 w-4 text-blue-500" />
+              <Clock className="h-4 w-4 text-teal-500" />
               <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Emitidas</span>
             </div>
             <p className="text-2xl font-bold text-slate-900">{totalEmitidas}</p>
@@ -161,10 +161,11 @@ export default async function FacturasPage({ searchParams }: PageProps) {
               <select
                 name="estado"
                 defaultValue={estadoFilter}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               >
                 <option value="">Todos los estados</option>
                 <option value="emitida">Emitida</option>
+                <option value="enviada">Enviada</option>
                 <option value="pagada">Pagada</option>
                 <option value="anulada">Anulada</option>
                 <option value="con_nota_credito">Con Nota de Crédito</option>
@@ -179,7 +180,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 type="text"
                 defaultValue={clienteFilter}
                 placeholder="Buscar cliente..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
             <div>
@@ -190,7 +191,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 name="desde"
                 type="date"
                 defaultValue={desdeFilter}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
             <div>
@@ -201,14 +202,14 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 name="hasta"
                 type="date"
                 defaultValue={hastaFilter}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
           </div>
           <div className="mt-3 flex gap-2">
             <button
               type="submit"
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+              className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
             >
               Filtrar
             </button>
@@ -275,7 +276,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                       <td className="px-4 py-3">
                         <Link
                           href={`/facturas/${factura.id}`}
-                          className="font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                          className="font-mono font-semibold text-teal-600 hover:text-teal-800 hover:underline"
                         >
                           {factura.numero}
                         </Link>
@@ -355,7 +356,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="font-mono font-semibold text-indigo-600">{factura.numero}</p>
+                      <p className="font-mono font-semibold text-teal-600">{factura.numero}</p>
                       <p className="text-sm font-medium text-slate-900">
                         {factura.cliente?.nombre ?? '—'}
                       </p>

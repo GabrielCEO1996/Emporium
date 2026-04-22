@@ -79,7 +79,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       {/* Header */}
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
-          <Link href="/clientes" className="flex items-center gap-1.5 hover:text-blue-600 transition-colors">
+          <Link href="/clientes" className="flex items-center gap-1.5 hover:text-teal-600 transition-colors">
             <Users className="h-3.5 w-3.5" />
             Clientes
           </Link>
@@ -89,7 +89,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white text-lg font-bold shrink-0">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-600 text-white text-lg font-bold shrink-0">
               {c.nombre.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -135,8 +135,8 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Pedidos</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{totalPedidos}</p>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50">
-                <ShoppingCart className="h-5 w-5 text-blue-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-50">
+                <ShoppingCart className="h-5 w-5 text-teal-600" />
               </div>
             </div>
           </div>
@@ -230,7 +230,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <ShoppingCart className="h-4 w-4 text-blue-600" />
+                  <ShoppingCart className="h-4 w-4 text-teal-600" />
                   Historial de Pedidos
                   <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                     Últimos 5
@@ -239,7 +239,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                 {totalPedidos > 5 && (
                   <Link
                     href={`/pedidos?cliente=${c.id}`}
-                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                    className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700"
                   >
                     Ver todos
                     <ArrowRight className="h-3.5 w-3.5" />
@@ -256,7 +256,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   <p className="mt-1 text-xs text-slate-500">Este cliente no tiene pedidos registrados.</p>
                   <Link
                     href={`/pedidos/nuevo?cliente=${c.id}`}
-                    className="mt-4 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                    className="mt-4 flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-700"
                   >
                     Crear primer pedido
                     <ArrowRight className="h-3.5 w-3.5" />

@@ -59,7 +59,7 @@ export default function ProductosTable({ productos }: Props) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por nombre o categoría..."
-            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
           />
         </div>
       </div>
@@ -107,8 +107,8 @@ export default function ProductosTable({ productos }: Props) {
                           {producto.imagen_url ? (
                             <img src={producto.imagen_url} alt={producto.nombre} className="h-full w-full object-cover" />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-blue-50">
-                              <Package2 className="h-5 w-5 text-blue-400" />
+                            <div className="flex h-full w-full items-center justify-center bg-teal-50">
+                              <Package2 className="h-5 w-5 text-teal-400" />
                             </div>
                           )}
                         </div>
@@ -131,7 +131,7 @@ export default function ProductosTable({ productos }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700">
                         {pres.length}
                       </span>
                     </td>
@@ -154,7 +154,7 @@ export default function ProductosTable({ productos }: Props) {
                     <td className="px-4 py-3">
                       <Link
                         href={`/productos/${producto.id}`}
-                        className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50 transition-colors"
                       >
                         Ver
                         <ChevronRight className="h-3.5 w-3.5" />

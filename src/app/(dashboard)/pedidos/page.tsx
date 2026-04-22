@@ -16,7 +16,9 @@ import {
   Clock,
   CheckCircle2,
   Truck,
+  FileText,
 } from 'lucide-react'
+import GenerarFacturaButton from '@/components/pedidos/GenerarFacturaButton'
 
 interface PageProps {
   searchParams: {
@@ -52,7 +54,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       notas,
       cliente:clientes(id, nombre, rif),
       conductor:conductores(id, nombre),
-      facturas(id)
+      facturas(id, numero)
     `
     )
     .order('fecha_pedido', { ascending: false })
@@ -94,7 +96,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600">
               <ShoppingCart className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -106,7 +108,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
           </div>
           <Link
             href="/pedidos/nuevo"
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
           >
             <Plus className="h-4 w-4" />
             Nuevo Pedido
@@ -127,8 +129,8 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                   {formatCurrency(totalVentas)}
                 </p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50">
+                <TrendingUp className="h-4 w-4 text-teal-600" />
               </div>
             </div>
           </div>
@@ -153,12 +155,12 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                   Confirmados
                 </p>
-                <p className="mt-1 text-xl font-bold text-blue-700">
+                <p className="mt-1 text-xl font-bold text-teal-700">
                   {confirmados}
                 </p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50">
-                <CheckCircle2 className="h-4 w-4 text-blue-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50">
+                <CheckCircle2 className="h-4 w-4 text-teal-600" />
               </div>
             </div>
           </div>
@@ -184,7 +186,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
           <select
             name="estado"
             defaultValue={estadoFilter}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
           >
             <option value="">Todos los estados</option>
             {Object.entries(ESTADO_PEDIDO_LABELS).map(([value, label]) => (
@@ -200,7 +202,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
               type="date"
               name="fecha_inicio"
               defaultValue={fechaInicio}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
 
@@ -210,7 +212,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
               type="date"
               name="fecha_fin"
               defaultValue={fechaFin}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
 
@@ -256,7 +258,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
               {!hasFilters && (
                 <Link
                   href="/pedidos/nuevo"
-                  className="mt-5 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="mt-5 flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
                 >
                   <Plus className="h-4 w-4" />
                   Nuevo Pedido
@@ -326,23 +328,13 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                           )}
                         </td>
                         <td className="px-5 py-4">
-                          {pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
-                            <Link
-                              href={`/facturas/${pedido.facturas[0].id}`}
-                              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
-                            >
-                              Facturado ↗
-                            </Link>
-                          ) : (
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                ESTADO_PEDIDO_COLORS[pedido.estado] ??
-                                'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
-                            </span>
-                          )}
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              ESTADO_PEDIDO_COLORS[pedido.estado] ?? 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
+                          </span>
                         </td>
                         <td className="px-5 py-4 text-slate-600">
                           {pedido.conductor?.nombre ? (
@@ -358,13 +350,28 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                           {formatCurrency(pedido.total ?? 0)}
                         </td>
                         <td className="px-5 py-4">
-                          <Link
-                            href={`/pedidos/${pedido.id}`}
-                            className="flex items-center justify-end gap-1 text-xs font-medium text-blue-600 opacity-0 transition-opacity group-hover:opacity-100"
-                          >
-                            Ver detalle
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Link>
+                          {pedido.estado === 'confirmado' ? (
+                            <GenerarFacturaButton
+                              pedidoId={pedido.id}
+                              clienteId={pedido.cliente?.id ?? ''}
+                            />
+                          ) : pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
+                            <Link
+                              href={`/facturas/${pedido.facturas[0].id}`}
+                              className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              {pedido.facturas[0].numero ?? 'Ver Factura'}
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/pedidos/${pedido.id}`}
+                              className="flex items-center justify-end gap-1 text-xs font-medium text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-teal-600"
+                            >
+                              Ver detalle
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -385,20 +392,13 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                         <span className="font-mono text-sm font-semibold text-slate-900">
                           #{pedido.numero}
                         </span>
-                        {pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
-                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700">
-                            Facturado ↗
-                          </span>
-                        ) : (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              ESTADO_PEDIDO_COLORS[pedido.estado] ??
-                              'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
-                          </span>
-                        )}
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            ESTADO_PEDIDO_COLORS[pedido.estado] ?? 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
+                        </span>
                       </div>
                       <p className="mt-0.5 text-sm text-slate-700 truncate">
                         {pedido.cliente?.nombre ?? '—'}

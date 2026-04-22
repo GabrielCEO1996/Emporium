@@ -25,7 +25,7 @@ export default async function ConfiguracionPage() {
     <div className="min-h-full bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600">
             <Settings className="h-5 w-5 text-white" />
           </div>
           <div>

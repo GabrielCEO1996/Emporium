@@ -71,12 +71,12 @@ export default function LoginPage() {
   const busy = loading || googleLoading
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-500/30">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-600 rounded-2xl mb-4 shadow-lg shadow-teal-500/30">
             <Package2 className="w-9 h-9 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Emporium</h1>
@@ -119,7 +119,7 @@ export default function LoginPage() {
                 required
                 autoComplete="email"
                 disabled={busy}
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-50"
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition disabled:opacity-50"
                 placeholder="usuario@empresa.com"
               />
             </div>
@@ -131,7 +131,7 @@ export default function LoginPage() {
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
                 >
                   ¿Olvidaste tu contraseña?
                 </Link>
@@ -145,7 +145,7 @@ export default function LoginPage() {
                   required
                   autoComplete="current-password"
                   disabled={busy}
-                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:opacity-50"
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 pr-12 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition disabled:opacity-50"
                   placeholder="••••••••"
                 />
                 <button
@@ -169,7 +169,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
+              className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-teal-500/20"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? 'Ingresando...' : 'Ingresar'}
@@ -179,7 +179,7 @@ export default function LoginPage() {
           {/* ── Crear cuenta ── */}
           <p className="text-center text-sm text-slate-400">
             ¿No tienes cuenta?{' '}
-            <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
+            <Link href="/signup" className="text-teal-400 hover:text-teal-300 font-medium transition-colors">
               Crear cuenta
             </Link>
           </p>

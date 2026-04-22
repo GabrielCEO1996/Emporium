@@ -73,7 +73,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
           <Link
             href="/pedidos"
-            className="flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-1.5 hover:text-teal-600 transition-colors"
           >
             <ShoppingCart className="h-3.5 w-3.5" />
             Pedidos
@@ -84,7 +84,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shrink-0">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-600 shrink-0">
               <ShoppingCart className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -138,11 +138,11 @@ export default async function PedidoDetailPage({ params }: PageProps) {
               {formatCurrency(p.descuento)}
             </p>
           </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm col-span-2 sm:col-span-1">
-            <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
+          <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 shadow-sm col-span-2 sm:col-span-1">
+            <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">
               Total
             </p>
-            <p className="mt-1 text-lg font-bold text-blue-700">
+            <p className="mt-1 text-lg font-bold text-teal-700">
               {formatCurrency(p.total)}
             </p>
           </div>
@@ -164,7 +164,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
                   <>
                     <Link
                       href={`/clientes/${p.cliente.id}`}
-                      className="font-medium text-blue-600 hover:text-blue-700 text-sm"
+                      className="font-medium text-teal-600 hover:text-teal-700 text-sm"
                     >
                       {p.cliente.nombre}
                     </Link>
@@ -270,7 +270,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
           <div className="lg:col-span-2">
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="border-b border-slate-100 px-5 py-4 flex items-center gap-2">
-                <Package className="h-4 w-4 text-blue-600" />
+                <Package className="h-4 w-4 text-teal-600" />
                 <h2 className="text-sm font-semibold text-slate-900">
                   Ítems del pedido
                 </h2>
@@ -359,7 +359,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
                       )}
                       <div className="flex justify-between w-48 border-t border-slate-200 pt-1.5 mt-0.5">
                         <span className="font-semibold text-slate-900">Total</span>
-                        <span className="font-bold text-blue-700">
+                        <span className="font-bold text-teal-700">
                           {formatCurrency(p.total)}
                         </span>
                       </div>
