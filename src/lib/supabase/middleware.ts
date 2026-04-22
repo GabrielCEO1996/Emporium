@@ -1,6 +1,26 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Paths that never require auth
+const PUBLIC_PATHS = [
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/auth/callback',
+]
+
+// Dashboard paths only accessible to staff roles (admin | vendedor | conductor)
+const DASHBOARD_PREFIX = '/dashboard'
+
+// Admin-only paths within the dashboard
+const ADMIN_ONLY_PATHS = [
+  '/equipo',
+  '/empresa',
+  '/compras',
+  '/proveedores',
+]
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -31,23 +51,78 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Rutas públicas
+  // ── Always allow public routes and API ──────────────────────────────────────
   if (
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/signup') ||
+    PUBLIC_PATHS.some(p => pathname.startsWith(p)) ||
     pathname.startsWith('/api') ||
-    pathname.startsWith('/auth/callback') ||
-    pathname.startsWith('/forgot-password') ||
-    pathname.startsWith('/reset-password')
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon')
   ) {
     return supabaseResponse
   }
 
-  // Redirigir a login si no está autenticado
+  // ── Not authenticated → login ───────────────────────────────────────────────
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // ── Fetch role only for paths that need it ──────────────────────────────────
+  // (skip for static assets, API, etc.)
+  const needsRoleCheck =
+    pathname.startsWith('/mi-cuenta') ||
+    pathname === '/' ||
+    pathname.startsWith('/pendiente') ||
+    // Everything under the (dashboard) route group
+    (!PUBLIC_PATHS.some(p => pathname.startsWith(p)) && !pathname.startsWith('/api'))
+
+  if (!needsRoleCheck) return supabaseResponse
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+
+  const rol = profile?.rol ?? 'cliente'
+
+  // ── Role-based routing ──────────────────────────────────────────────────────
+
+  // cliente role: can only access /mi-cuenta
+  if (rol === 'cliente') {
+    if (!pathname.startsWith('/mi-cuenta')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/mi-cuenta'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // pendiente role: can only access /pendiente
+  if (rol === 'pendiente') {
+    if (!pathname.startsWith('/pendiente')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/pendiente'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // Staff roles (admin | vendedor | conductor): redirect away from client-only pages
+  if (['admin', 'vendedor', 'conductor'].includes(rol)) {
+    if (pathname.startsWith('/mi-cuenta') || pathname.startsWith('/pendiente')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+
+    // vendedor & conductor cannot access admin-only paths
+    if (rol !== 'admin' && ADMIN_ONLY_PATHS.some(p => pathname.startsWith(p))) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

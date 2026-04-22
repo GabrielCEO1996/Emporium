@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, Shield, ShoppingBag, Truck, Clock, UserCheck, UserX } from 'lucide-react'
+import { CheckCircle2, XCircle, Shield, ShoppingBag, Truck, Clock, UserCheck, UserX, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Profile, Rol } from '@/lib/types'
 
@@ -10,6 +10,7 @@ const ROL_CONFIG: Record<string, { label: string; color: string; icon: React.Rea
   vendedor:  { label: 'Vendedor',  color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',         icon: <ShoppingBag className="w-3 h-3" /> },
   conductor: { label: 'Conductor', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',     icon: <Truck className="w-3 h-3" /> },
   pendiente: { label: 'Pendiente', color: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',        icon: <Clock className="w-3 h-3" /> },
+  cliente:   { label: 'Cliente',   color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',            icon: <Users className="w-3 h-3" /> },
 }
 
 interface Props {
@@ -40,7 +41,8 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
   }
 
   const pendientes = profiles.filter(p => p.rol === 'pendiente')
-  const activos = profiles.filter(p => p.rol !== 'pendiente')
+  const clientes = profiles.filter(p => p.rol === 'cliente')
+  const activos = profiles.filter(p => p.rol !== 'pendiente' && p.rol !== 'cliente')
 
   return (
     <div className="space-y-6">
@@ -86,6 +88,48 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
                     >
                       <UserX className="w-3.5 h-3.5" />
                       Rechazar
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Clientes registrados (solicitudes de acceso pendientes o solo portal) ── */}
+      {isAdmin && clientes.length > 0 && (
+        <div className="bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-sky-200 dark:border-sky-800">
+            <Users className="w-4 h-4 text-sky-600" />
+            <h2 className="font-semibold text-sm text-sky-800 dark:text-sky-300">
+              Clientes registrados
+            </h2>
+            <span className="ml-1 bg-sky-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {clientes.length}
+            </span>
+          </div>
+          <div className="divide-y divide-sky-100 dark:divide-sky-800/50">
+            {clientes.map(p => {
+              const busy = saving === p.id
+              return (
+                <div key={p.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <div className="w-9 h-9 rounded-full bg-sky-200 dark:bg-sky-800 flex items-center justify-center text-sky-700 dark:text-sky-300 font-bold text-sm flex-shrink-0">
+                    {p.nombre?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{p.nombre}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      disabled={busy}
+                      onClick={() => update(p.id, { rol: 'vendedor' as Rol, activo: true })}
+                      title="Dar acceso como vendedor"
+                      className="flex items-center gap-1.5 text-xs font-semibold bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Dar acceso
                     </button>
                   </div>
                 </div>
@@ -144,6 +188,7 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
                           <option value="admin">Admin</option>
                           <option value="vendedor">Vendedor</option>
                           <option value="conductor">Conductor</option>
+                          <option value="cliente">Cliente</option>
                         </select>
                       ) : (
                         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${rolCfg.color}`}>

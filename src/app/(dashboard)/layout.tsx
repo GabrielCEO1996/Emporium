@@ -34,9 +34,12 @@ export default async function DashboardLayout({
 
   const stockAlertas = stockBajo?.length || 0
 
-  // Redirect pending users to the waiting screen
+  // Redirect pending/client users away from the dashboard
   if ((profile as any)?.rol === 'pendiente') {
     redirect('/pendiente')
+  }
+  if ((profile as any)?.rol === 'cliente') {
+    redirect('/mi-cuenta')
   }
 
   return (
