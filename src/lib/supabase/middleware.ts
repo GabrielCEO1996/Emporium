@@ -89,11 +89,16 @@ export async function updateSession(request: NextRequest) {
 
   // ── Role-based routing ──────────────────────────────────────────────────────
 
-  // cliente role: can only access /mi-cuenta
+  // cliente role: can only access /tienda (and /mi-cuenta redirects to /tienda)
   if (rol === 'cliente') {
-    if (!pathname.startsWith('/mi-cuenta')) {
+    if (pathname.startsWith('/mi-cuenta')) {
       const url = request.nextUrl.clone()
-      url.pathname = '/mi-cuenta'
+      url.pathname = '/tienda'
+      return NextResponse.redirect(url)
+    }
+    if (!pathname.startsWith('/tienda')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/tienda'
       return NextResponse.redirect(url)
     }
     return supabaseResponse
@@ -111,7 +116,7 @@ export async function updateSession(request: NextRequest) {
 
   // Staff roles (admin | vendedor | conductor): redirect away from client-only pages
   if (['admin', 'vendedor', 'conductor'].includes(rol)) {
-    if (pathname.startsWith('/mi-cuenta') || pathname.startsWith('/pendiente')) {
+    if (pathname.startsWith('/mi-cuenta') || pathname.startsWith('/tienda') || pathname.startsWith('/pendiente')) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)

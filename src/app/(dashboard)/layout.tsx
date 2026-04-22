@@ -39,7 +39,7 @@ export default async function DashboardLayout({
     redirect('/pendiente')
   }
   if ((profile as any)?.rol === 'cliente') {
-    redirect('/mi-cuenta')
+    redirect('/tienda')
   }
 
   return (
