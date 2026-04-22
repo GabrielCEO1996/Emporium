@@ -5,6 +5,8 @@ import GlobalSearch from '@/components/layout/GlobalSearch'
 import StockAlertBanner from '@/components/layout/StockAlertBanner'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import KeyboardShortcutsInit from '@/components/ui/KeyboardShortcutsInit'
+import NotificationBell from '@/components/layout/NotificationBell'
+import CommandPalette from '@/components/ui/CommandPalette'
 import { Profile } from '@/lib/types'
 
 export default async function DashboardLayout({
@@ -33,15 +35,17 @@ export default async function DashboardLayout({
   const stockAlertas = stockBajo?.length || 0
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+    <div className="flex h-screen gradient-mesh overflow-hidden">
       <KeyboardShortcutsInit />
+      <CommandPalette />
       <Sidebar profile={profile as Profile | null} stockAlertas={stockAlertas} />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar with search */}
-        <header className="hidden lg:flex h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 items-center justify-between px-6 flex-shrink-0">
+        <header className="hidden lg:flex h-14 glass-card items-center justify-between px-6 flex-shrink-0 z-10">
           <div />
           <GlobalSearch />
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <ThemeToggle />
             {profile && (
               <div className="flex items-center gap-2">

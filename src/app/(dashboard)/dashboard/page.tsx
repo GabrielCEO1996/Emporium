@@ -18,6 +18,7 @@ import Link from 'next/link'
 import VentasChart from '@/components/dashboard/VentasChart'
 import AnimatedPage from '@/components/ui/AnimatedPage'
 import CountUp from '@/components/ui/CountUp'
+import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +65,8 @@ export default async function DashboardPage() {
     { data: facturasParaMetricas },
     { data: facturasRecientes },
     { data: topProductosRaw },
+    { count: empresaCount },
+    { count: ventasCount },
   ] = await Promise.all([
     supabase.from('pedidos').select('*', { count: 'exact', head: true }),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
@@ -93,6 +96,8 @@ export default async function DashboardPage() {
       .select('descripcion, cantidad, subtotal')
       .order('cantidad', { ascending: false })
       .limit(100),
+    supabase.from('empresa_config').select('*', { count: 'exact', head: true }),
+    supabase.from('facturas').select('*', { count: 'exact', head: true }),
   ])
 
   // ── Calculate period totals ───────────────────────────────────────────────
@@ -152,6 +157,13 @@ export default async function DashboardPage() {
 
   return (
     <AnimatedPage className="p-4 lg:p-8 space-y-6">
+
+      <OnboardingChecklist
+        empresaDone={(empresaCount ?? 0) > 0}
+        productosDone={(totalProductos ?? 0) > 0}
+        clientesDone={(totalClientes ?? 0) > 0}
+        ventasDone={(ventasCount ?? 0) > 0}
+      />
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between pt-2 lg:pt-0">

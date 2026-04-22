@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Producto } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
-import ProductosTable from './ProductosTable'
+import ProductosGrid from './ProductosGrid'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,9 +78,9 @@ export default async function ProductosPage() {
         />
       </div>
 
-      {/* Table */}
+      {/* Table / Grid */}
       <div className="px-6 pb-8">
-        <ProductosTable productos={typedProductos} />
+        <ProductosGrid productos={typedProductos} />
       </div>
     </div>
   )
