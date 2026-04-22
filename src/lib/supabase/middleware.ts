@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Paths that never require auth
+// Paths that never require auth (startsWith check — keep specific before general)
 const PUBLIC_PATHS = [
   '/login',
   '/signup',
@@ -10,6 +10,9 @@ const PUBLIC_PATHS = [
   '/auth/callback',
   '/auth/reset-password',   // new reset-password flow
 ]
+
+// Exact-match paths that are also public (can't use startsWith for '/')
+const PUBLIC_EXACT = ['/']
 
 // Dashboard paths only accessible to staff roles (admin | vendedor | conductor)
 const DASHBOARD_PREFIX = '/dashboard'
@@ -54,6 +57,7 @@ export async function updateSession(request: NextRequest) {
 
   // ── Always allow public routes and API ──────────────────────────────────────
   if (
+    PUBLIC_EXACT.includes(pathname) ||
     PUBLIC_PATHS.some(p => pathname.startsWith(p)) ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next') ||
