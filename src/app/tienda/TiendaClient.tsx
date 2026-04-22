@@ -367,71 +367,112 @@ function ConfirmModal({
     <AnimatePresence>
       {open && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
             onClick={onClose}
           />
+
+          {/*
+            ── Modal container ───────────────────────────────────────────────────
+            Mobile  : bottom sheet — slides up from the bottom, rounded top corners,
+                      max-h-[92vh] so it never covers the full screen.
+            Desktop : centered card — max-w-lg, rounded-3xl, max-h-[88vh].
+            The container is a flex column so header + footer are always visible
+            while only the middle section scrolls.
+          */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl z-50 max-w-lg mx-auto overflow-hidden"
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 60 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            className={`
+              fixed inset-x-0 bottom-0
+              sm:inset-x-4 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2
+              sm:max-w-lg sm:mx-auto
+              bg-white dark:bg-slate-900
+              rounded-t-3xl sm:rounded-3xl
+              shadow-2xl z-50
+              flex flex-col
+              max-h-[92vh] sm:max-h-[88vh]
+              overflow-hidden
+            `}
           >
-            {/* Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
-              <div>
-                <h2 className="font-bold text-slate-800 dark:text-white text-lg">
+            {/* ── HEADER — always visible, never scrolls ── */}
+            <div className={`
+              flex-shrink-0
+              flex items-center justify-between
+              px-5 py-4
+              border-b border-slate-100 dark:border-slate-800
+              ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}
+            `}>
+              {/* Drag handle (mobile) */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full sm:hidden" />
+
+              <div className="pt-1 sm:pt-0">
+                <h2 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg leading-tight">
                   {isCredito ? '💳 Pedido a Crédito' : '✅ Confirmar Pedido'}
                 </h2>
-                {isCredito && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Se deducirá de tu crédito disponible</p>
-                )}
+                {isCredito
+                  ? <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Se deducirá de tu crédito disponible</p>
+                  : (
+                    /* Step breadcrumb */
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
+                      <span className="text-teal-600 font-semibold">Carrito</span>
+                      <ChevronRight className="w-2.5 h-2.5" />
+                      <span className="text-teal-600 font-semibold">Dirección</span>
+                      <ChevronRight className="w-2.5 h-2.5" />
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">Confirmar</span>
+                    </div>
+                  )
+                }
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+
+              <button
+                onClick={onClose}
+                className="flex-shrink-0 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition ml-2"
+              >
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <div className="px-6 py-4 max-h-[60vh] overflow-y-auto space-y-4">
-              {/* Step indicator */}
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
-                <span className="text-teal-600 font-medium">Carrito</span>
-                <ChevronRight className="w-3 h-3" />
-                <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
-                <span className="text-teal-600 font-medium">Dirección</span>
-                <ChevronRight className="w-3 h-3" />
-                <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center text-[10px] font-bold">3</span>
-                <span>Confirmar</span>
-              </div>
+            {/* ── SCROLLABLE CONTENT — grows and shrinks, never hides the footer ── */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
 
-              {/* Items */}
-              <ul className="space-y-2">
+              {/* Product list */}
+              <ul className="space-y-2.5">
                 {items.map(item => (
-                  <li key={item.presentacionId} className="flex items-center justify-between text-sm">
-                    <div>
-                      <span className="font-medium text-slate-700 dark:text-slate-200">{item.productoNombre}</span>
-                      <span className="text-slate-400 ml-1">×{item.cantidad} ({item.presentacionNombre})</span>
+                  <li key={item.presentacionId} className="flex items-start justify-between text-sm gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-700 dark:text-slate-200 leading-tight">{item.productoNombre}</p>
+                      <p className="text-slate-400 text-xs mt-0.5">{item.presentacionNombre} × {item.cantidad}</p>
                     </div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums flex-shrink-0">
                       {formatCurrency(item.precio * item.cantidad)}
                     </span>
                   </li>
                 ))}
               </ul>
 
-              <div className="flex items-center justify-between py-3 border-t border-slate-100 dark:border-slate-800">
+              {/* Total row */}
+              <div className={`
+                flex items-center justify-between
+                py-3 px-4 rounded-2xl
+                ${isCredito
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'bg-teal-50 dark:bg-teal-900/20'}
+              `}>
                 <div>
-                  <span className="font-semibold text-slate-600 dark:text-slate-300">Total a pagar</span>
+                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total</p>
                   {isCredito && <p className="text-xs text-emerald-600 mt-0.5">Vía crédito autorizado</p>}
                 </div>
-                <span className={`text-2xl font-black ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
+                <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
                   {formatCurrency(total)}
                 </span>
               </div>
 
-              {/* Direccion */}
+              {/* Dirección */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
                   Dirección de entrega
@@ -439,8 +480,8 @@ function ConfirmModal({
                 <input
                   value={direccion}
                   onChange={e => setDireccion(e.target.value)}
-                  placeholder="Ej: Av. Principal, Casa 5..."
-                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="Ej: Av. Principal, Casa 5…"
+                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
                 />
               </div>
 
@@ -453,31 +494,47 @@ function ConfirmModal({
                   rows={2}
                   value={notas}
                   onChange={e => setNotas(e.target.value)}
-                  placeholder="Instrucciones especiales..."
-                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  placeholder="Instrucciones especiales…"
+                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none transition"
                 />
               </div>
+
+              {/* Spacer so last field isn't flush against the footer */}
+              <div className="h-1" />
             </div>
 
-            {/* Big confirm button */}
-            <div className="px-6 py-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+            {/* ── FOOTER — always visible, never scrolls ── */}
+            <div className="flex-shrink-0 px-5 pb-6 pt-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
+              {/* Confirm button */}
               <button
                 onClick={onConfirm}
                 disabled={loading}
-                className={`w-full font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 text-base shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
-                  isCredito
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200 dark:shadow-emerald-900/40'
-                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-200 dark:shadow-teal-900/40'
-                }`}
+                className={`
+                  w-full font-bold py-4 rounded-2xl
+                  transition-all active:scale-[0.98]
+                  flex items-center justify-center gap-2
+                  text-base shadow-lg
+                  disabled:opacity-60 disabled:cursor-not-allowed
+                  ${isCredito
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200 dark:shadow-emerald-900/30'
+                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-200 dark:shadow-teal-900/30'
+                  }
+                `}
               >
                 {loading
                   ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
-                  : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar Pedido a Crédito' : 'Confirmar Pedido ✅'}</>
+                  : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar Pedido a Crédito' : 'Confirmar Pedido'}</>
                 }
               </button>
-              <p className="text-center text-xs text-slate-400 mt-2">
-                Al confirmar aceptas los términos de entrega
-              </p>
+
+              {/* Cancel link */}
+              <button
+                onClick={onClose}
+                disabled={loading}
+                className="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium py-1 transition disabled:opacity-40"
+              >
+                Cancelar
+              </button>
             </div>
           </motion.div>
         </>
