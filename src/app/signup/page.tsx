@@ -2,10 +2,14 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Package2, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Package2, Eye, EyeOff, CheckCircle2, Loader2 } from 'lucide-react'
 
 export default function SignupPage() {
+  const router = useRouter()
+  const supabase = createClient()
+
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,12 +18,15 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
+    if (!nombre.trim()) {
+      setError('Por favor ingresa tu nombre completo.')
+      return
+    }
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres.')
       return
@@ -31,27 +38,60 @@ export default function SignupPage() {
 
     setLoading(true)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { nombre },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: { nombre: nombre.trim() },
+        // After email confirmation, land directly on /tienda
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/tienda`,
       },
     })
 
-    if (error) {
-      setError(error.message.includes('already registered')
-        ? 'Este correo ya tiene una cuenta. Inicia sesión.'
-        : 'No se pudo crear la cuenta. Intenta de nuevo.')
+    if (signUpError) {
+      setError(
+        signUpError.message.includes('already registered') ||
+        signUpError.message.includes('User already registered')
+          ? 'Este correo ya tiene una cuenta. Inicia sesión.'
+          : signUpError.message.includes('Database error')
+          ? 'Error de base de datos. Contacta al administrador.'
+          : 'No se pudo crear la cuenta. Intenta de nuevo.'
+      )
       setLoading(false)
       return
     }
 
+    // ── Case 1: Email confirmation is DISABLED (auto-confirm on) ─────────────
+    // The session is available immediately. Create the profile here as fallback
+    // in case the DB trigger hasn't been set up or failed.
+    if (data.session && data.user) {
+      try {
+        // Use INSERT … ON CONFLICT DO NOTHING to avoid overwriting
+        // a profile the trigger may have already created
+        await supabase.from('profiles').upsert(
+          {
+            id: data.user.id,
+            email: data.user.email!,
+            nombre: nombre.trim(),
+            rol: 'cliente',
+            activo: true,
+          },
+          { onConflict: 'id', ignoreDuplicates: true }
+        )
+      } catch {
+        // Non-fatal: the trigger may have already inserted the row
+      }
+      router.push('/tienda')
+      return
+    }
+
+    // ── Case 2: Email confirmation is ENABLED ─────────────────────────────────
+    // Profile will be created in /auth/callback after the user clicks the link.
     setDone(true)
     setLoading(false)
   }
 
+  // ── Success screen (email confirmation required) ──────────────────────────
   if (done) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
@@ -61,9 +101,13 @@ export default function SignupPage() {
           </div>
           <h2 className="text-2xl font-bold text-white">¡Cuenta creada!</h2>
           <p className="text-slate-400 text-sm">
-            Revisa tu correo <span className="text-white font-medium">{email}</span> y haz clic en el enlace de confirmación para activar tu cuenta.
+            Revisa tu correo <span className="text-white font-medium">{email}</span> y haz clic en el enlace
+            de confirmación para activar tu cuenta.
           </p>
-          <Link href="/login" className="inline-block text-teal-400 hover:text-teal-300 text-sm transition-colors">
+          <Link
+            href="/login"
+            className="inline-block text-teal-400 hover:text-teal-300 text-sm transition-colors"
+          >
             Volver al inicio de sesión →
           </Link>
         </div>
@@ -71,6 +115,7 @@ export default function SignupPage() {
     )
   }
 
+  // ── Registration form ─────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -80,13 +125,15 @@ export default function SignupPage() {
             <Package2 className="w-9 h-9 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Emporium</h1>
-          <p className="text-slate-400 mt-1 text-sm">Sistema de Distribución</p>
+          <p className="text-slate-400 mt-1 text-sm">Crea tu cuenta de cliente</p>
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl space-y-5">
           <h2 className="text-xl font-semibold text-white">Crear cuenta</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Nombre */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Nombre completo
@@ -99,10 +146,11 @@ export default function SignupPage() {
                 autoComplete="name"
                 disabled={loading}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition disabled:opacity-50"
-                placeholder="Tu nombre"
+                placeholder="Tu nombre completo"
               />
             </div>
 
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Correo electrónico
@@ -115,10 +163,11 @@ export default function SignupPage() {
                 autoComplete="email"
                 disabled={loading}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition disabled:opacity-50"
-                placeholder="usuario@empresa.com"
+                placeholder="correo@ejemplo.com"
               />
             </div>
 
+            {/* Contraseña */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Contraseña
@@ -145,6 +194,7 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Confirmar contraseña */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Confirmar contraseña
@@ -161,6 +211,7 @@ export default function SignupPage() {
               />
             </div>
 
+            {/* Error */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
                 {error}
@@ -170,9 +221,16 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-teal-500/20"
+              className="w-full bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2"
             >
-              {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creando cuenta...
+                </>
+              ) : (
+                'Crear cuenta'
+              )}
             </button>
           </form>
 

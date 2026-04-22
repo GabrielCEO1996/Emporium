@@ -397,7 +397,7 @@ function ConfirmModal({
 }
 
 // ── Success Screen ────────────────────────────────────────────────────────────
-function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: number; onContinue: () => void }) {
+function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onContinue: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8 }}
@@ -415,7 +415,7 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: number; onC
       <div>
         <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">¡Pedido enviado!</h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Tu pedido <span className="font-bold text-teal-600">#{numeroPedido}</span> fue recibido.<br />
+          Tu pedido <span className="font-bold text-teal-600">{numeroPedido}</span> fue recibido.<br />
           Te avisaremos cuando sea confirmado.
         </p>
       </div>
@@ -581,7 +581,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const [cartOpen, setCartOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [successOrder, setSuccessOrder] = useState<number | null>(null)
+  const [successOrder, setSuccessOrder] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
   const [notas, setNotas] = useState('')
