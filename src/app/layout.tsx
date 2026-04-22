@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import ServiceWorkerRegistration from "@/components/pwa/ServiceWorkerRegistration";
+import PWAInstallBanner from "@/components/pwa/PWAInstallBanner";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -19,14 +21,26 @@ export const viewport: Viewport = {
   themeColor: '#0D9488',
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 }
 
 export const metadata: Metadata = {
   title: "Emporium - Sistema de Distribución",
   description: "Sistema de gestión para negocios de distribución",
   manifest: '/manifest.json',
-  icons: { icon: '/icon', apple: '/icon' },
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Emporium' },
+  icons: { icon: '/icon', apple: '/apple-icon' },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Emporium',
+    startupImage: [],
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-touch-fullscreen': 'yes',
+  },
 };
 
 export default function RootLayout({
@@ -44,6 +58,8 @@ export default function RootLayout({
             position="top-right"
             toastOptions={{ duration: 4000 }}
           />
+          <ServiceWorkerRegistration />
+          <PWAInstallBanner />
         </ThemeProvider>
       </body>
     </html>
