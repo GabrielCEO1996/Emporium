@@ -1,0 +1,110 @@
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
+  apiVersion: '2025-03-31.basil',
+})
+
+// Stripe requires the raw body for signature verification
+export const runtime = 'nodejs'
+
+export async function POST(req: Request) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    return NextResponse.json({ error: 'Webhook secret no configurado' }, { status: 503 })
+  }
+
+  const signature = req.headers.get('stripe-signature')
+  if (!signature) return NextResponse.json({ error: 'Sin firma' }, { status: 400 })
+
+  const body = await req.text()
+  let event: Stripe.Event
+
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+  } catch (err: any) {
+    console.error('[webhook/stripe] Signature error:', err.message)
+    return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 })
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.CheckoutSession
+    const meta = session.metadata ?? {}
+    const items = JSON.parse(meta.items ?? '[]')
+
+    if (items.length > 0) {
+      const supabase = createClient()
+
+      // Find cliente by email
+      const { data: clienteData } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('email', meta.user_email ?? '')
+        .maybeSingle()
+
+      const { data: numData } = await supabase.rpc('get_next_sequence', { seq_name: 'pedidos' })
+      const subtotal = items.reduce(
+        (acc: number, item: any) => acc + Number(item.precio) * Number(item.cantidad), 0
+      )
+
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('pedidos')
+        .insert({
+          numero: numData,
+          cliente_id: clienteData?.id ?? null,
+          estado: 'confirmado',   // already paid via Stripe
+          tipo_pago: 'stripe',
+          subtotal,
+          descuento: 0,
+          impuesto: 0,
+          total: subtotal,
+          notas: meta.notas || `Pagado vía Stripe. Session: ${session.id}`,
+          direccion_entrega: meta.direccion_entrega || null,
+        })
+        .select()
+        .single()
+
+      if (pedidoError) {
+        console.error('[webhook/stripe] Error creating pedido:', pedidoError)
+        return NextResponse.json({ error: pedidoError.message }, { status: 500 })
+      }
+
+      if (pedido) {
+        const pedidoItems = items.map((item: any) => ({
+          pedido_id: pedido.id,
+          presentacion_id: item.presentacion_id,
+          cantidad: Number(item.cantidad),
+          precio_unitario: Number(item.precio),
+          descuento: 0,
+          subtotal: Number(item.precio) * Number(item.cantidad),
+        }))
+        await supabase.from('pedido_items').insert(pedidoItems)
+
+        // Reserve stock
+        await Promise.all(
+          items.map(async (item: any) => {
+            await supabase
+              .rpc('reserve_stock', {
+                p_id: item.presentacion_id,
+                p_amount: Number(item.cantidad),
+              })
+              .then(() => null)
+              .catch(() => null)
+          })
+        )
+      }
+    }
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    // Payment expired — nothing to do but log
+    console.log('[webhook/stripe] Session expired:', event.data.object.id)
+  }
+
+  if (event.type === 'payment_intent.payment_failed') {
+    console.log('[webhook/stripe] Payment failed:', event.data.object.id)
+  }
+
+  return NextResponse.json({ received: true })
+}

@@ -17,7 +17,7 @@ export default async function PerfilPage() {
 
   const { data: clienteData } = await supabase
     .from('clientes')
-    .select('id, nombre, telefono, whatsapp, direccion, ciudad')
+    .select('id, nombre, telefono, whatsapp, direccion, ciudad, credito_autorizado, limite_credito, credito_usado')
     .eq('email', user.email ?? '')
     .maybeSingle()
 

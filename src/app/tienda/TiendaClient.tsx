@@ -32,7 +32,10 @@ interface ChatMessage { role: 'user' | 'assistant'; content: string }
 interface Props {
   profile: { id: string; nombre: string; email: string; rol: string }
   productos: Producto[]
-  clienteInfo?: { id?: string; direccion?: string; telefono?: string; whatsapp?: string } | null
+  clienteInfo?: {
+    id?: string; direccion?: string; telefono?: string; whatsapp?: string
+    credito_autorizado?: boolean; limite_credito?: number; credito_usado?: number
+  } | null
 }
 
 // ── Stock helpers ─────────────────────────────────────────────────────────────
@@ -191,7 +194,8 @@ function ProductCard({
 
 // ── Cart Panel ────────────────────────────────────────────────────────────────
 function CartPanel({
-  items, open, onClose, onUpdate, onRemove, onCheckout, onStripeCheckout,
+  items, open, onClose, onUpdate, onRemove, onCheckout, onCreditCheckout, onStripeCheckout,
+  creditoAutorizado, limiteCredito, creditoUsado,
 }: {
   items: CartItem[]
   open: boolean
@@ -199,9 +203,15 @@ function CartPanel({
   onUpdate: (id: string, delta: number) => void
   onRemove: (id: string) => void
   onCheckout: () => void
+  onCreditCheckout: () => void
   onStripeCheckout: () => void
+  creditoAutorizado?: boolean
+  limiteCredito?: number
+  creditoUsado?: number
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
+  const creditoDisponible = (limiteCredito ?? 0) - (creditoUsado ?? 0)
+  const puedeUsarCredito = creditoAutorizado && creditoDisponible > 0 && total <= creditoDisponible
 
   return (
     <AnimatePresence>
@@ -285,24 +295,52 @@ function CartPanel({
 
             {/* Footer */}
             {items.length > 0 && (
-              <div className="border-t border-slate-100 dark:border-slate-800 p-5 space-y-4">
+              <div className="border-t border-slate-100 dark:border-slate-800 p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Total</span>
                   <span className="text-xl font-black text-slate-800 dark:text-white">{formatCurrency(total)}</span>
                 </div>
+
+                {/* Credit balance display */}
+                {creditoAutorizado && (
+                  <div className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl ${
+                    puedeUsarCredito
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                  }`}>
+                    <span className="font-medium">Crédito disponible</span>
+                    <span className="font-bold">{formatCurrency(creditoDisponible)}</span>
+                  </div>
+                )}
+
+                {/* Primary: Confirmar Pedido */}
                 <button
                   onClick={onCheckout}
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  <ChevronRight className="w-4 h-4" />
-                  Hacer Pedido (crédito)
+                  <CheckCircle2 className="w-4 h-4" />
+                  Confirmar Pedido
                 </button>
+
+                {/* Credit button (only if authorized) */}
+                {creditoAutorizado && (
+                  <button
+                    onClick={onCreditCheckout}
+                    disabled={!puedeUsarCredito}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    {puedeUsarCredito ? 'Pedir a crédito' : 'Crédito insuficiente'}
+                  </button>
+                )}
+
+                {/* Stripe */}
                 <button
                   onClick={onStripeCheckout}
                   className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
                 >
                   <CreditCard className="w-4 h-4" />
-                  Pagar ahora 💳
+                  Pagar con tarjeta 💳
                 </button>
               </div>
             )}
@@ -315,13 +353,16 @@ function CartPanel({
 
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 function ConfirmModal({
-  items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
+  items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion, tipoPago,
 }: {
   items: CartItem[]; open: boolean; onClose: () => void; onConfirm: () => void
   loading: boolean; notas: string; setNotas: (v: string) => void
   direccion: string; setDireccion: (v: string) => void
+  tipoPago: 'pendiente' | 'credito'
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
+  const isCredito = tipoPago === 'credito'
+
   return (
     <AnimatePresence>
       {open && (
@@ -329,6 +370,7 @@ function ConfirmModal({
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            onClick={onClose}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -336,13 +378,34 @@ function ConfirmModal({
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl z-50 max-w-lg mx-auto overflow-hidden"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="font-bold text-slate-800 dark:text-white text-lg">Confirmar Pedido</h2>
+            {/* Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+              <div>
+                <h2 className="font-bold text-slate-800 dark:text-white text-lg">
+                  {isCredito ? '💳 Pedido a Crédito' : '✅ Confirmar Pedido'}
+                </h2>
+                {isCredito && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Se deducirá de tu crédito disponible</p>
+                )}
+              </div>
               <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
+
             <div className="px-6 py-4 max-h-[60vh] overflow-y-auto space-y-4">
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
+                <span className="text-teal-600 font-medium">Carrito</span>
+                <ChevronRight className="w-3 h-3" />
+                <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold">2</span>
+                <span className="text-teal-600 font-medium">Dirección</span>
+                <ChevronRight className="w-3 h-3" />
+                <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center text-[10px] font-bold">3</span>
+                <span>Confirmar</span>
+              </div>
+
               {/* Items */}
               <ul className="space-y-2">
                 {items.map(item => (
@@ -357,10 +420,17 @@ function ConfirmModal({
                   </li>
                 ))}
               </ul>
+
               <div className="flex items-center justify-between py-3 border-t border-slate-100 dark:border-slate-800">
-                <span className="font-semibold text-slate-600 dark:text-slate-300">Total</span>
-                <span className="text-2xl font-black text-teal-600">{formatCurrency(total)}</span>
+                <div>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">Total a pagar</span>
+                  {isCredito && <p className="text-xs text-emerald-600 mt-0.5">Vía crédito autorizado</p>}
+                </div>
+                <span className={`text-2xl font-black ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
+                  {formatCurrency(total)}
+                </span>
               </div>
+
               {/* Direccion */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
@@ -373,10 +443,11 @@ function ConfirmModal({
                   className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
+
               {/* Notas */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-                  Notas del pedido (opcional)
+                  Notas (opcional)
                 </label>
                 <textarea
                   rows={2}
@@ -387,15 +458,26 @@ function ConfirmModal({
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+
+            {/* Big confirm button */}
+            <div className="px-6 py-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
               <button
                 onClick={onConfirm}
                 disabled={loading}
-                className="w-full bg-teal-600 hover:bg-teal-500 disabled:bg-teal-300 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-2"
+                className={`w-full font-bold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 text-base shadow-lg disabled:opacity-60 disabled:cursor-not-allowed ${
+                  isCredito
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200 dark:shadow-emerald-900/40'
+                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-200 dark:shadow-teal-900/40'
+                }`}
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {loading ? 'Procesando...' : 'Confirmar Pedido'}
+                {loading
+                  ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
+                  : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar Pedido a Crédito' : 'Confirmar Pedido ✅'}</>
+                }
               </button>
+              <p className="text-center text-xs text-slate-400 mt-2">
+                Al confirmar aceptas los términos de entrega
+              </p>
             </div>
           </motion.div>
         </>
@@ -597,11 +679,17 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const router = useRouter()
   const supabase = createClient()
 
+  // Credit info
+  const creditoAutorizado = clienteInfo?.credito_autorizado ?? false
+  const limiteCredito = clienteInfo?.limite_credito ?? 0
+  const [creditoUsado, setCreditoUsado] = useState(clienteInfo?.credito_usado ?? 0)
+
   // State
   const [cart, setCart] = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [tipoPago, setTipoPago] = useState<'pendiente' | 'credito'>('pendiente')
   const [successOrder, setSuccessOrder] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
@@ -727,7 +815,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
     const res = await fetch('/api/tienda/pedido', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, notas, direccion_entrega: direccion }),
+      body: JSON.stringify({ items, notas, direccion_entrega: direccion, tipo_pago: tipoPago }),
     })
     const data = await res.json()
     setOrdering(false)
@@ -735,11 +823,17 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
       toast.error(data.error ?? 'Error al crear pedido')
       return
     }
+    // Update local credit balance if used
+    if (tipoPago === 'credito') {
+      const subtotal = cart.reduce((s, i) => s + i.precio * i.cantidad, 0)
+      setCreditoUsado(prev => prev + subtotal)
+    }
     setCart([])
     setConfirmOpen(false)
     setCartOpen(false)
     setSuccessOrder(data.numero)
     setNotas('')
+    setTipoPago('pendiente')
   }
 
   if (successOrder !== null) {
@@ -977,8 +1071,12 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         onClose={() => setCartOpen(false)}
         onUpdate={updateCart}
         onRemove={removeFromCart}
-        onCheckout={() => { setCartOpen(false); setConfirmOpen(true) }}
+        onCheckout={() => { setTipoPago('pendiente'); setCartOpen(false); setConfirmOpen(true) }}
+        onCreditCheckout={() => { setTipoPago('credito'); setCartOpen(false); setConfirmOpen(true) }}
         onStripeCheckout={() => { setCartOpen(false); handleStripeCheckout() }}
+        creditoAutorizado={creditoAutorizado}
+        limiteCredito={limiteCredito}
+        creditoUsado={creditoUsado}
       />
 
       <ConfirmModal
@@ -991,6 +1089,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         setNotas={setNotas}
         direccion={direccion}
         setDireccion={setDireccion}
+        tipoPago={tipoPago}
       />
 
       <ChatPanel

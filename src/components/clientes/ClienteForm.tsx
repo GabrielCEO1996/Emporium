@@ -38,6 +38,7 @@ interface FormData {
   dias_credito: string
   notas: string
   activo: boolean
+  credito_autorizado: boolean
 }
 
 interface FormErrors {
@@ -71,6 +72,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
     dias_credito: cliente?.dias_credito?.toString() || '0',
     notas: cliente?.notas || '',
     activo: cliente?.activo !== undefined ? cliente.activo : true,
+    credito_autorizado: (cliente as any)?.credito_autorizado ?? false,
   })
 
   function validate(): boolean {
@@ -124,6 +126,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
         ...formData,
         limite_credito: Number(formData.limite_credito) || 0,
         dias_credito: Number(formData.dias_credito) || 0,
+        credito_autorizado: formData.credito_autorizado,
       }
 
       const url = isEditing ? `/api/clientes/${cliente!.id}` : '/api/clientes'
@@ -365,6 +368,37 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2">
+          {/* Credito Autorizado toggle */}
+          <div className="sm:col-span-2">
+            <div className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-colors ${
+              formData.credito_autorizado
+                ? 'border-emerald-400 bg-emerald-50'
+                : 'border-slate-200 bg-slate-50'
+            }`}>
+              <input
+                id="credito_autorizado"
+                name="credito_autorizado"
+                type="checkbox"
+                checked={formData.credito_autorizado}
+                onChange={handleChange}
+                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <div>
+                <label htmlFor="credito_autorizado" className="text-sm font-semibold text-slate-800 cursor-pointer">
+                  Crédito autorizado para la Tienda Digital
+                </label>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Permite al cliente pedir a crédito desde la tienda digital hasta el límite establecido
+                </p>
+              </div>
+              {formData.credito_autorizado && (
+                <span className="ml-auto text-xs font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                  ✓ Activo
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Limite de Credito */}
           <div>
             <label htmlFor="limite_credito" className={labelClass}>

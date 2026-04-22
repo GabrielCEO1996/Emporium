@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { items, notas, direccion_entrega } = body
+  const { items, notas, direccion_entrega, tipo_pago = 'pendiente' } = body
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
@@ -16,21 +16,34 @@ export async function POST(req: Request) {
   // Find the linked cliente record by email
   const { data: clienteData } = await supabase
     .from('clientes')
-    .select('id')
+    .select('id, credito_autorizado, limite_credito, credito_usado')
     .eq('email', user.email ?? '')
     .maybeSingle()
 
   const cliente_id = clienteData?.id ?? null
 
-  // Generate sequence number
-  const { data: numData, error: numError } = await supabase
-    .rpc('get_next_sequence', { seq_name: 'pedidos' })
-  if (numError) return NextResponse.json({ error: numError.message }, { status: 500 })
-
   const subtotal = items.reduce(
     (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
     0
   )
+
+  // ── Credit validation ─────────────────────────────────────────────────────
+  if (tipo_pago === 'credito') {
+    if (!clienteData?.credito_autorizado) {
+      return NextResponse.json({ error: 'No tienes crédito autorizado' }, { status: 403 })
+    }
+    const disponible = (clienteData.limite_credito ?? 0) - (clienteData.credito_usado ?? 0)
+    if (subtotal > disponible) {
+      return NextResponse.json({
+        error: `Crédito insuficiente. Disponible: $${disponible.toFixed(2)}`,
+      }, { status: 422 })
+    }
+  }
+
+  // Generate sequence number
+  const { data: numData, error: numError } = await supabase
+    .rpc('get_next_sequence', { seq_name: 'pedidos' })
+  if (numError) return NextResponse.json({ error: numError.message }, { status: 500 })
 
   const { data: pedido, error: pedidoError } = await supabase
     .from('pedidos')
@@ -39,6 +52,7 @@ export async function POST(req: Request) {
       cliente_id,
       vendedor_id: null,
       estado: 'borrador',
+      tipo_pago,
       subtotal,
       descuento: 0,
       impuesto: 0,
@@ -66,7 +80,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
 
-  // ── Reserve stock (non-fatal: RPC created by stock_reservado.sql) ─────────
+  // ── Deduct credit if tipo_pago === 'credito' ──────────────────────────────
+  if (tipo_pago === 'credito' && cliente_id) {
+    await supabase
+      .from('clientes')
+      .update({ credito_usado: (clienteData!.credito_usado ?? 0) + subtotal })
+      .eq('id', cliente_id)
+  }
+
+  // ── Reserve stock (non-fatal) ─────────────────────────────────────────────
   await Promise.all(
     items.map(async (item: any) => {
       await supabase
@@ -74,7 +96,6 @@ export async function POST(req: Request) {
           p_id: item.presentacion_id,
           p_amount: Number(item.cantidad),
         })
-        // Silent fail if RPC hasn't been created yet in Supabase
         .then(() => null)
         .catch(() => null)
     })

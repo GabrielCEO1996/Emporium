@@ -61,6 +61,7 @@ export async function PUT(
       limite_credito: Number(body.limite_credito) || 0,
       dias_credito: Number(body.dias_credito) || 0,
       activo: Boolean(body.activo),
+      credito_autorizado: Boolean(body.credito_autorizado),
       notas: body.notas?.trim() || null,
       updated_at: new Date().toISOString(),
     }

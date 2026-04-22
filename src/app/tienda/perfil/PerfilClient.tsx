@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import {
   User, ChevronLeft, ShoppingBag, ClipboardList,
   CheckCircle2, Loader2, LogOut, Briefcase, Phone, MapPin, MessageCircle,
+  CreditCard,
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -19,6 +20,7 @@ interface Props {
   clienteInfo?: {
     id?: string; nombre?: string; telefono?: string
     whatsapp?: string; direccion?: string; ciudad?: string
+    credito_autorizado?: boolean; limite_credito?: number; credito_usado?: number
   } | null
 }
 
@@ -174,6 +176,44 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </motion.div>
+
+        {/* Credit balance */}
+        {clienteInfo?.credito_autorizado && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+            className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl p-5 border border-emerald-200 dark:border-emerald-800 space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-600" />
+              <h2 className="font-semibold text-emerald-800 dark:text-emerald-300 text-sm">Crédito disponible</h2>
+              <span className="ml-auto text-xs font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded-full">Activo</span>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-3xl font-black text-emerald-700 dark:text-emerald-300">
+                  ${((clienteInfo.limite_credito ?? 0) - (clienteInfo.credito_usado ?? 0)).toFixed(2)}
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  de ${(clienteInfo.limite_credito ?? 0).toFixed(2)} límite total
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Usado</p>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">${(clienteInfo.credito_usado ?? 0).toFixed(2)}</p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="h-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(100, ((clienteInfo.credito_usado ?? 0) / Math.max(1, clienteInfo.limite_credito ?? 1)) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Úsalo al hacer pedidos desde la tienda con el botón "Pedir a crédito"
+            </p>
+          </motion.div>
+        )}
 
         {/* Request vendor access */}
         {profile.rol === 'cliente' && (

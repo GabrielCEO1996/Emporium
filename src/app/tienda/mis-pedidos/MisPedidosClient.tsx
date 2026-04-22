@@ -31,22 +31,29 @@ interface Props {
   clienteId: string | null
 }
 
-// ── Progress steps ────────────────────────────────────────────────────────────
+// ── Progress steps (5-step) ───────────────────────────────────────────────────
 const STEPS = [
-  { key: 'borrador',   label: 'Recibido',   emoji: '📝', color: 'bg-slate-400' },
-  { key: 'confirmado', label: 'Confirmado', emoji: '✅', color: 'bg-blue-500' },
-  { key: 'en_ruta',   label: 'En camino',  emoji: '🚚', color: 'bg-orange-500' },
-  { key: 'entregado',  label: 'Entregado',  emoji: '✅', color: 'bg-emerald-500' },
+  { key: 'borrador',   label: 'Recibido',   color: 'bg-slate-400',   ring: 'ring-slate-300' },
+  { key: 'confirmado', label: 'Confirmado', color: 'bg-blue-500',    ring: 'ring-blue-300' },
+  { key: 'preparando', label: 'Preparando', color: 'bg-amber-500',   ring: 'ring-amber-300' },
+  { key: 'en_ruta',   label: 'En camino',  color: 'bg-orange-500',  ring: 'ring-orange-300' },
+  { key: 'entregado',  label: 'Entregado',  color: 'bg-emerald-500', ring: 'ring-emerald-300' },
 ]
 
-function getStep(estado: string) {
-  if (estado === 'facturado') return 3
-  return STEPS.findIndex(s => s.key === estado)
+function getStep(estado: string): number {
+  // Terminal states
+  if (estado === 'pagado' || estado === 'facturado') return 5    // beyond step 4 = green complete
+  if (estado === 'entregado') return 4
+  if (estado === 'en_ruta')   return 3
+  if (estado === 'preparando') return 2
+  if (estado === 'confirmado') return 1
+  return 0  // borrador
 }
 
 function ProgressBar({ estado }: { estado: string }) {
-  const cancelled = estado === 'cancelado'
-  const stepIdx = getStep(estado)
+  const cancelled  = estado === 'cancelado'
+  const fullDone   = estado === 'pagado' || estado === 'facturado'
+  const stepIdx    = getStep(estado)
 
   if (cancelled) {
     return (
@@ -57,12 +64,29 @@ function ProgressBar({ estado }: { estado: string }) {
     )
   }
 
+  if (fullDone) {
+    return (
+      <div className="flex items-center gap-2 py-2">
+        <div className="flex-1 h-2 rounded-full bg-emerald-500 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: '100%' }}
+            transition={{ duration: 0.6 }}
+            className="h-full bg-emerald-400 rounded-full"
+          />
+        </div>
+        <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+          {estado === 'pagado' ? '✅ Pagado' : '✅ Facturado'}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="pt-1 pb-3">
-      {/* Line + dots */}
       <div className="flex items-center gap-0">
         {STEPS.map((step, i) => {
-          const done = stepIdx >= i
+          const done   = stepIdx >= i
           const active = stepIdx === i
           return (
             <div key={step.key} className="flex items-center flex-1 last:flex-none">
@@ -71,15 +95,15 @@ function ProgressBar({ estado }: { estado: string }) {
                 <motion.div
                   animate={active ? { scale: [1, 1.15, 1] } : {}}
                   transition={{ repeat: Infinity, duration: 1.5 }}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all duration-500 ${
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-500 ${
                     done
                       ? `${step.color} text-white shadow-sm`
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
-                  } ${active ? 'ring-2 ring-offset-1 ring-teal-400' : ''}`}
+                  } ${active ? `ring-2 ring-offset-1 ${step.ring}` : ''}`}
                 >
                   {done ? '✓' : i + 1}
                 </motion.div>
-                <span className={`text-[10px] mt-1 font-semibold whitespace-nowrap ${
+                <span className={`text-[9px] mt-1 font-semibold whitespace-nowrap leading-tight ${
                   done ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'
                 }`}>
                   {step.label}
@@ -87,7 +111,7 @@ function ProgressBar({ estado }: { estado: string }) {
               </div>
               {/* Connector */}
               {i < STEPS.length - 1 && (
-                <div className="flex-1 h-1 mx-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                <div className="flex-1 h-1 mx-0.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden mb-3">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: stepIdx > i ? '100%' : '0%' }}
@@ -111,22 +135,27 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
   const statusColor: Record<string, string> = {
     borrador:   'text-slate-500 bg-slate-100 dark:bg-slate-700',
     confirmado: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
+    preparando: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
     en_ruta:    'text-orange-600 bg-orange-50 dark:bg-orange-900/30',
     entregado:  'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30',
     facturado:  'text-violet-600 bg-violet-50 dark:bg-violet-900/30',
+    pagado:     'text-emerald-700 bg-emerald-100 dark:bg-emerald-900/40',
     cancelado:  'text-red-500 bg-red-50 dark:bg-red-900/30',
   }
   const statusIcon: Record<string, React.ReactNode> = {
     borrador:   <Clock className="w-3.5 h-3.5" />,
     confirmado: <CheckCircle2 className="w-3.5 h-3.5" />,
+    preparando: <Package className="w-3.5 h-3.5" />,
     en_ruta:    <Truck className="w-3.5 h-3.5" />,
     entregado:  <CheckCircle2 className="w-3.5 h-3.5" />,
     facturado:  <FileText className="w-3.5 h-3.5" />,
+    pagado:     <CheckCircle2 className="w-3.5 h-3.5" />,
     cancelado:  <XCircle className="w-3.5 h-3.5" />,
   }
   const statusLabel: Record<string, string> = {
-    borrador: 'Recibido', confirmado: 'Confirmado', en_ruta: 'En camino',
-    entregado: 'Entregado', facturado: 'Facturado', cancelado: 'Cancelado',
+    borrador: 'Recibido', confirmado: 'Confirmado', preparando: 'Preparando',
+    en_ruta: 'En camino', entregado: 'Entregado', facturado: 'Facturado',
+    pagado: 'Pagado ✅', cancelado: 'Cancelado',
   }
 
   const sc = statusColor[pedido.estado] ?? statusColor.borrador

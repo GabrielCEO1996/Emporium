@@ -26,10 +26,10 @@ export default async function TiendaPage() {
     .filter((p: any) => p.presentaciones?.some((pr: any) => pr.activo))
     .map((p: any) => ({ ...p, presentaciones: p.presentaciones.filter((pr: any) => pr.activo) }))
 
-  // Get cliente linked record for direccion
+  // Get cliente linked record (includes credit info)
   const { data: clienteData } = await supabase
     .from('clientes')
-    .select('id, direccion, telefono, whatsapp')
+    .select('id, direccion, telefono, whatsapp, credito_autorizado, limite_credito, credito_usado')
     .eq('email', user.email ?? '')
     .maybeSingle()
 
