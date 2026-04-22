@@ -43,16 +43,29 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
 
+  // Only admins can delete pedidos
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores pueden eliminar pedidos' }, { status: 403 })
+
   const { data: pedido } = await supabase
     .from('pedidos')
     .select('estado')
     .eq('id', params.id)
     .single()
 
-  if (pedido?.estado === 'facturado') {
-    return NextResponse.json({ error: 'No se puede eliminar un pedido facturado' }, { status: 409 })
+  if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+
+  if (pedido.estado !== 'borrador') {
+    return NextResponse.json(
+      { error: `Solo se pueden eliminar pedidos en estado "borrador". Este está en "${pedido.estado}".` },
+      { status: 409 }
+    )
   }
 
+  // Delete items first
+  await supabase.from('pedido_items').delete().eq('pedido_id', params.id)
   const { error } = await supabase.from('pedidos').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

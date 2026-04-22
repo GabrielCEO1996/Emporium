@@ -13,6 +13,7 @@ import {
   ArrowDownRight,
   Calendar,
   Star,
+  Target,
 } from 'lucide-react'
 import Link from 'next/link'
 import VentasChart from '@/components/dashboard/VentasChart'
@@ -67,6 +68,7 @@ export default async function DashboardPage() {
     { data: topProductosRaw },
     { count: empresaCount },
     { count: ventasCount },
+    { data: configMeta },
   ] = await Promise.all([
     supabase.from('pedidos').select('*', { count: 'exact', head: true }),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
@@ -98,6 +100,7 @@ export default async function DashboardPage() {
       .limit(100),
     supabase.from('empresa_config').select('*', { count: 'exact', head: true }),
     supabase.from('facturas').select('*', { count: 'exact', head: true }),
+    supabase.from('empresa_config').select('meta_mensual, moneda_secundaria, tasa_cambio, nombre').limit(1).maybeSingle(),
   ])
 
   // ── Calculate period totals ───────────────────────────────────────────────
@@ -142,6 +145,12 @@ export default async function DashboardPage() {
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, 5)
   const maxCantidad = topProductos[0]?.cantidad || 1
+
+  // ── Meta mensual ─────────────────────────────────────────────────────────
+  const metaMensual = (configMeta as any)?.meta_mensual ?? 0
+  const progreso = metaMensual > 0 ? Math.min(100, (ventasMes / metaMensual) * 100) : 0
+  const monedaSecundaria = (configMeta as any)?.moneda_secundaria ?? ''
+  const tasaCambio = (configMeta as any)?.tasa_cambio ?? 0
 
   // ── Estado colors ─────────────────────────────────────────────────────────
 
@@ -205,6 +214,46 @@ export default async function DashboardPage() {
           )
         })}
       </div>
+
+      {/* ── Meta mensual de ventas ── */}
+      {metaMensual > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">Meta mensual de ventas</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {formatCurrency(ventasMes)} de {formatCurrency(metaMensual)} — {progreso.toFixed(1)}% alcanzado
+                {monedaSecundaria && tasaCambio ? ` · ${(ventasMes * tasaCambio).toLocaleString('es-VE', { maximumFractionDigits: 0 })} ${monedaSecundaria}` : ''}
+              </p>
+            </div>
+            <span className={`text-2xl font-black ${
+              progreso >= 100 ? 'text-emerald-600' :
+              progreso >= 80  ? 'text-teal-600' :
+              progreso >= 50  ? 'text-amber-600' :
+              'text-slate-400'
+            }`}>
+              {progreso >= 100 ? '🎉' : `${progreso.toFixed(0)}%`}
+            </span>
+          </div>
+          <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+            <div
+              className={`h-3 rounded-full transition-all duration-700 ${
+                progreso >= 100 ? 'bg-emerald-500' :
+                progreso >= 80  ? 'bg-teal-500' :
+                progreso >= 50  ? 'bg-amber-400' :
+                'bg-slate-400'
+              }`}
+              style={{ width: `${progreso}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-slate-400">
+            <span>0%</span>
+            <span className="text-amber-500 font-medium">50% — {formatCurrency(metaMensual * 0.5)}</span>
+            <span className="text-teal-500 font-medium">80% — {formatCurrency(metaMensual * 0.8)}</span>
+            <span>100%</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Quick counters ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

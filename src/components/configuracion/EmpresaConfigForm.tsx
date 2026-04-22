@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Building2, FileText, MapPin, Phone, Mail, MessageSquare,
   Save, Loader2, Upload, X, CheckCircle, Image as ImageIcon,
+  Target, DollarSign, TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -15,8 +16,12 @@ interface EmpresaConfig {
   direccion?: string
   telefono?: string
   email?: string
+  whatsapp?: string
   logo_url?: string
   mensaje_factura?: string
+  meta_mensual?: number
+  moneda_secundaria?: string
+  tasa_cambio?: number
 }
 
 interface Props {
@@ -236,6 +241,21 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
             </div>
           </div>
 
+          <div>
+            <label className={labelClass}>WhatsApp empresa</label>
+            <div className="relative">
+              <MessageSquare className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.whatsapp ?? ''}
+                onChange={e => set('whatsapp', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="+58412000000"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+
           <div className="sm:col-span-2">
             <label className={labelClass}>Mensaje de pie de factura</label>
             <div className="relative">
@@ -249,6 +269,67 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
                 className={cn(inputClass, 'pl-9')}
               />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Metas y moneda */}
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <Target className="h-4 w-4 text-teal-600" />
+            Metas de ventas y moneda
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-3">
+          <div>
+            <label className={labelClass}>Meta mensual de ventas ($)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={form.meta_mensual ?? ''}
+                onChange={e => setForm(prev => ({ ...prev, meta_mensual: e.target.value ? Number(e.target.value) : undefined }))}
+                disabled={!isAdmin}
+                placeholder="10000"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Aparece como barra de progreso en el dashboard</p>
+          </div>
+          <div>
+            <label className={labelClass}>Moneda secundaria</label>
+            <div className="relative">
+              <TrendingUp className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.moneda_secundaria ?? ''}
+                onChange={e => set('moneda_secundaria', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="VES, EUR, COP..."
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Se muestra en el catálogo y cotizaciones</p>
+          </div>
+          <div>
+            <label className={labelClass}>Tasa de cambio (por 1 USD)</label>
+            <div className="relative">
+              <TrendingUp className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={form.tasa_cambio ?? ''}
+                onChange={e => setForm(prev => ({ ...prev, tasa_cambio: e.target.value ? Number(e.target.value) : undefined }))}
+                disabled={!isAdmin}
+                placeholder="36.50"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Actualiza manualmente la tasa oficial</p>
           </div>
         </div>
       </section>

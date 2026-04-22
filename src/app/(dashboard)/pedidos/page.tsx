@@ -19,6 +19,7 @@ import {
   FileText,
 } from 'lucide-react'
 import GenerarFacturaButton from '@/components/pedidos/GenerarFacturaButton'
+import EliminarPedidoButton from '@/components/pedidos/EliminarPedidoButton'
 import PedidosExportButton from './PedidosExportButton'
 
 interface PageProps {
@@ -34,6 +35,14 @@ export const dynamic = 'force-dynamic'
 
 export default async function PedidosPage({ searchParams }: PageProps) {
   const supabase = createClient()
+
+  // Get current user role for admin features
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: currentProfile } = user
+    ? await supabase.from('profiles').select('rol').eq('id', user.id).single()
+    : { data: null }
+  const isAdmin = currentProfile?.rol === 'admin'
+
   const estadoFilter = searchParams.estado || ''
   const fechaInicio = searchParams.fecha_inicio || ''
   const fechaFin = searchParams.fecha_fin || ''
@@ -353,28 +362,33 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                           {formatCurrency(pedido.total ?? 0)}
                         </td>
                         <td className="px-5 py-4">
-                          {pedido.estado === 'confirmado' ? (
-                            <GenerarFacturaButton
-                              pedidoId={pedido.id}
-                              clienteId={pedido.cliente?.id ?? ''}
-                            />
-                          ) : pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
-                            <Link
-                              href={`/facturas/${pedido.facturas[0].id}`}
-                              className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              {pedido.facturas[0].numero ?? 'Ver Factura'}
-                            </Link>
-                          ) : (
-                            <Link
-                              href={`/pedidos/${pedido.id}`}
-                              className="flex items-center justify-end gap-1 text-xs font-medium text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-teal-600"
-                            >
-                              Ver detalle
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </Link>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {isAdmin && pedido.estado === 'borrador' && (
+                              <EliminarPedidoButton pedidoId={pedido.id} pedidoNumero={pedido.numero} />
+                            )}
+                            {pedido.estado === 'confirmado' ? (
+                              <GenerarFacturaButton
+                                pedidoId={pedido.id}
+                                clienteId={pedido.cliente?.id ?? ''}
+                              />
+                            ) : pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
+                              <Link
+                                href={`/facturas/${pedido.facturas[0].id}`}
+                                className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {pedido.facturas[0].numero ?? 'Ver Factura'}
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/pedidos/${pedido.id}`}
+                                className="flex items-center justify-end gap-1 text-xs font-medium text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-teal-600"
+                              >
+                                Ver detalle
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

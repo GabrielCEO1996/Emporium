@@ -25,6 +25,7 @@ import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
 import MarcarEnviadaButton from '@/components/facturas/MarcarEnviadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
+import AnularFacturaButton from '@/components/facturas/AnularFacturaButton'
 import EnviarEmailButton from '@/components/facturas/EnviarEmailButton'
 import { Profile } from '@/lib/types'
 
@@ -124,9 +125,16 @@ export default async function FacturaDetailPage({ params }: PageProps) {
               <FileMinus className="h-4 w-4" />
               Nota de Crédito
             </Link>
+            <AnularFacturaButton
+              facturaId={f.id}
+              facturaNumero={f.numero}
+              estadoActual={f.estado}
+              isAdmin={isAdmin}
+            />
             <EliminarFacturaButton
               facturaId={f.id}
               facturaNumero={f.numero}
+              estadoActual={f.estado}
               isAdmin={isAdmin}
             />
           </div>
@@ -134,6 +142,19 @@ export default async function FacturaDetailPage({ params }: PageProps) {
       </div>
 
       <div className="p-6 max-w-4xl mx-auto space-y-6">
+        {/* Anulada banner */}
+        {f.estado === 'anulada' && (
+          <div className="rounded-lg border-2 border-red-400 bg-red-50 p-4 flex items-center gap-3">
+            <span className="text-2xl font-black text-red-600 tracking-widest border-2 border-red-400 px-3 py-1 rounded-lg rotate-[-2deg] inline-block">ANULADA</span>
+            <div>
+              <p className="font-semibold text-red-800">Factura anulada</p>
+              {f.notas?.startsWith('ANULADA') && (
+                <p className="text-sm text-red-700 mt-0.5">{f.notas.replace('ANULADA — ', '')}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Overdue alert */}
         {overdue && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">

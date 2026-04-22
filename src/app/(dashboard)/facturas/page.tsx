@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  MessageCircle,
 } from 'lucide-react'
 import FacturasExportButton from './FacturasExportButton'
 
@@ -34,6 +35,31 @@ function isOverdue(factura: Factura): boolean {
   return new Date(factura.fecha_vencimiento) < new Date()
 }
 
+function daysOverdue(factura: Factura): number {
+  if (!isOverdue(factura) || !factura.fecha_vencimiento) return 0
+  const venc = new Date(factura.fecha_vencimiento)
+  const now = new Date()
+  return Math.floor((now.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function overdueRowClass(days: number): string {
+  if (days >= 30) return 'bg-red-50/60 dark:bg-red-900/10'
+  if (days >= 15) return 'bg-orange-50/60 dark:bg-orange-900/10'
+  if (days >= 7)  return 'bg-amber-50/60 dark:bg-amber-900/10'
+  return ''
+}
+
+function buildWhatsAppReminderUrl(factura: Factura & { cliente?: any }, empresaNombre?: string): string {
+  const wa = factura.cliente?.whatsapp ?? factura.cliente?.telefono ?? ''
+  if (!wa) return ''
+  const numero = wa.replace(/\D/g, '')
+  const saldo = ((factura.total ?? 0) - (factura.monto_pagado ?? 0)).toFixed(2)
+  const msg = encodeURIComponent(
+    `Estimado/a ${factura.cliente?.nombre ?? 'cliente'}, le contactamos de parte de ${empresaNombre ?? 'nuestra empresa'} para recordarle amablemente que tiene la factura *${factura.numero}* con saldo pendiente de *$${saldo}*${factura.fecha_vencimiento ? `, vencida el ${new Date(factura.fecha_vencimiento).toLocaleDateString('es-VE')}` : ''}. Por favor gestione el pago a la brevedad posible. Muchas gracias.`
+  )
+  return `https://wa.me/${numero}?text=${msg}`
+}
+
 export default async function FacturasPage({ searchParams }: PageProps) {
   const supabase = createClient()
 
@@ -44,7 +70,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('facturas')
-    .select('*, cliente:clientes(id, nombre, rif)')
+    .select('*, cliente:clientes(id, nombre, rif, whatsapp, telefono)')
     .order('fecha_emision', { ascending: false })
 
   if (estadoFilter) {
@@ -57,7 +83,10 @@ export default async function FacturasPage({ searchParams }: PageProps) {
     query = query.lte('fecha_emision', hastaFilter)
   }
 
-  const { data: facturas, error } = await query
+  const [{ data: facturas, error }, { data: empresaConfig }] = await Promise.all([
+    query,
+    supabase.from('empresa_config').select('nombre').limit(1).maybeSingle(),
+  ])
   const allFacturas: Factura[] = (facturas as Factura[]) ?? []
 
   // Filter by cliente name if provided
@@ -259,23 +288,28 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Pagado
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Cobro
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                     No se encontraron facturas
                   </td>
                 </tr>
               ) : (
                 filtered.map((factura) => {
                   const overdue = isOverdue(factura)
+                  const days = daysOverdue(factura)
                   const saldo = (factura.total ?? 0) - (factura.monto_pagado ?? 0)
+                  const waUrl = saldo > 0 ? buildWhatsAppReminderUrl(factura as any, empresaConfig?.nombre) : ''
                   return (
                     <tr
                       key={factura.id}
-                      className={`hover:bg-slate-50 transition-colors ${overdue ? 'bg-red-50/40' : ''}`}
+                      className={`hover:brightness-95 transition-colors ${overdueRowClass(days)}`}
                     >
                       <td className="px-4 py-3">
                         <Link
@@ -319,17 +353,29 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                         {formatCurrency(factura.total ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div
-                          className={`font-medium ${
-                            saldo > 0 ? 'text-orange-600' : 'text-green-600'
-                          }`}
-                        >
+                        <div className={`font-medium ${saldo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                           {formatCurrency(factura.monto_pagado ?? 0)}
                         </div>
                         {saldo > 0 && (
-                          <div className="text-xs text-slate-400">
-                            Saldo: {formatCurrency(saldo)}
-                          </div>
+                          <div className="text-xs text-slate-400">Saldo: {formatCurrency(saldo)}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {waUrl && days >= 7 && (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Recordar pago (${days}d de retraso)`}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                              days >= 30 ? 'bg-red-500 hover:bg-red-600 text-white' :
+                              days >= 15 ? 'bg-orange-500 hover:bg-orange-600 text-white' :
+                              'bg-amber-400 hover:bg-amber-500 text-white'
+                            }`}
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                            {days >= 30 ? `¡${days}d!` : `${days}d`}
+                          </a>
                         )}
                       </td>
                     </tr>
