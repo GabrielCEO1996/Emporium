@@ -4,6 +4,9 @@ export const runtime = 'edge'
 export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
 
+const LOGO_URL =
+  'https://axeefndebatrmgqzncuo.supabase.co/storage/v1/object/public/empresa/Editable%20Emporium%20logo%20transparente%20.png'
+
 export default function AppleIcon() {
   return new ImageResponse(
     (
@@ -16,10 +19,11 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: 24,
           position: 'relative',
         }}
       >
-        {/* Highlight */}
+        {/* Highlight gloss */}
         <div
           style={{
             position: 'absolute',
@@ -31,21 +35,15 @@ export default function AppleIcon() {
             borderRadius: 26,
           }}
         />
-        <span
-          style={{
-            fontFamily: 'sans-serif',
-            fontSize: 96,
-            fontWeight: 900,
-            color: 'white',
-            letterSpacing: '-6px',
-            lineHeight: 1,
-            textShadow: '0 4px 12px rgba(0,0,0,0.25)',
-          }}
-        >
-          E
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={LOGO_URL}
+          width={132}
+          height={132}
+          style={{ objectFit: 'contain', position: 'relative', zIndex: 1 }}
+        />
       </div>
     ),
-    { width: 180, height: 180 }
+    { width: 180, height: 180 },
   )
 }

@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+const LOGO_URL =
+  'https://axeefndebatrmgqzncuo.supabase.co/storage/v1/object/public/empresa/Editable%20Emporium%20logo%20transparente%20.png'
+
 import {
   Package2,
   LayoutDashboard,
@@ -116,9 +119,12 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       )}>
         {!collapsed && (
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/30">
-              <Package2 className="w-5 h-5 text-white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={LOGO_URL}
+              alt="Emporium"
+              className="w-9 h-9 object-contain rounded-xl"
+            />
             <div>
               <span className="font-bold text-slate-900 dark:text-white text-base tracking-tight">Emporium</span>
               <p className="text-slate-500 dark:text-slate-400 text-xs">Distribución</p>
@@ -126,9 +132,12 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
           </div>
         )}
         {collapsed && (
-          <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
-            <Package2 className="w-5 h-5 text-white" />
-          </div>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={LOGO_URL}
+            alt="Emporium"
+            className="w-9 h-9 object-contain rounded-xl"
+          />
         )}
         {/* Desktop collapse */}
         <button

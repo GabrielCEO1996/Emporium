@@ -3,7 +3,10 @@
 import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Package2, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+
+const LOGO_URL =
+  'https://axeefndebatrmgqzncuo.supabase.co/storage/v1/object/public/empresa/Editable%20Emporium%20logo%20transparente%20.png'
 
 function GoogleIcon() {
   return (
@@ -76,9 +79,13 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-600 rounded-2xl mb-4 shadow-lg shadow-teal-500/30">
-            <Package2 className="w-9 h-9 text-white" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={LOGO_URL}
+            alt="Emporium"
+            className="h-20 w-auto mx-auto mb-3 drop-shadow-2xl"
+            style={{ filter: 'drop-shadow(0 4px 16px rgba(13,148,136,0.35))' }}
+          />
           <h1 className="text-3xl font-bold text-white tracking-tight">Emporium</h1>
           <p className="text-slate-400 mt-1 text-sm">Sistema de Distribución</p>
         </div>

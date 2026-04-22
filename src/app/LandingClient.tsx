@@ -4,11 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Package2, Truck, DollarSign, ShieldCheck, Smartphone,
+  Truck, DollarSign, ShieldCheck, Smartphone,
   ArrowRight, ChevronDown, Menu, X, ShoppingBag, Star,
-  MapPin, Phone, Mail,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+
+const LOGO_URL =
+  'https://axeefndebatrmgqzncuo.supabase.co/storage/v1/object/public/empresa/Editable%20Emporium%20logo%20transparente%20.png'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ProductoDestacado {
@@ -114,18 +116,12 @@ export default function LandingClient({ empresa, productos, isLoggedIn, userRole
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5">
-            {empresa?.logo_url ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={empresa.logo_url}
-                alt={companyName}
-                className="h-9 w-9 object-contain rounded-xl"
-              />
-            ) : (
-              <div className="h-9 w-9 bg-teal-600 rounded-xl flex items-center justify-center">
-                <Package2 className="w-5 h-5 text-white" />
-              </div>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={empresa?.logo_url ?? LOGO_URL}
+              alt={companyName}
+              className="h-[50px] w-auto object-contain"
+            />
             <span className={`font-extrabold text-lg tracking-tight transition-colors ${scrolled || mobileOpen ? 'text-slate-900' : 'text-white'}`}>
               {companyName}
             </span>
@@ -287,18 +283,13 @@ export default function LandingClient({ empresa, productos, isLoggedIn, userRole
             transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
             className="flex justify-center mb-8"
           >
-            {empresa?.logo_url ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={empresa.logo_url}
-                alt={companyName}
-                className="h-24 w-24 object-contain rounded-3xl shadow-2xl shadow-black/40 ring-4 ring-white/20"
-              />
-            ) : (
-              <div className="h-24 w-24 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-teal-800/50 ring-4 ring-white/20">
-                <Package2 className="w-12 h-12 text-white" />
-              </div>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={empresa?.logo_url ?? LOGO_URL}
+              alt={companyName}
+              className="h-[120px] w-auto object-contain drop-shadow-2xl"
+              style={{ filter: 'drop-shadow(0 8px 32px rgba(13,148,136,0.45))' }}
+            />
           </motion.div>
 
           {/* Badge chip */}
@@ -660,18 +651,12 @@ export default function LandingClient({ empresa, productos, isLoggedIn, userRole
             {/* Brand */}
             <div>
               <div className="flex items-center gap-2.5 mb-4">
-                {empresa?.logo_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={empresa.logo_url}
-                    alt={companyName}
-                    className="h-9 w-9 object-contain rounded-xl"
-                  />
-                ) : (
-                  <div className="h-9 w-9 bg-teal-600 rounded-xl flex items-center justify-center">
-                    <Package2 className="w-5 h-5 text-white" />
-                  </div>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={empresa?.logo_url ?? LOGO_URL}
+                  alt={companyName}
+                  className="h-10 w-auto object-contain"
+                />
                 <span className="text-white font-extrabold text-lg">{companyName}</span>
               </div>
               <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
