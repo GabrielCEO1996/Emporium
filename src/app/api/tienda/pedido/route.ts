@@ -27,7 +27,6 @@ export async function POST(req: Request) {
     .rpc('get_next_sequence', { seq_name: 'pedidos' })
   if (numError) return NextResponse.json({ error: numError.message }, { status: 500 })
 
-  // Calculate totals
   const subtotal = items.reduce(
     (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
     0
@@ -66,6 +65,20 @@ export async function POST(req: Request) {
     await supabase.from('pedidos').delete().eq('id', pedido.id)
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
+
+  // ── Reserve stock (non-fatal: RPC created by stock_reservado.sql) ─────────
+  await Promise.all(
+    items.map(async (item: any) => {
+      await supabase
+        .rpc('reserve_stock', {
+          p_id: item.presentacion_id,
+          p_amount: Number(item.cantidad),
+        })
+        // Silent fail if RPC hasn't been created yet in Supabase
+        .then(() => null)
+        .catch(() => null)
+    })
+  )
 
   return NextResponse.json(pedido, { status: 201 })
 }

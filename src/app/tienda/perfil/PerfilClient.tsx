@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   User, ChevronLeft, ShoppingBag, ClipboardList,
-  CheckCircle2, Loader2, LogOut, Briefcase,
+  CheckCircle2, Loader2, LogOut, Briefcase, Phone, MapPin, MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -22,11 +22,39 @@ interface Props {
   } | null
 }
 
+function Field({
+  label, value, onChange, icon, placeholder, type = 'text', disabled = false,
+}: {
+  label: string; value: string; onChange?: (v: string) => void
+  icon: React.ReactNode; placeholder?: string; type?: string; disabled?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+        {icon} {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange?.(e.target.value)}
+        disabled={disabled}
+        placeholder={placeholder}
+        className={`w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition ${
+          disabled ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+      />
+    </div>
+  )
+}
+
 export default function PerfilClient({ profile, clienteInfo }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
   const [nombre, setNombre] = useState(profile.nombre ?? '')
+  const [telefono, setTelefono] = useState(clienteInfo?.telefono ?? '')
+  const [whatsapp, setWhatsapp] = useState(clienteInfo?.whatsapp ?? '')
+  const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
   const [saving, setSaving] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [requested, setRequested] = useState(profile.solicita_vendedor ?? false)
@@ -38,7 +66,7 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
     const res = await fetch('/api/tienda/perfil', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre }),
+      body: JSON.stringify({ nombre, telefono, whatsapp, direccion }),
     })
     setSaving(false)
     if (res.ok) {
@@ -73,7 +101,6 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-4 flex items-center gap-3">
         <Link href="/tienda" className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
@@ -86,16 +113,13 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-5 pb-24">
 
-        {/* Avatar + Info */}
+        {/* Avatar */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-slate-800 rounded-2xl p-6 flex flex-col items-center gap-4 shadow-sm border border-slate-100 dark:border-slate-700"
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-slate-800 rounded-2xl p-6 flex flex-col items-center gap-3 shadow-sm border border-slate-100 dark:border-slate-700"
         >
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-teal-500/30">
-            <span className="text-3xl font-black text-white">
-              {profile.nombre?.charAt(0).toUpperCase()}
-            </span>
+            <span className="text-3xl font-black text-white">{profile.nombre?.charAt(0).toUpperCase()}</span>
           </div>
           <div className="text-center">
             <p className="font-bold text-slate-800 dark:text-white text-lg">{profile.nombre}</p>
@@ -106,34 +130,41 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
           </div>
         </motion.div>
 
-        {/* Edit name */}
+        {/* Editable fields */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4"
         >
           <h2 className="font-semibold text-slate-700 dark:text-white text-sm">Editar información</h2>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-              Nombre
-            </label>
-            <input
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-              Email
-            </label>
-            <input
-              value={profile.email}
-              disabled
-              className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
-            />
-          </div>
+
+          <Field
+            label="Nombre" value={nombre} onChange={setNombre}
+            icon={<User className="w-3 h-3" />}
+            placeholder="Tu nombre completo"
+          />
+          <Field
+            label="Email" value={profile.email}
+            icon={<User className="w-3 h-3" />}
+            disabled
+          />
+          <Field
+            label="Teléfono" value={telefono} onChange={setTelefono}
+            icon={<Phone className="w-3 h-3" />}
+            placeholder="0414-0000000"
+            type="tel"
+          />
+          <Field
+            label="WhatsApp" value={whatsapp} onChange={setWhatsapp}
+            icon={<MessageCircle className="w-3 h-3" />}
+            placeholder="0414-0000000"
+            type="tel"
+          />
+          <Field
+            label="Dirección de entrega" value={direccion} onChange={setDireccion}
+            icon={<MapPin className="w-3 h-3" />}
+            placeholder="Av. Principal, Casa 5, Urb. X"
+          />
+
           <button
             onClick={handleSave}
             disabled={saving || !nombre.trim()}
@@ -144,36 +175,10 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
           </button>
         </motion.div>
 
-        {/* Cliente info */}
-        {clienteInfo && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 space-y-3"
-          >
-            <h2 className="font-semibold text-slate-700 dark:text-white text-sm">Datos de cliente</h2>
-            {[
-              { label: 'Teléfono', value: clienteInfo.telefono },
-              { label: 'WhatsApp', value: clienteInfo.whatsapp },
-              { label: 'Dirección', value: clienteInfo.direccion },
-              { label: 'Ciudad', value: clienteInfo.ciudad },
-            ].filter(f => f.value).map(f => (
-              <div key={f.label}>
-                <p className="text-xs text-slate-400 font-medium">{f.label}</p>
-                <p className="text-sm text-slate-700 dark:text-slate-200">{f.value}</p>
-              </div>
-            ))}
-            <p className="text-xs text-slate-400 pt-1">Para actualizar estos datos contacta a tu distribuidor.</p>
-          </motion.div>
-        )}
-
         {/* Request vendor access */}
         {profile.rol === 'cliente' && (
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-2xl p-5 border border-violet-100 dark:border-violet-800 space-y-3"
           >
             <div className="flex items-center gap-2">
@@ -181,12 +186,12 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
               <h2 className="font-semibold text-violet-800 dark:text-violet-300 text-sm">¿Formas parte del equipo?</h2>
             </div>
             <p className="text-xs text-violet-700 dark:text-violet-400 leading-relaxed">
-              Si trabajas en la empresa y necesitas acceso completo al sistema de gestión, solicita que un administrador te habilite.
+              Si trabajas en la empresa y necesitas acceso completo al sistema, solicita habilitación a un administrador.
             </p>
             {requested ? (
               <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-semibold">
                 <CheckCircle2 className="w-4 h-4" />
-                Solicitud enviada — un administrador la revisará pronto
+                Solicitud enviada — pendiente de revisión
               </div>
             ) : (
               <button
@@ -203,9 +208,7 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
 
         {/* Sign out */}
         <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
           onClick={handleSignOut}
           disabled={signingOut}
           className="w-full flex items-center justify-center gap-2 text-sm text-red-500 hover:text-red-600 font-semibold py-3 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
@@ -218,16 +221,13 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
       {/* Bottom nav */}
       <nav className="fixed bottom-0 inset-x-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-4 py-2 lg:hidden">
         <Link href="/tienda" className="flex flex-col items-center gap-0.5 py-1 text-slate-400 hover:text-slate-600 transition">
-          <ShoppingBag className="w-5 h-5" />
-          <span className="text-xs font-medium">Tienda</span>
+          <ShoppingBag className="w-5 h-5" /><span className="text-xs font-medium">Tienda</span>
         </Link>
         <Link href="/tienda/mis-pedidos" className="flex flex-col items-center gap-0.5 py-1 text-slate-400 hover:text-slate-600 transition">
-          <ClipboardList className="w-5 h-5" />
-          <span className="text-xs font-medium">Pedidos</span>
+          <ClipboardList className="w-5 h-5" /><span className="text-xs font-medium">Pedidos</span>
         </Link>
         <Link href="/tienda/perfil" className="flex flex-col items-center gap-0.5 py-1 text-teal-600">
-          <User className="w-5 h-5" />
-          <span className="text-xs font-medium">Perfil</span>
+          <User className="w-5 h-5" /><span className="text-xs font-medium">Perfil</span>
         </Link>
       </nav>
     </div>

@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import {
   ShoppingCart, Search, X, Plus, Minus, Trash2, MessageCircle,
   Send, Package2, CheckCircle2, ClipboardList, User, LogOut,
-  ChevronRight, Loader2, ShoppingBag, Sparkles,
+  ChevronRight, Loader2, ShoppingBag, Sparkles, CreditCard, Star,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -191,7 +191,7 @@ function ProductCard({
 
 // ── Cart Panel ────────────────────────────────────────────────────────────────
 function CartPanel({
-  items, open, onClose, onUpdate, onRemove, onCheckout,
+  items, open, onClose, onUpdate, onRemove, onCheckout, onStripeCheckout,
 }: {
   items: CartItem[]
   open: boolean
@@ -199,6 +199,7 @@ function CartPanel({
   onUpdate: (id: string, delta: number) => void
   onRemove: (id: string) => void
   onCheckout: () => void
+  onStripeCheckout: () => void
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
@@ -291,10 +292,17 @@ function CartPanel({
                 </div>
                 <button
                   onClick={onCheckout}
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
                 >
                   <ChevronRight className="w-4 h-4" />
-                  Hacer Pedido
+                  Hacer Pedido (crédito)
+                </button>
+                <button
+                  onClick={onStripeCheckout}
+                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Pagar ahora 💳
                 </button>
               </div>
             )}
@@ -398,6 +406,12 @@ function ConfirmModal({
 
 // ── Success Screen ────────────────────────────────────────────────────────────
 function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onContinue: () => void }) {
+  const router = useRouter()
+  useEffect(() => {
+    const t = setTimeout(() => router.push('/tienda/mis-pedidos'), 4000)
+    return () => clearTimeout(t)
+  }, [])
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8 }}
@@ -418,6 +432,7 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
           Tu pedido <span className="font-bold text-teal-600">{numeroPedido}</span> fue recibido.<br />
           Te avisaremos cuando sea confirmado.
         </p>
+        <p className="text-xs text-slate-400 mt-1">Redirigiendo a tus pedidos en 4s…</p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <Link
@@ -445,7 +460,13 @@ function ChatPanel({
   open: boolean; onClose: () => void; productos: Producto[]
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: '¡Hola! Soy EmporiumBot 👋 ¿En qué puedo ayudarte hoy? Puedo ayudarte a encontrar productos o guiarte para hacer un pedido.' }
+    {
+      role: 'assistant',
+      content:
+        '¡Hola! 👋 Soy EmporiumBot, tu asistente de compras.\n\n' +
+        'Cuéntame qué necesitas y yo te armo el carrito. Puedes decirme por ejemplo:\n' +
+        '"Necesito 5 unidades de agua mineral" o "¿Qué productos tienen disponibles?"',
+    },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -642,6 +663,53 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
 
   const cartCount = cart.reduce((s, i) => s + i.cantidad, 0)
 
+  // ── Load reorder from localStorage (set by mis-pedidos "Volver a pedir") ──
+  useEffect(() => {
+    const raw = localStorage.getItem('emporium_reorder')
+    if (raw) {
+      try {
+        const items: CartItem[] = JSON.parse(raw)
+        if (items.length) {
+          setCart(items)
+          setCartOpen(true)
+          toast.success('Productos del pedido anterior cargados')
+        }
+      } catch {}
+      localStorage.removeItem('emporium_reorder')
+    }
+  }, [])
+
+  // ── Stripe checkout ───────────────────────────────────────────────────────
+  const handleStripeCheckout = async () => {
+    if (cart.length === 0) return
+    const stripeItems = cart.map(i => ({
+      presentacion_id: i.presentacionId,
+      productoNombre: i.productoNombre,
+      presentacionNombre: i.presentacionNombre,
+      precio: i.precio,
+      cantidad: i.cantidad,
+    }))
+    // Save cart to localStorage so success page can create the order
+    localStorage.setItem('emporium_stripe_cart', JSON.stringify(stripeItems))
+    localStorage.setItem('emporium_stripe_direccion', direccion)
+
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: stripeItems,
+        notas,
+        direccion_entrega: direccion,
+      }),
+    })
+    const data = await res.json()
+    if (data.url) {
+      window.location.href = data.url
+    } else {
+      toast.error(data.error ?? 'Error al iniciar pago')
+    }
+  }
+
   // Sign out
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -803,6 +871,47 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         )}
       </div>
 
+      {/* ── Featured / Destacados Banner ── */}
+      {!search && !categoria && (() => {
+        const destacados = [...productos]
+          .sort((a, b) => {
+            const stockA = a.presentaciones.reduce((s, p) => s + p.stock, 0)
+            const stockB = b.presentaciones.reduce((s, p) => s + p.stock, 0)
+            return stockB - stockA
+          })
+          .slice(0, 4)
+        if (destacados.length === 0) return null
+        return (
+          <div className="px-4 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">Más disponibles</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+              {destacados.map(p => {
+                const pres = p.presentaciones[0]
+                const gradients = ['from-teal-400 to-emerald-500','from-violet-400 to-purple-500','from-orange-400 to-amber-500','from-sky-400 to-blue-500']
+                const grad = gradients[p.nombre.charCodeAt(0) % gradients.length]
+                return (
+                  <div key={p.id} className="flex-shrink-0 w-32 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className={`h-20 bg-gradient-to-br ${grad} flex items-center justify-center`}>
+                      {p.imagen_url
+                        ? <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover" />
+                        : <span className="text-3xl font-black text-white/80">{p.nombre.charAt(0)}</span>
+                      }
+                    </div>
+                    <div className="p-2">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight line-clamp-2">{p.nombre}</p>
+                      <p className="text-xs font-black text-teal-600 mt-1">{formatCurrency(pres?.precio ?? 0)}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Product Grid ── */}
       <main className="px-4 py-5 pb-28">
         {filtered.length === 0 ? (
@@ -869,6 +978,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         onUpdate={updateCart}
         onRemove={removeFromCart}
         onCheckout={() => { setCartOpen(false); setConfirmOpen(true) }}
+        onStripeCheckout={() => { setCartOpen(false); handleStripeCheckout() }}
       />
 
       <ConfirmModal
