@@ -1,10 +1,23 @@
 {
   "skills": {
     "autoLoad": false,
-    "loadOnDemand": true
+    "loadOnDemand": true,
+    "cache": true
   },
   "context": {
-    "maxTokensPerSkill": 2000,
-    "cacheSkills": true
+    "cacheSkills": true,
+    "prioritizeRecentFiles": true,
+    "excludeFromContext": [
+      "node_modules",
+      ".next",
+      "public",
+      "*.lock",
+      "*.log"
+    ]
+  },
+  "performance": {
+    "skipNodeModules": true,
+    "skipBuildArtifacts": true,
+    "focusOnSrc": true
   }
 }
