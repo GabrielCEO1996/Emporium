@@ -13,14 +13,52 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
   }
 
-  // Find the linked cliente record by email
-  const { data: clienteData } = await supabase
+  // ── Resolve cliente record (by user_id first, then email fallback) ───────────
+  let { data: clienteData } = await supabase
     .from('clientes')
     .select('id, credito_autorizado, limite_credito, credito_usado')
-    .eq('email', user.email ?? '')
+    .or(`user_id.eq.${user.id},email.eq.${user.email ?? ''}`)
     .maybeSingle()
 
-  const cliente_id = clienteData?.id ?? null
+  // Auto-create cliente if none exists yet (handles new tienda-only users)
+  if (!clienteData) {
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('nombre')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const nombre =
+      perfil?.nombre ??
+      user.user_metadata?.full_name ??
+      user.email?.split('@')[0] ??
+      'Cliente'
+
+    const { data: newCliente, error: createError } = await supabase
+      .from('clientes')
+      .insert({ nombre, email: user.email!, user_id: user.id, activo: true })
+      .select('id, credito_autorizado, limite_credito, credito_usado')
+      .single()
+
+    if (createError || !newCliente) {
+      return NextResponse.json(
+        { error: 'No se pudo crear el registro de cliente: ' + (createError?.message ?? '') },
+        { status: 500 }
+      )
+    }
+    clienteData = newCliente
+  } else {
+    // Backfill user_id if the record was matched only by email (pre-migration)
+    supabase
+      .from('clientes')
+      .update({ user_id: user.id })
+      .eq('id', clienteData.id)
+      .is('user_id', null)
+      .then(() => null)
+      .catch(() => null)
+  }
+
+  const cliente_id = clienteData.id
 
   const subtotal = items.reduce(
     (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
