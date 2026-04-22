@@ -1,31 +1,69 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Paths that never require auth (startsWith check — keep specific before general)
-const PUBLIC_PATHS = [
+// ─────────────────────────────────────────────────────────────────────────────
+// Route classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Exact-match public paths (cannot use startsWith because '/' matches everything). */
+const PUBLIC_EXACT = new Set(['/', '/pendiente'])
+
+/** Prefix-match public paths — no auth needed at all. */
+const PUBLIC_PREFIXES = [
   '/login',
   '/signup',
   '/forgot-password',
-  '/reset-password',        // legacy — kept for backward compat
-  '/auth/callback',
-  '/auth/reset-password',   // new reset-password flow
+  '/reset-password',       // legacy redirect
+  '/auth/',                // /auth/callback, /auth/reset-password
+  '/catalogo/',
+  '/api/webhook/',         // Stripe webhook (raw body, no session)
 ]
 
-// Exact-match paths that are also public (can't use startsWith for '/')
-const PUBLIC_EXACT = ['/']
+/** Staff-accessible path prefixes (vendedor, conductor, admin). */
+const STAFF_PREFIXES = [
+  '/dashboard',
+  '/productos',
+  '/clientes',
+  '/pedidos',
+  '/facturas',
+  '/historial',
+  '/rutas',
+  '/notas-credito',
+  '/mi-cuenta',
+]
 
-// Dashboard paths only accessible to staff roles (admin | vendedor | conductor)
-const DASHBOARD_PREFIX = '/dashboard'
-
-// Admin-only paths within the dashboard
-const ADMIN_ONLY_PATHS = [
+/** Admin-only path prefixes. */
+const ADMIN_PREFIXES = [
+  '/configuracion',
+  '/finanzas',
   '/equipo',
-  '/empresa',
-  '/compras',
+  '/reportes',
   '/proveedores',
+  '/compras',
+  '/empresa',
 ]
 
-export async function updateSession(request: NextRequest) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function redirect(request: NextRequest, pathname: string): NextResponse {
+  const url = request.nextUrl.clone()
+  url.pathname = pathname
+  url.search = ''
+  return NextResponse.redirect(url)
+}
+
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_EXACT.has(pathname)) return true
+  return PUBLIC_PREFIXES.some(p => pathname.startsWith(p))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main middleware
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function updateSession(request: NextRequest): Promise<NextResponse> {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -37,103 +75,87 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           )
         },
       },
-    }
+    },
   )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
 
-  // ── Always allow public routes and API ──────────────────────────────────────
+  // ── 1. Static assets / Next internals / public API ─────────────────────────
   if (
-    PUBLIC_EXACT.includes(pathname) ||
-    PUBLIC_PATHS.some(p => pathname.startsWith(p)) ||
-    pathname.startsWith('/api') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon')
+    pathname.startsWith('/favicon') ||
+    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff2?)$/)
   ) {
     return supabaseResponse
   }
 
-  // ── Not authenticated → login ───────────────────────────────────────────────
+  // ── 2. Fully public routes — no session needed ─────────────────────────────
+  if (isPublic(pathname)) {
+    // Refresh session cookies even on public routes (keeps Supabase SSR happy)
+    await supabase.auth.getUser()
+    return supabaseResponse
+  }
+
+  // ── 3. All other routes require a valid session ────────────────────────────
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.search = `?next=${encodeURIComponent(pathname)}`
     return NextResponse.redirect(url)
   }
 
-  // ── Fetch role only for paths that need it ──────────────────────────────────
-  // (skip for static assets, API, etc.)
-  const needsRoleCheck =
-    pathname.startsWith('/mi-cuenta') ||
-    pathname === '/' ||
-    pathname.startsWith('/pendiente') ||
-    // Everything under the (dashboard) route group
-    (!PUBLIC_PATHS.some(p => pathname.startsWith(p)) && !pathname.startsWith('/api'))
-
-  if (!needsRoleCheck) return supabaseResponse
-
+  // ── 4. Fetch role (needed for every authenticated route) ───────────────────
   const { data: profile } = await supabase
     .from('profiles')
-    .select('rol')
+    .select('rol, activo')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  const rol = profile?.rol ?? 'cliente'
+  const rol: string = profile?.rol ?? 'cliente'
 
-  // ── Role-based routing ──────────────────────────────────────────────────────
+  // ── 5. Role-based routing ──────────────────────────────────────────────────
 
-  // cliente role: can only access /tienda (and /mi-cuenta redirects to /tienda)
-  if (rol === 'cliente') {
-    if (pathname.startsWith('/mi-cuenta')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/tienda'
-      return NextResponse.redirect(url)
-    }
-    if (!pathname.startsWith('/tienda')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/tienda'
-      return NextResponse.redirect(url)
-    }
-    return supabaseResponse
-  }
-
-  // pendiente role: can only access /pendiente
+  // pendiente: can only be on /pendiente
   if (rol === 'pendiente') {
-    if (!pathname.startsWith('/pendiente')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/pendiente'
-      return NextResponse.redirect(url)
-    }
+    if (pathname !== '/pendiente') return redirect(request, '/pendiente')
     return supabaseResponse
   }
 
-  // Staff roles (admin | vendedor | conductor): redirect away from client-only pages
-  if (['admin', 'vendedor', 'conductor'].includes(rol)) {
-    if (pathname.startsWith('/mi-cuenta') || pathname.startsWith('/tienda') || pathname.startsWith('/pendiente')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
-
-    // vendedor & conductor cannot access admin-only paths
-    if (rol !== 'admin' && ADMIN_ONLY_PATHS.some(p => pathname.startsWith(p))) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
+  // cliente: can only access /tienda/*
+  if (rol === 'cliente') {
+    if (pathname.startsWith('/tienda')) return supabaseResponse
+    // Any other authenticated route → send to tienda
+    return redirect(request, '/tienda')
   }
 
+  // Staff (admin | vendedor | conductor):
+  // Redirect away from client-only paths
+  if (pathname.startsWith('/tienda') || pathname === '/pendiente') {
+    return redirect(request, '/dashboard')
+  }
+
+  // vendedor / conductor: block admin-only paths
+  if (
+    rol !== 'admin' &&
+    ADMIN_PREFIXES.some(p => pathname.startsWith(p))
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    url.searchParams.set('error', 'acceso_denegado')
+    return NextResponse.redirect(url)
+  }
+
+  // ── 6. Allow ──────────────────────────────────────────────────────────────
   return supabaseResponse
 }

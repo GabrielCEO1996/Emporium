@@ -6,6 +6,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  // Purchase detail contains cost data — admin only
+  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
+
   const { data, error } = await supabase
     .from('compras')
     .select(`

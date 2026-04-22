@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { rateLimit, rateLimitResponse } from '@/lib/security'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2025-03-31.basil',
@@ -10,6 +11,11 @@ export async function POST(req: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // Rate limit: 10 checkout attempts per hour per user
+  if (!rateLimit(`checkout:${user.id}`, 10, 60 * 60 * 1000)) {
+    return rateLimitResponse(60 * 60 * 1000)
+  }
 
   if (!process.env.STRIPE_SECRET_KEY) {
     return NextResponse.json({ error: 'Stripe no configurado. Agrega STRIPE_SECRET_KEY al .env.local' }, { status: 503 })

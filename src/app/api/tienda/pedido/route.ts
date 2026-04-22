@@ -1,16 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { rateLimit, rateLimitResponse, logActivity } from '@/lib/security'
 
 export async function POST(req: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  // Rate limit: 20 orders per hour per user (generous limit, blocks abuse)
+  if (!rateLimit(`tienda_pedido:${user.id}`, 20, 60 * 60 * 1000)) {
+    return rateLimitResponse(60 * 60 * 1000)
+  }
+
   const body = await req.json()
   const { items, notas, direccion_entrega, tipo_pago = 'pendiente' } = body
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
+  }
+
+  // Validate item count (prevent payload bloat)
+  if (items.length > 100) {
+    return NextResponse.json({ error: 'Máximo 100 productos por pedido' }, { status: 400 })
   }
 
   // ── Resolve cliente record (by user_id first, then email fallback) ───────────
