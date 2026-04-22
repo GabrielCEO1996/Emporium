@@ -35,9 +35,11 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'Emporium',
+    startupImage: [],
   },
   other: {
     'mobile-web-app-capable': 'yes',
+    'apple-touch-fullscreen': 'yes',
   },
 };
 
