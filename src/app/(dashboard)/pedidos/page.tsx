@@ -19,7 +19,7 @@ import {
   FileText,
 } from 'lucide-react'
 import GenerarFacturaButton from '@/components/pedidos/GenerarFacturaButton'
-import ExportExcelButton from '@/components/ui/ExportExcelButton'
+import PedidosExportButton from './PedidosExportButton'
 
 interface PageProps {
   searchParams: {
@@ -107,21 +107,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ExportExcelButton
-              data={pedidos ?? []}
-              filename="pedidos"
-              sheetName="Pedidos"
-              columns={[
-                { header: 'N° Pedido', accessor: (p: any) => p.numero },
-                { header: 'Cliente', accessor: (p: any) => p.cliente?.nombre ?? '' },
-                { header: 'Estado', accessor: (p: any) => ESTADO_PEDIDO_LABELS[p.estado] ?? p.estado },
-                { header: 'Fecha Pedido', accessor: (p: any) => formatDate(p.fecha_pedido) },
-                { header: 'Fecha Entrega', accessor: (p: any) => p.fecha_entrega_estimada ? formatDate(p.fecha_entrega_estimada) : '' },
-                { header: 'Subtotal', accessor: (p: any) => p.subtotal },
-                { header: 'Descuento', accessor: (p: any) => p.descuento },
-                { header: 'Total', accessor: (p: any) => p.total },
-              ]}
-            />
+            <PedidosExportButton data={pedidos ?? []} />
             <Link
               href="/pedidos/nuevo"
               className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"

@@ -15,7 +15,7 @@ import {
   Clock,
   XCircle,
 } from 'lucide-react'
-import ExportExcelButton from '@/components/ui/ExportExcelButton'
+import FacturasExportButton from './FacturasExportButton'
 
 interface PageProps {
   searchParams: {
@@ -92,20 +92,7 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <ExportExcelButton
-              data={filtered}
-              filename="facturas"
-              sheetName="Facturas"
-              columns={[
-                { header: 'N° Factura', accessor: (f) => f.numero },
-                { header: 'Cliente', accessor: (f) => (f as any).cliente?.nombre ?? '' },
-                { header: 'Fecha Emisión', accessor: (f) => formatDate(f.fecha_emision) },
-                { header: 'Vencimiento', accessor: (f) => f.fecha_vencimiento ? formatDate(f.fecha_vencimiento) : '' },
-                { header: 'Estado', accessor: (f) => ESTADO_FACTURA_LABELS[f.estado] ?? f.estado },
-                { header: 'Total', accessor: (f) => f.total },
-                { header: 'Monto Pagado', accessor: (f) => f.monto_pagado ?? 0 },
-              ]}
-            />
+            <FacturasExportButton data={filtered} />
             <Link
               href="/facturas/nueva"
               className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
