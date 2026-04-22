@@ -33,14 +33,14 @@ function fmtDate(dateString?: string | null): string {
   }).format(new Date(dateString))
 }
 
-// ─── Color palette (Navy blue theme) ─────────────────────────────────────────
+// ─── Color palette (Light blue theme) ────────────────────────────────────────
 
 const C = {
-  navy:       '#0f2044',   // cabecera principal
-  navyMid:    '#1a3560',   // gradiente / fila alternada encabezado
-  blue:       '#1e4db7',   // acentos
-  blueLight:  '#dbeafe',   // fondos suaves
-  blueUltra:  '#eff6ff',   // fondos ultra suaves
+  navy:       '#2563EB',   // cabecera principal (blue-600)
+  navyMid:    '#1D4ED8',   // hover / acento oscuro (blue-700)
+  blue:       '#3B82F6',   // acentos (blue-500)
+  blueLight:  '#DBEAFE',   // fondos suaves (blue-100)
+  blueUltra:  '#EFF6FF',   // fondos ultra suaves (blue-50)
   white:      '#ffffff',
   text:       '#1e293b',
   textMid:    '#475569',

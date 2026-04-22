@@ -80,7 +80,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
           'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
           isActive
             ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-            : 'text-slate-400 hover:text-white hover:bg-white/10'
+            : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
         )}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
@@ -102,7 +102,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className={cn(
-        'flex items-center px-4 py-5 border-b border-white/10',
+        'flex items-center px-4 py-5 border-b border-slate-200',
         collapsed ? 'justify-center' : 'justify-between'
       )}>
         {!collapsed && (
@@ -111,7 +111,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
               <Package2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-white text-base tracking-tight">Emporium</span>
+              <span className="font-bold text-slate-900 text-base tracking-tight">Emporium</span>
               <p className="text-slate-500 text-xs">Distribución</p>
             </div>
           </div>
@@ -124,7 +124,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
         {/* Desktop collapse */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-white/10"
+          className="hidden lg:flex text-slate-400 hover:text-slate-700 transition p-1.5 rounded-lg hover:bg-slate-100"
         >
           <ChevronLeft className={cn('w-4 h-4 transition-transform duration-300', collapsed && 'rotate-180')} />
         </button>
@@ -132,7 +132,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="lg:hidden text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-white/10"
+            className="lg:hidden text-slate-400 hover:text-slate-700 transition p-1.5 rounded-lg hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
           </button>
@@ -147,17 +147,17 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       </nav>
 
       {/* User / Logout */}
-      <div className="px-3 py-4 border-t border-white/10 space-y-2">
+      <div className="px-3 py-4 border-t border-slate-200 space-y-2">
         {!collapsed && profile && (
-          <div className="px-3 py-2 rounded-xl bg-white/5">
+          <div className="px-3 py-2 rounded-xl bg-slate-50">
             <p className="text-xs text-slate-500 mb-0.5">Sesión activa</p>
-            <p className="text-sm text-white font-semibold truncate">{profile.nombre}</p>
-            <p className="text-xs text-blue-400 capitalize">{profile.rol}</p>
+            <p className="text-sm text-slate-900 font-semibold truncate">{profile.nombre}</p>
+            <p className="text-xs text-blue-600 capitalize">{profile.rol}</p>
           </div>
         )}
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span>Cerrar Sesión</span>}
@@ -170,7 +170,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
     <>
       {/* ── Mobile hamburger button ── */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 bg-slate-800 p-2.5 rounded-xl text-white shadow-lg border border-white/10 active:scale-95 transition-transform"
+        className="lg:hidden fixed top-4 left-4 z-50 bg-blue-600 p-2.5 rounded-xl text-white shadow-lg active:scale-95 transition-transform"
         onClick={() => setMobileOpen(true)}
         aria-label="Abrir menú"
       >
@@ -188,7 +188,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       {/* ── Mobile sidebar (slide-in) ── */}
       <aside
         className={cn(
-          'lg:hidden fixed left-0 top-0 bottom-0 z-50 w-72 bg-slate-900 border-r border-white/10 transition-transform duration-300 ease-out shadow-2xl',
+          'lg:hidden fixed left-0 top-0 bottom-0 z-50 w-72 bg-white border-r border-slate-200 transition-transform duration-300 ease-out shadow-2xl',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -198,7 +198,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       {/* ── Desktop sidebar ── */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col bg-slate-900 border-r border-white/10 transition-all duration-300 flex-shrink-0',
+          'hidden lg:flex flex-col bg-white border-r border-slate-200 transition-all duration-300 flex-shrink-0',
           collapsed ? 'w-16' : 'w-64'
         )}
       >
@@ -206,7 +206,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
       </aside>
 
       {/* ── Mobile bottom navigation bar ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-900 border-t border-white/10 flex items-center justify-around px-2 py-1 safe-area-pb">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-pb">
         {bottomNavItems.map((item) => {
           const isActive = pathname.startsWith(item.href)
           const Icon = item.icon
@@ -216,7 +216,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
               href={item.href}
               className={cn(
                 'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0 flex-1 relative',
-                isActive ? 'text-blue-400' : 'text-slate-500'
+                isActive ? 'text-blue-600' : 'text-slate-500'
               )}
             >
               <div className="relative">
@@ -231,7 +231,7 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
                 {item.shortLabel || item.label}
               </span>
               {isActive && (
-                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full" />
+                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full" />
               )}
             </Link>
           )

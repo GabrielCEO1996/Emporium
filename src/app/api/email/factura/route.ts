@@ -38,17 +38,17 @@ function buildHtml(factura: any, empresa: any): string {
     : ''
 
   const estadoColors: Record<string, string> = {
-    emitida: '#1e4db7', pagada: '#16a34a', anulada: '#dc2626', con_nota_credito: '#d97706',
+    emitida: '#3B82F6', pagada: '#16a34a', anulada: '#dc2626', con_nota_credito: '#d97706',
   }
   const estadoLabels: Record<string, string> = {
     emitida: 'EMITIDA', pagada: 'PAGADA', anulada: 'ANULADA', con_nota_credito: 'CON NOTA CRÉDITO',
   }
-  const estadoColor = estadoColors[factura.estado] ?? '#1e4db7'
+  const estadoColor = estadoColors[factura.estado] ?? '#3B82F6'
   const estadoLabel = estadoLabels[factura.estado] ?? factura.estado.toUpperCase()
 
   const logoHtml = emp.logo_url
     ? `<img src="${emp.logo_url}" alt="${emp.nombre}" style="height:44px;width:auto;object-fit:contain;border-radius:6px" />`
-    : `<div style="width:44px;height:44px;background:#1e4db7;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;font-family:sans-serif">${emp.nombre.charAt(0).toUpperCase()}</div>`
+    : `<div style="width:44px;height:44px;background:#3B82F6;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;font-family:sans-serif">${emp.nombre.charAt(0).toUpperCase()}</div>`
 
   const contactLines = [
     emp.rif ? `EIN: ${emp.rif}` : null,
@@ -66,7 +66,7 @@ function buildHtml(factura: any, empresa: any): string {
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
 
   <!-- HEADER -->
-  <tr><td style="background:#0f2044;border-radius:14px 14px 0 0;padding:28px 32px">
+  <tr><td style="background:#2563EB;border-radius:14px 14px 0 0;padding:28px 32px">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:middle">
@@ -89,23 +89,23 @@ function buildHtml(factura: any, empresa: any): string {
   </td></tr>
 
   <!-- ACCENT STRIPE -->
-  <tr><td style="height:4px;background:#1e4db7"></td></tr>
+  <tr><td style="height:4px;background:#3B82F6"></td></tr>
 
   <!-- META INFO -->
   <tr><td style="background:#ffffff;padding:24px 32px">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td width="50%" style="vertical-align:top;padding-right:12px">
-          <div style="font-size:10px;font-weight:700;color:#1e4db7;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin-bottom:10px">Información de Factura</div>
+          <div style="font-size:10px;font-weight:700;color:#3B82F6;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin-bottom:10px">Información de Factura</div>
           <table cellpadding="0" cellspacing="0">
-            <tr><td style="font-size:12px;color:#94a3b8;padding-bottom:5px;padding-right:16px">Número</td><td style="font-size:12px;font-weight:700;color:#0f2044">${factura.numero}</td></tr>
+            <tr><td style="font-size:12px;color:#94a3b8;padding-bottom:5px;padding-right:16px">Número</td><td style="font-size:12px;font-weight:700;color:#2563EB">${factura.numero}</td></tr>
             <tr><td style="font-size:12px;color:#94a3b8;padding-bottom:5px;padding-right:16px">Emisión</td><td style="font-size:12px;font-weight:600;color:#1e293b">${fmtDate(factura.fecha_emision)}</td></tr>
             ${factura.fecha_vencimiento ? `<tr><td style="font-size:12px;color:#94a3b8;padding-right:16px">Vencimiento</td><td style="font-size:12px;font-weight:600;color:#1e293b">${fmtDate(factura.fecha_vencimiento)}</td></tr>` : ''}
           </table>
         </td>
         <td width="50%" style="vertical-align:top;padding-left:12px;border-left:1px solid #f1f5f9">
-          <div style="font-size:10px;font-weight:700;color:#1e4db7;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin-bottom:10px">Cliente</div>
-          <div style="font-size:14px;font-weight:700;color:#0f2044;margin-bottom:4px">${factura.cliente?.nombre ?? '—'}</div>
+          <div style="font-size:10px;font-weight:700;color:#3B82F6;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin-bottom:10px">Cliente</div>
+          <div style="font-size:14px;font-weight:700;color:#2563EB;margin-bottom:4px">${factura.cliente?.nombre ?? '—'}</div>
           ${factura.cliente?.rif ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">RIF: ${factura.cliente.rif}</div>` : ''}
           ${factura.cliente?.telefono ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">${factura.cliente.telefono}</div>` : ''}
           ${factura.cliente?.direccion ? `<div style="font-size:12px;color:#64748b">${factura.cliente.direccion}${factura.cliente.ciudad ? ', ' + factura.cliente.ciudad : ''}</div>` : ''}
@@ -116,10 +116,10 @@ function buildHtml(factura: any, empresa: any): string {
 
   <!-- ITEMS TABLE -->
   <tr><td style="background:#ffffff;padding:0 32px 24px">
-    <div style="font-size:10px;font-weight:700;color:#0f2044;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">Detalle de Artículos</div>
+    <div style="font-size:10px;font-weight:700;color:#2563EB;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">Detalle de Artículos</div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
       <thead>
-        <tr style="background:#0f2044">
+        <tr style="background:#2563EB">
           <th style="padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:#ffffff;letter-spacing:0.5px">Descripción</th>
           <th style="padding:9px 14px;text-align:center;font-size:11px;font-weight:700;color:#ffffff;letter-spacing:0.5px">Cant.</th>
           <th style="padding:9px 14px;text-align:right;font-size:11px;font-weight:700;color:#ffffff;letter-spacing:0.5px">P. Unit.</th>
@@ -138,8 +138,8 @@ function buildHtml(factura: any, empresa: any): string {
     <table cellpadding="0" cellspacing="0" style="margin-left:auto;width:260px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
       <tr><td style="padding:8px 14px;color:#64748b;font-size:13px;background:#ffffff;border-bottom:1px solid #e2e8f0">Subtotal</td><td style="padding:8px 14px;text-align:right;font-weight:600;font-size:13px;color:#1e293b;background:#ffffff;border-bottom:1px solid #e2e8f0">${fmt(factura.subtotal)}</td></tr>
       ${discountRow}
-      <tr style="background:#0f2044"><td style="padding:12px 14px;font-size:14px;font-weight:800;color:#ffffff">TOTAL</td><td style="padding:12px 14px;text-align:right;font-size:14px;font-weight:800;color:#93c5fd">${fmt(factura.total)}</td></tr>
-      <tr style="background:#dbeafe"><td style="padding:8px 14px;font-size:13px;font-weight:600;color:#0f2044">Saldo pendiente</td><td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:700;color:#0f2044">${fmt(saldo)}</td></tr>
+      <tr style="background:#2563EB"><td style="padding:12px 14px;font-size:14px;font-weight:800;color:#ffffff">TOTAL</td><td style="padding:12px 14px;text-align:right;font-size:14px;font-weight:800;color:#93c5fd">${fmt(factura.total)}</td></tr>
+      <tr style="background:#dbeafe"><td style="padding:8px 14px;font-size:13px;font-weight:600;color:#2563EB">Saldo pendiente</td><td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:700;color:#2563EB">${fmt(saldo)}</td></tr>
     </table>
   </td></tr>
 
@@ -147,13 +147,13 @@ function buildHtml(factura: any, empresa: any): string {
   <!-- NOTES -->
   <tr><td style="background:#ffffff;padding:0 32px 24px">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
-      <div style="font-size:10px;font-weight:700;color:#1e4db7;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">Observaciones</div>
+      <div style="font-size:10px;font-weight:700;color:#3B82F6;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">Observaciones</div>
       <div style="font-size:13px;color:#475569;line-height:1.5">${factura.notas}</div>
     </div>
   </td></tr>` : ''}
 
   <!-- FOOTER -->
-  <tr><td style="background:#0f2044;border-radius:0 0 14px 14px;padding:14px 32px">
+  <tr><td style="background:#2563EB;border-radius:0 0 14px 14px;padding:14px 32px">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="font-size:11px;color:#93c5fd">${emp.mensaje_factura}</td>

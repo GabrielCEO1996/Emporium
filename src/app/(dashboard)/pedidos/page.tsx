@@ -51,7 +51,8 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       total,
       notas,
       cliente:clientes(id, nombre, rif),
-      conductor:conductores(id, nombre)
+      conductor:conductores(id, nombre),
+      facturas(id)
     `
     )
     .order('fecha_pedido', { ascending: false })
@@ -325,14 +326,23 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                           )}
                         </td>
                         <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              ESTADO_PEDIDO_COLORS[pedido.estado] ??
-                              'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
-                          </span>
+                          {pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
+                            <Link
+                              href={`/facturas/${pedido.facturas[0].id}`}
+                              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                            >
+                              Facturado ↗
+                            </Link>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                ESTADO_PEDIDO_COLORS[pedido.estado] ??
+                                'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-slate-600">
                           {pedido.conductor?.nombre ? (
@@ -375,14 +385,20 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                         <span className="font-mono text-sm font-semibold text-slate-900">
                           #{pedido.numero}
                         </span>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            ESTADO_PEDIDO_COLORS[pedido.estado] ??
-                            'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
-                        </span>
+                        {pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700">
+                            Facturado ↗
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              ESTADO_PEDIDO_COLORS[pedido.estado] ??
+                              'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
+                          </span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-sm text-slate-700 truncate">
                         {pedido.cliente?.nombre ?? '—'}

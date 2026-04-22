@@ -48,7 +48,7 @@ export const ESTADO_PEDIDO_COLORS: Record<string, string> = {
   en_ruta: 'bg-yellow-100 text-yellow-700',
   entregado: 'bg-green-100 text-green-700',
   cancelado: 'bg-red-100 text-red-700',
-  facturado: 'bg-purple-100 text-purple-700',
+  facturado: 'bg-green-100 text-green-700',
 }
 
 export const ESTADO_FACTURA_LABELS: Record<string, string> = {
