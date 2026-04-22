@@ -8,6 +8,9 @@ export async function GET(
   try {
     const supabase = createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
@@ -33,6 +36,10 @@ export async function PUT(
 ) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
 
     if (!body.nombre || body.nombre.trim() === '') {
@@ -84,6 +91,9 @@ export async function DELETE(
 ) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     // Check if client has associated orders
     const { count } = await supabase

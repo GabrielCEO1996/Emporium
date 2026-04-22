@@ -1,37 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-async function generateNumeroFactura(supabase: ReturnType<typeof createClient>): Promise<string> {
-  const year = new Date().getFullYear()
-  const prefix = `FAC-${year}-`
-
-  const { data } = await supabase
-    .from('facturas')
-    .select('numero')
-    .ilike('numero', `${prefix}%`)
-    .order('numero', { ascending: false })
-    .limit(1)
-
-  let nextNum = 1
-  if (data && data.length > 0) {
-    const lastNumero = data[0].numero as string
-    const parts = lastNumero.split('-')
-    const lastSeq = parseInt(parts[parts.length - 1], 10)
-    if (!isNaN(lastSeq)) {
-      nextNum = lastSeq + 1
-    }
-  }
-
-  return `${prefix}${String(nextNum).padStart(4, '0')}`
-}
-
 // ─── GET /api/facturas ───────────────────────────────────────────────────────
 
 export async function GET(request: Request) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
 
     const estado = searchParams.get('estado') || ''
@@ -93,6 +71,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
 
     const {
@@ -154,8 +136,11 @@ export async function POST(request: Request) {
     const impuesto = 0
     const total = base_imponible
 
-    // Generate invoice number
-    const numero = await generateNumeroFactura(supabase)
+    // Generate invoice number atomically via PostgreSQL sequence (no race condition)
+    const { data: seqData, error: seqError } = await supabase
+      .rpc('get_next_sequence', { seq_name: 'facturas' })
+    if (seqError) return NextResponse.json({ error: seqError.message }, { status: 500 })
+    const numero = seqData
 
     // Create factura
     const { data: factura, error: facturaError } = await supabase

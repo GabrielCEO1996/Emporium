@@ -22,6 +22,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   // Get user for vendedor_id
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   // Generate factura number
   const { data: numData } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })

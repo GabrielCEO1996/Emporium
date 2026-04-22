@@ -12,6 +12,9 @@ export async function POST(_request: Request, { params }: RouteContext) {
   try {
     const supabase = createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     // Fetch current invoice
     const { data: factura, error: fetchError } = await supabase
       .from('facturas')

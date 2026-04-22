@@ -40,8 +40,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   if (!compra) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  // Reverse stock for each item
-  for (const item of (compra.items ?? [])) {
+  // Reverse stock for all items in parallel (replaces sequential loop)
+  await Promise.all((compra.items ?? []).map(async (item: any) => {
     const { data: pres } = await supabase
       .from('presentaciones')
       .select('stock')
@@ -49,9 +49,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       .single()
     if (pres) {
       const newStock = Math.max(0, (pres.stock ?? 0) - item.cantidad)
-      await supabase.from('presentaciones').update({ stock: newStock }).eq('id', item.presentacion_id)
+      await supabase
+        .from('presentaciones')
+        .update({ stock: newStock, updated_at: new Date().toISOString() })
+        .eq('id', item.presentacion_id)
     }
-  }
+  }))
 
   // Delete compra (cascade deletes items)
   const { error } = await supabase.from('compras').delete().eq('id', params.id)

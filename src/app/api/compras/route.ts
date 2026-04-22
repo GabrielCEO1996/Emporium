@@ -90,38 +90,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
 
-  // Update stock for each item
-  for (const item of items) {
-    await supabase.rpc('increment_stock', {
+  // Update stock + costo for all items in parallel (replaces two sequential loops)
+  await Promise.all(items.map(async (item: any) => {
+    const { error: rpcError } = await supabase.rpc('increment_stock', {
       p_id: item.presentacion_id,
       p_amount: Number(item.cantidad),
-    }).then(({ error }) => {
-      if (error) {
-        // Fallback: manual update
-        supabase
-          .from('presentaciones')
-          .select('stock')
-          .eq('id', item.presentacion_id)
-          .single()
-          .then(({ data: pres }) => {
-            if (pres) {
-              supabase
-                .from('presentaciones')
-                .update({ stock: (pres.stock ?? 0) + Number(item.cantidad) })
-                .eq('id', item.presentacion_id)
-            }
-          })
-      }
     })
-  }
 
-  // Also update costo in presentaciones to the new purchase cost
-  for (const item of items) {
+    if (rpcError) {
+      // Fallback: read current stock and update inline with costo
+      const { data: pres } = await supabase
+        .from('presentaciones')
+        .select('stock')
+        .eq('id', item.presentacion_id)
+        .single()
+      if (pres) {
+        await supabase
+          .from('presentaciones')
+          .update({
+            stock: (pres.stock ?? 0) + Number(item.cantidad),
+            costo: Number(item.precio_costo),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', item.presentacion_id)
+        return
+      }
+    }
+
+    // RPC succeeded — update costo separately
     await supabase
       .from('presentaciones')
-      .update({ costo: Number(item.precio_costo) })
+      .update({ costo: Number(item.precio_costo), updated_at: new Date().toISOString() })
       .eq('id', item.presentacion_id)
-  }
+  }))
 
   return NextResponse.json(compra, { status: 201 })
 }

@@ -8,6 +8,9 @@ export async function POST(
   try {
     const supabase = createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { data, error } = await supabase
       .from('facturas')
       .update({ estado: 'enviada', updated_at: new Date().toISOString() })

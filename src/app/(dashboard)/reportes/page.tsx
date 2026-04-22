@@ -23,10 +23,14 @@ export default async function ReportesPage() {
       .select('total, fecha_emision')
       .gte('fecha_emision', yearStart)
       .neq('estado', 'anulada'),
+    // Scoped to current year only — prevents full table scan at scale
     supabase.from('factura_items')
-      .select('descripcion, cantidad, subtotal'),
+      .select('descripcion, cantidad, subtotal')
+      .gte('created_at', yearStart)
+      .limit(2000),
     supabase.from('facturas')
       .select('total, clientes(id, nombre)')
+      .gte('fecha_emision', yearStart)
       .neq('estado', 'anulada'),
   ])
 

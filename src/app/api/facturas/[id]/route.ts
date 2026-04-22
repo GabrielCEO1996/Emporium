@@ -11,6 +11,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
   try {
     const supabase = createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { data, error } = await supabase
       .from('facturas')
       .select(
@@ -43,6 +46,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
 export async function PUT(request: Request, { params }: RouteContext) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
 
     // Only allow specific fields to be updated
@@ -114,6 +121,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
     const supabase = createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     // Only allow deletion of 'anulada' or 'emitida' invoices
     const { data: existing, error: fetchError } = await supabase

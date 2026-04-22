@@ -3,12 +3,18 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const { searchParams } = new URL(request.url)
   const estado = searchParams.get('estado')
   const cliente_id = searchParams.get('cliente_id')
   const fecha_inicio = searchParams.get('fecha_inicio')
   const fecha_fin = searchParams.get('fecha_fin')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const page  = parseInt(searchParams.get('page') || '1', 10)
+  const limit = parseInt(searchParams.get('limit') || '50', 10)
+  const offset = (page - 1) * limit
 
   let query = supabase
     .from('pedidos')
@@ -17,23 +23,27 @@ export async function GET(request: NextRequest) {
       clientes(id, nombre, rif, telefono),
       conductores(id, nombre),
       profiles!pedidos_vendedor_id_fkey(id, nombre)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (estado && estado !== 'todos') query = query.eq('estado', estado)
   if (cliente_id) query = query.eq('cliente_id', cliente_id)
   if (fecha_inicio) query = query.gte('fecha_pedido', fecha_inicio)
   if (fecha_fin) query = query.lte('fecha_pedido', fecha_fin + 'T23:59:59')
 
-  const { data, error } = await query
+  const { data, error, count } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ data, total: count ?? 0, page, limit })
 }
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
+
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const body = await request.json()
   const { cliente_id, vendedor_id, items, descuento = 0, notas, direccion_entrega, fecha_entrega_estimada } = body
 
