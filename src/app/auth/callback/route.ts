@@ -3,33 +3,57 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  const type = searchParams.get('type')
-  // Default to /tienda so new clients land in the store, not the dashboard.
-  // Staff users will be redirected to /dashboard by middleware automatically.
-  const next = searchParams.get('next') ?? '/tienda'
 
+  // ── Params Supabase may send ────────────────────────────────────────────────
+  const code        = searchParams.get('code')        // PKCE flow (Google OAuth)
+  const token_hash  = searchParams.get('token_hash')  // Email OTP / magic-link flow
+  const type        = searchParams.get('type')        // 'recovery' | 'signup' | 'email' | …
+  const next        = searchParams.get('next') ?? '/tienda'
+
+  const supabase = createClient()
+
+  // ── 1. token_hash flow — used by Supabase for resetPasswordForEmail ─────────
+  //    The email link format is:
+  //      /auth/callback?token_hash=<hash>&type=recovery
+  if (token_hash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: type as Parameters<typeof supabase.auth.verifyOtp>[0]['type'],
+    })
+
+    if (!error) {
+      if (type === 'recovery') {
+        // Redirect to the password-reset form (session is already established)
+        return NextResponse.redirect(`${origin}/auth/reset-password`)
+      }
+      // Email confirmation or magic-link → redirect by role
+      return NextResponse.redirect(`${origin}${next}`)
+    }
+
+    // Token expired / invalid
+    return NextResponse.redirect(
+      `${origin}/login?error=link_expired`
+    )
+  }
+
+  // ── 2. PKCE code flow — used by Google OAuth / email confirm with PKCE ──────
+  //    The callback URL format is:
+  //      /auth/callback?code=<code>&next=/tienda
   if (code) {
-    const supabase = createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // ── After session is established, ensure the user has a profile ─────────
-      // This is a fallback in case the DB trigger (handle_new_user) hasn't
-      // been set up or failed due to a stale CHECK constraint.
+      // ── Ensure the user has a profile row (fallback for missing DB trigger) ──
       try {
         const { data: { user } } = await supabase.auth.getUser()
-
         if (user) {
-          // Check if profile already exists (e.g., existing admin/staff member)
           const { data: existing } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, rol')
             .eq('id', user.id)
             .maybeSingle()
 
           if (!existing) {
-            // Create profile with 'cliente' as default role
             await supabase.from('profiles').insert({
               id: user.id,
               email: user.email!,
@@ -44,16 +68,19 @@ export async function GET(request: Request) {
           }
         }
       } catch {
-        // Non-fatal — the middleware handles missing profiles gracefully
+        // Non-fatal — middleware handles missing profiles gracefully
       }
 
-      // ── Redirect ─────────────────────────────────────────────────────────────
       if (type === 'recovery') {
-        return NextResponse.redirect(`${origin}/reset-password`)
+        return NextResponse.redirect(`${origin}/auth/reset-password`)
       }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
+
+    return NextResponse.redirect(`${origin}/login?error=auth_error`)
   }
 
+  // ── Nothing matched — bad callback ─────────────────────────────────────────
   return NextResponse.redirect(`${origin}/login?error=auth_error`)
 }

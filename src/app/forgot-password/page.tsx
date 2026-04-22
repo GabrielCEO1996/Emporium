@@ -18,7 +18,9 @@ export default function ForgotPasswordPage() {
     setError('')
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      // Supabase will append ?token_hash=xxx&type=recovery automatically.
+      // The callback page reads those params and routes to /auth/reset-password.
+      redirectTo: `${window.location.origin}/auth/callback`,
     })
 
     if (error) {

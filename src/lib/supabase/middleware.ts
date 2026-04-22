@@ -6,8 +6,9 @@ const PUBLIC_PATHS = [
   '/login',
   '/signup',
   '/forgot-password',
-  '/reset-password',
+  '/reset-password',        // legacy — kept for backward compat
   '/auth/callback',
+  '/auth/reset-password',   // new reset-password flow
 ]
 
 // Dashboard paths only accessible to staff roles (admin | vendedor | conductor)
