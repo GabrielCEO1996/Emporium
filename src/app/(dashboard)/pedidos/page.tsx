@@ -50,7 +50,6 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       fecha_entrega_estimada,
       subtotal,
       descuento,
-      impuesto,
       total,
       notas,
       cliente:clientes(id, nombre, rif),

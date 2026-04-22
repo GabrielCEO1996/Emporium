@@ -78,10 +78,6 @@ export default async function NotaCreditoDetailPage({ params }: { params: { id: 
               <span className="text-slate-500">Subtotal</span>
               <span>{formatCurrency(nc.subtotal)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">IVA (16%)</span>
-              <span>{formatCurrency(nc.impuesto)}</span>
-            </div>
             <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-base">
               <span className="text-slate-700">Total NC</span>
               <span className="text-teal-600">{formatCurrency(nc.total)}</span>

@@ -333,7 +333,6 @@ export default function NuevaFacturaPage() {
         subtotal: i.subtotal,
       })),
       descuento: descuentoGlobal,
-      tasa_impuesto: 0,
       fecha_vencimiento: fechaVencimiento || null,
       notas: notas || null,
     }

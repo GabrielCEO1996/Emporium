@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
-import * as XLSX from 'xlsx'
 
 interface Column<T> {
   header: string
@@ -26,11 +25,11 @@ export default function ExportExcelButton<T>({
 }: Props<T>) {
   const [loading, setLoading] = useState(false)
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (loading || data.length === 0) return
     setLoading(true)
-
     try {
+      const XLSX = await import('xlsx')
       const rows = data.map(row =>
         Object.fromEntries(columns.map(col => [col.header, col.accessor(row) ?? '']))
       )

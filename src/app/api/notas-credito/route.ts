@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
   const { data: numData } = await supabase.rpc('get_next_sequence', { seq_name: 'notas_credito' })
 
   const subtotal = items.reduce((acc: number, i: any) => acc + i.subtotal, 0)
-  const impuesto = subtotal * 0.16
-  const total = subtotal + impuesto
+  const impuesto = 0
+  const total = subtotal
 
   const { data: nc, error } = await supabase
     .from('notas_credito')

@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       fecha_vencimiento,
       notas,
       items, // array of { presentacion_id, descripcion, cantidad, precio_unitario, descuento }
-      tasa_impuesto = 16,
+      tasa_impuesto = 0,
       descuento: globalDescuento = 0,
     } = body
 
@@ -151,8 +151,8 @@ export async function POST(request: Request) {
 
     const subtotal = itemsWithSubtotals.reduce((sum: number, i: any) => sum + i.subtotal, 0)
     const base_imponible = subtotal - globalDescuento
-    const impuesto = base_imponible * (tasa_impuesto / 100)
-    const total = base_imponible + impuesto
+    const impuesto = 0
+    const total = base_imponible
 
     // Generate invoice number
     const numero = await generateNumeroFactura(supabase)

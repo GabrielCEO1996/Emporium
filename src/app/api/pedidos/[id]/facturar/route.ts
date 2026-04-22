@@ -27,8 +27,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const { data: numData } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })
 
   const base_imponible = pedido.subtotal - pedido.descuento
-  const impuesto = base_imponible * (pedido.tasa_impuesto ?? 16) / 100 || pedido.impuesto
-  const total = base_imponible + impuesto
+  const impuesto = 0
+  const total = base_imponible
 
   // Create factura
   const { data: factura, error: facturaError } = await supabase
@@ -42,8 +42,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       subtotal: pedido.subtotal,
       descuento: pedido.descuento,
       base_imponible,
-      tasa_impuesto: 16,
-      impuesto,
+      tasa_impuesto: 0,
+      impuesto: 0,
       total,
       fecha_vencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     })

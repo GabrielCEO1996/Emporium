@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
   // Calculate totals
   const subtotal = items.reduce((acc: number, item: any) => acc + item.subtotal, 0)
   const base_imponible = subtotal - descuento
-  const impuesto = base_imponible * 0.16
-  const total = base_imponible + impuesto
+  const impuesto = 0
+  const total = base_imponible
 
   const { data: pedido, error: pedidoError } = await supabase
     .from('pedidos')

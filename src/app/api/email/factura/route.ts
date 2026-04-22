@@ -51,7 +51,7 @@ function buildHtml(factura: any, empresa: any): string {
     : `<div style="width:44px;height:44px;background:#0D9488;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;font-family:sans-serif">${emp.nombre.charAt(0).toUpperCase()}</div>`
 
   const contactLines = [
-    emp.rif ? `EIN: ${emp.rif}` : null,
+    emp.rif ? `RIF: ${emp.rif}` : null,
     emp.telefono ? `📞 ${emp.telefono}` : null,
     emp.email ? `✉️ ${emp.email}` : null,
     emp.direccion ? `📍 ${emp.direccion}` : null,

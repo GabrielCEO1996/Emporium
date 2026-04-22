@@ -401,7 +401,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
               </View>
               <Text style={S.companyContact}>
                 {[
-                  empresa.rif ? `EIN: ${empresa.rif}` : null,
+                  empresa.rif ? `RIF: ${empresa.rif}` : null,
                   empresa.telefono ? `Tel: ${empresa.telefono}` : null,
                   empresa.email || null,
                   empresa.direccion || null,
@@ -462,7 +462,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
               </Text>
               {f.cliente?.rif && (
                 <View style={S.metaItem}>
-                  <Text style={S.metaLabel}>EIN</Text>
+                  <Text style={S.metaLabel}>RIF</Text>
                   <Text style={S.metaValue}>{f.cliente.rif}</Text>
                 </View>
               )}
@@ -561,7 +561,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
 
           {/* ── Legal note ── */}
           <Text style={{ fontSize: 7, color: C.textMuted, textAlign: 'center', marginTop: 8 }}>
-            {`${empresa.mensaje_factura}  ·  ${empresa.nombre}${empresa.rif ? ` · EIN ${empresa.rif}` : ''}`}
+            {`${empresa.mensaje_factura}  ·  ${empresa.nombre}${empresa.rif ? ` · RIF ${empresa.rif}` : ''}`}
           </Text>
         </View>
 

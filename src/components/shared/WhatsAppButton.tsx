@@ -69,7 +69,6 @@ function buildFacturaMessage(factura: Factura, empresa?: EmpresaInfo): string {
     lines.push(`  🏷️ Descuento:   -${formatCurrency(factura.descuento)}`)
   }
 
-  lines.push(`  IVA (${factura.tasa_impuesto ?? 16}%):      ${formatCurrency(factura.impuesto)}`)
   lines.push(`💰 *TOTAL: ${formatCurrency(factura.total)}*`)
   lines.push(SEP)
   lines.push('')
@@ -113,7 +112,6 @@ function buildPedidoMessage(pedido: Pedido, empresa?: EmpresaInfo): string {
     lines.push(`  🏷️ Descuento:   -${formatCurrency(pedido.descuento)}`)
   }
 
-  lines.push(`  IVA (16%):       ${formatCurrency(pedido.impuesto)}`)
   lines.push(`💰 *TOTAL: ${formatCurrency(pedido.total)}*`)
   lines.push(SEP)
   lines.push('')

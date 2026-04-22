@@ -52,8 +52,7 @@ export default function NuevaNotaCreditoPage() {
   }
 
   const subtotal = items.reduce((a, i) => a + i.subtotal, 0)
-  const impuesto = subtotal * 0.16
-  const total = subtotal + impuesto
+  const total = subtotal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -204,7 +203,6 @@ export default function NuevaNotaCreditoPage() {
           {/* Totals */}
           <div className="border-t border-slate-100 pt-3 space-y-1 text-sm">
             <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-            <div className="flex justify-between text-slate-600"><span>IVA (16%)</span><span>{formatCurrency(impuesto)}</span></div>
             <div className="flex justify-between font-bold text-slate-800 text-base"><span>Total NC</span><span>{formatCurrency(total)}</span></div>
           </div>
         </div>
