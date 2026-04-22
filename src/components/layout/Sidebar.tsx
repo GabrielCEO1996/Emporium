@@ -20,6 +20,7 @@ import {
   Settings,
   BarChart2,
   UserCog,
+  DollarSign,
 } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -43,12 +44,14 @@ const allNavItems: NavItem[] = [
   { href: '/historial', label: 'Historial', icon: History },
   { href: '/rutas', label: 'Rutas de Entrega', shortLabel: 'Rutas', icon: Truck },
   { href: '/reportes', label: 'Reportes', icon: BarChart2 },
+  { href: '/finanzas', label: 'Finanzas', icon: DollarSign },
+  { href: '/proveedores', label: 'Proveedores', shortLabel: 'Proveed.', icon: Truck },
   { href: '/equipo', label: 'Equipo', icon: UserCog },
   { href: '/configuracion', label: 'Configuración', shortLabel: 'Config', icon: Settings },
 ]
 
 // Rutas bloqueadas para vendedores
-const adminOnlyHrefs = new Set(['/historial', '/configuracion', '/reportes', '/equipo'])
+const adminOnlyHrefs = new Set(['/historial', '/configuracion', '/reportes', '/equipo', '/finanzas', '/proveedores'])
 
 interface SidebarProps {
   profile: Profile | null

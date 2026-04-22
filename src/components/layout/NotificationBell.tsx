@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, X, Package, AlertTriangle, ShoppingCart, CheckCircle2 } from 'lucide-react'
+import { Bell, X, Package, AlertTriangle, ShoppingCart, CheckCircle2, UserCog } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
@@ -9,7 +9,7 @@ import Link from 'next/link'
 
 interface Notif {
   id: string
-  tipo: 'stock' | 'factura' | 'pedido'
+  tipo: 'stock' | 'factura' | 'pedido' | 'equipo'
   titulo: string
   cuerpo: string
   href: string
@@ -26,7 +26,16 @@ export default function NotificationBell() {
 
   const loadNotifs = async () => {
     setLoading(true)
-    const [{ data: stockBajo }, { data: facturasVencidas }, { data: pedidosConf }] = await Promise.all([
+
+    // Check if current user is admin
+    const { data: { user } } = await supabase.auth.getUser()
+    let isAdmin = false
+    if (user) {
+      const { data: prof } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+      isAdmin = prof?.rol === 'admin'
+    }
+
+    const [{ data: stockBajo }, { data: facturasVencidas }, { data: pedidosConf }, pendientesResult] = await Promise.all([
       supabase.from('presentaciones')
         .select('id, nombre, stock, productos(nombre)')
         .lt('stock', 5).eq('activo', true)
@@ -39,9 +48,22 @@ export default function NotificationBell() {
         .select('id, numero, clientes(nombre)')
         .eq('estado', 'confirmado')
         .order('created_at', { ascending: false }).limit(3),
+      isAdmin
+        ? supabase.from('profiles').select('id, nombre').eq('rol', 'pendiente').eq('activo', true)
+        : Promise.resolve({ data: [] }),
     ])
 
+    const pendientes = (pendientesResult as any)?.data ?? []
+
     const list: Notif[] = [
+      ...(pendientes.length > 0 ? [{
+        id: 'equipo-pendientes',
+        tipo: 'equipo' as const,
+        titulo: `${pendientes.length} usuario${pendientes.length > 1 ? 's' : ''} por aprobar`,
+        cuerpo: pendientes.map((p: any) => p.nombre).join(', '),
+        href: '/equipo',
+        urgent: true,
+      }] : []),
       ...(stockBajo ?? []).map((item: any): Notif => ({
         id: `stock-${item.id}`,
         tipo: 'stock',
@@ -78,6 +100,7 @@ export default function NotificationBell() {
     stock:   'bg-amber-100 text-amber-600',
     factura: 'bg-red-100 text-red-600',
     pedido:  'bg-teal-100 text-teal-600',
+    equipo:  'bg-violet-100 text-violet-600',
   }
 
   return (
@@ -138,6 +161,7 @@ export default function NotificationBell() {
                     <div className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg[n.tipo]}`}>
                       {n.tipo === 'stock'   ? <Package className="w-3.5 h-3.5" /> :
                        n.tipo === 'factura' ? <AlertTriangle className="w-3.5 h-3.5" /> :
+                       n.tipo === 'equipo'  ? <UserCog className="w-3.5 h-3.5" /> :
                        <ShoppingCart className="w-3.5 h-3.5" />}
                     </div>
                     <div className="flex-1 min-w-0">

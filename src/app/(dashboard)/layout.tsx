@@ -34,6 +34,11 @@ export default async function DashboardLayout({
 
   const stockAlertas = stockBajo?.length || 0
 
+  // Redirect pending users to the waiting screen
+  if ((profile as any)?.rol === 'pendiente') {
+    redirect('/pendiente')
+  }
+
   return (
     <div className="flex h-screen gradient-mesh overflow-hidden">
       <KeyboardShortcutsInit />

@@ -31,17 +31,17 @@ export default async function EquipoPage() {
         </p>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {!profiles || profiles.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-sm">Sin miembros registrados</div>
-        ) : (
-          <EquipoClient
-            initialProfiles={profiles as Profile[]}
-            currentUserId={user.id}
-            isAdmin={isAdmin}
-          />
-        )}
-      </div>
+      {!profiles || profiles.length === 0 ? (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 text-center text-slate-400 text-sm">
+          Sin miembros registrados
+        </div>
+      ) : (
+        <EquipoClient
+          initialProfiles={profiles as Profile[]}
+          currentUserId={user.id}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   )
 }
