@@ -1,0 +1,10 @@
+{
+  "skills": {
+    "autoLoad": false,
+    "loadOnDemand": true
+  },
+  "context": {
+    "maxTokensPerSkill": 2000,
+    "cacheSkills": true
+  }
+}
