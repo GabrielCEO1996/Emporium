@@ -363,183 +363,137 @@ function ConfirmModal({
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
   const isCredito = tipoPago === 'credito'
 
+  if (!open) return null
+
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal — bottom sheet en móvil, card centrado en desktop */}
+      <div
+        className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl"
+        style={{ maxHeight: '85vh' }}
+      >
+        {/* Drag handle visible solo en móvil */}
+        <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+
+        {/* ── HEADER FIJO ─────────────────────────────────────────────────── */}
+        <div className={`shrink-0 flex items-center justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+          <h2 className="font-bold text-slate-800 dark:text-white text-lg">
+            {isCredito ? '💳 Pedido a Crédito' : '✅ Confirmar Pedido'}
+          </h2>
+          <button
             onClick={onClose}
-          />
-
-          {/*
-            ── Modal container ───────────────────────────────────────────────────
-            Mobile  : bottom sheet — slides up from the bottom, rounded top corners,
-                      max-h-[92vh] so it never covers the full screen.
-            Desktop : centered card — max-w-lg, rounded-3xl, max-h-[88vh].
-            The container is a flex column so header + footer are always visible
-            while only the middle section scrolls.
-          */}
-          <motion.div
-            initial={{ opacity: 0, y: 60 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 60 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className={`
-              fixed inset-x-0 bottom-0
-              sm:inset-x-4 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2
-              sm:max-w-lg sm:mx-auto
-              bg-white dark:bg-slate-900
-              rounded-t-3xl sm:rounded-3xl
-              shadow-2xl z-50
-              flex flex-col
-              max-h-[92vh] sm:max-h-[88vh]
-              overflow-hidden
-            `}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
-            {/* ── HEADER — always visible, never scrolls ── */}
-            <div className={`
-              flex-shrink-0
-              flex items-center justify-between
-              px-5 py-4
-              border-b border-slate-100 dark:border-slate-800
-              ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}
-            `}>
-              {/* Drag handle (mobile) */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full sm:hidden" />
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-              <div className="pt-1 sm:pt-0">
-                <h2 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg leading-tight">
-                  {isCredito ? '💳 Pedido a Crédito' : '✅ Confirmar Pedido'}
-                </h2>
-                {isCredito
-                  ? <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Se deducirá de tu crédito disponible</p>
-                  : (
-                    /* Step breadcrumb */
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400">
-                      <span className="text-teal-600 font-semibold">Carrito</span>
-                      <ChevronRight className="w-2.5 h-2.5" />
-                      <span className="text-teal-600 font-semibold">Dirección</span>
-                      <ChevronRight className="w-2.5 h-2.5" />
-                      <span className="font-semibold text-slate-600 dark:text-slate-300">Confirmar</span>
-                    </div>
-                  )
-                }
+        {/* ── BREADCRUMB FIJO ──────────────────────────────────────────────── */}
+        <div className="shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          {isCredito
+            ? <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Se deducirá de tu crédito disponible</p>
+            : (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-teal-600 font-semibold">Carrito</span>
+                <ChevronRight className="w-3 h-3 text-slate-400" />
+                <span className="text-teal-600 font-semibold">Dirección</span>
+                <ChevronRight className="w-3 h-3 text-slate-400" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Confirmar</span>
               </div>
+            )
+          }
+        </div>
 
-              <button
-                onClick={onClose}
-                className="flex-shrink-0 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition ml-2"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
+        {/* ── CONTENIDO SCROLLEABLE ────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-            {/* ── SCROLLABLE CONTENT — grows and shrinks, never hides the footer ── */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
-
-              {/* Product list */}
-              <ul className="space-y-2.5">
-                {items.map(item => (
-                  <li key={item.presentacionId} className="flex items-start justify-between text-sm gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-700 dark:text-slate-200 leading-tight">{item.productoNombre}</p>
-                      <p className="text-slate-400 text-xs mt-0.5">{item.presentacionNombre} × {item.cantidad}</p>
-                    </div>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums flex-shrink-0">
-                      {formatCurrency(item.precio * item.cantidad)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Total row */}
-              <div className={`
-                flex items-center justify-between
-                py-3 px-4 rounded-2xl
-                ${isCredito
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
-                  : 'bg-teal-50 dark:bg-teal-900/20'}
-              `}>
-                <div>
-                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total</p>
-                  {isCredito && <p className="text-xs text-emerald-600 mt-0.5">Vía crédito autorizado</p>}
+          {/* Lista de productos */}
+          <ul className="space-y-3">
+            {items.map(item => (
+              <li key={item.presentacionId} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white leading-tight">{item.productoNombre}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{item.presentacionNombre} × {item.cantidad}</p>
                 </div>
-                <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
-                  {formatCurrency(total)}
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums shrink-0">
+                  {formatCurrency(item.precio * item.cantidad)}
                 </span>
-              </div>
+              </li>
+            ))}
+          </ul>
 
-              {/* Dirección */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-                  Dirección de entrega
-                </label>
-                <input
-                  value={direccion}
-                  onChange={e => setDireccion(e.target.value)}
-                  placeholder="Ej: Av. Principal, Casa 5…"
-                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
-                />
-              </div>
-
-              {/* Notas */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">
-                  Notas (opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Instrucciones especiales…"
-                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none transition"
-                />
-              </div>
-
-              {/* Spacer so last field isn't flush against the footer */}
-              <div className="h-1" />
+          {/* Total */}
+          <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-teal-50 dark:bg-teal-900/20'}`}>
+            <div>
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total a pagar</p>
+              {isCredito && <p className="text-xs text-emerald-600 mt-0.5">Vía crédito autorizado</p>}
             </div>
+            <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
+              {formatCurrency(total)}
+            </span>
+          </div>
 
-            {/* ── FOOTER — always visible, never scrolls ── */}
-            <div className="flex-shrink-0 px-5 pb-6 pt-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
-              {/* Confirm button */}
-              <button
-                onClick={onConfirm}
-                disabled={loading}
-                className={`
-                  w-full font-bold py-4 rounded-2xl
-                  transition-all active:scale-[0.98]
-                  flex items-center justify-center gap-2
-                  text-base shadow-lg
-                  disabled:opacity-60 disabled:cursor-not-allowed
-                  ${isCredito
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200 dark:shadow-emerald-900/30'
-                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-200 dark:shadow-teal-900/30'
-                  }
-                `}
-              >
-                {loading
-                  ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
-                  : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar Pedido a Crédito' : 'Confirmar Pedido'}</>
-                }
-              </button>
+          {/* Campo dirección */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              Dirección de entrega
+            </label>
+            <input
+              value={direccion}
+              onChange={e => setDireccion(e.target.value)}
+              placeholder="Ej: Av. Principal, Casa 5…"
+              className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition"
+            />
+          </div>
 
-              {/* Cancel link */}
-              <button
-                onClick={onClose}
-                disabled={loading}
-                className="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium py-1 transition disabled:opacity-40"
-              >
-                Cancelar
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          {/* Campo notas */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              Notas (opcional)
+            </label>
+            <textarea
+              rows={2}
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+              placeholder="Instrucciones especiales…"
+              className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none transition"
+            />
+          </div>
+        </div>
+
+        {/* ── BOTONES FIJOS ABAJO — SIEMPRE VISIBLES ──────────────────────── */}
+        <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-2">
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={`w-full py-4 rounded-xl font-bold text-lg text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
+              isCredito
+                ? 'bg-emerald-600 hover:bg-emerald-500'
+                : 'bg-teal-600 hover:bg-teal-500'
+            }`}
+          >
+            {loading
+              ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
+              : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar a Crédito' : 'Confirmar Pedido ✅'}</>
+            }
+          </button>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-semibold text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
