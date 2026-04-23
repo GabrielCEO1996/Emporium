@@ -194,7 +194,7 @@ function ProductCard({
 
 // ── Cart Panel ────────────────────────────────────────────────────────────────
 function CartPanel({
-  items, open, onClose, onUpdate, onRemove, onCheckout, onCreditCheckout, onStripeCheckout,
+  items, open, onClose, onUpdate, onRemove, onCheckout,
   creditoAutorizado, limiteCredito, creditoUsado,
 }: {
   items: CartItem[]
@@ -203,15 +203,12 @@ function CartPanel({
   onUpdate: (id: string, delta: number) => void
   onRemove: (id: string) => void
   onCheckout: () => void
-  onCreditCheckout: () => void
-  onStripeCheckout: () => void
   creditoAutorizado?: boolean
   limiteCredito?: number
   creditoUsado?: number
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
   const creditoDisponible = (limiteCredito ?? 0) - (creditoUsado ?? 0)
-  const puedeUsarCredito = creditoAutorizado && creditoDisponible > 0 && total <= creditoDisponible
 
   return (
     <AnimatePresence>
@@ -301,47 +298,39 @@ function CartPanel({
                   <span className="text-xl font-black text-slate-800 dark:text-white">{formatCurrency(total)}</span>
                 </div>
 
-                {/* Credit balance display */}
+                {/* Credit balance display (informational) */}
                 {creditoAutorizado && (
-                  <div className={`flex items-center justify-between text-xs px-3 py-2 rounded-xl ${
-                    puedeUsarCredito
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                      : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
-                  }`}>
+                  <div className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                     <span className="font-medium">Crédito disponible</span>
                     <span className="font-bold">{formatCurrency(creditoDisponible)}</span>
                   </div>
                 )}
 
-                {/* Primary: Confirmar Pedido */}
-                <button
-                  onClick={onCheckout}
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Confirmar Pedido
-                </button>
+                {/* Flow explainer */}
+                <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-snug">
+                  {creditoAutorizado
+                    ? 'Tu orden será enviada al administrador para aprobación. Te notificaremos cuando esté lista.'
+                    : 'Al continuar serás redirigido al pago seguro con tarjeta. Tu pedido se activa automáticamente tras el pago.'}
+                </p>
 
-                {/* Credit button (only if authorized) */}
-                {creditoAutorizado && (
+                {/* Single CTA — branch on credit */}
+                {creditoAutorizado ? (
                   <button
-                    onClick={onCreditCheckout}
-                    disabled={!puedeUsarCredito}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                    onClick={onCheckout}
+                    className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Confirmar Orden
+                  </button>
+                ) : (
+                  <button
+                    onClick={onCheckout}
+                    className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <CreditCard className="w-4 h-4" />
-                    {puedeUsarCredito ? 'Pedir a crédito' : 'Crédito insuficiente'}
+                    Pagar con tarjeta 💳
                   </button>
                 )}
-
-                {/* Stripe */}
-                <button
-                  onClick={onStripeCheckout}
-                  className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  Pagar con tarjeta 💳
-                </button>
               </div>
             )}
           </motion.div>
@@ -353,15 +342,18 @@ function CartPanel({
 
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 function ConfirmModal({
-  items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion, tipoPago,
+  items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
+  creditoAutorizado,
 }: {
   items: CartItem[]; open: boolean; onClose: () => void; onConfirm: () => void
   loading: boolean; notas: string; setNotas: (v: string) => void
   direccion: string; setDireccion: (v: string) => void
-  tipoPago: 'pendiente' | 'credito'
+  creditoAutorizado: boolean
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
-  const isCredito = tipoPago === 'credito'
+  // isCredito drives the "credit / admin approval" styling;
+  // when false the modal drives the Stripe payment flow.
+  const isCredito = creditoAutorizado
 
   if (!open) return null
 
@@ -383,9 +375,9 @@ function ConfirmModal({
         <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
 
         {/* ── HEADER FIJO ─────────────────────────────────────────────────── */}
-        <div className={`shrink-0 flex items-center justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+        <div className={`shrink-0 flex items-center justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-violet-50 dark:bg-violet-900/10'}`}>
           <h2 className="font-bold text-slate-800 dark:text-white text-lg">
-            {isCredito ? '💳 Pedido a Crédito' : '✅ Confirmar Pedido'}
+            {isCredito ? '📋 Confirmar Orden' : '💳 Pagar con Tarjeta'}
           </h2>
           <button
             onClick={onClose}
@@ -398,16 +390,8 @@ function ConfirmModal({
         {/* ── BREADCRUMB FIJO ──────────────────────────────────────────────── */}
         <div className="shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           {isCredito
-            ? <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Se deducirá de tu crédito disponible</p>
-            : (
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-teal-600 font-semibold">Carrito</span>
-                <ChevronRight className="w-3 h-3 text-slate-400" />
-                <span className="text-teal-600 font-semibold">Dirección</span>
-                <ChevronRight className="w-3 h-3 text-slate-400" />
-                <span className="font-semibold text-slate-700 dark:text-slate-200">Confirmar</span>
-              </div>
-            )
+            ? <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tu orden será revisada por el administrador antes de procesarse.</p>
+            : <p className="text-xs text-violet-600 dark:text-violet-400 font-medium">Al confirmar, serás redirigido al pago seguro con Stripe.</p>
           }
         </div>
 
@@ -430,12 +414,16 @@ function ConfirmModal({
           </ul>
 
           {/* Total */}
-          <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-teal-50 dark:bg-teal-900/20'}`}>
+          <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-violet-50 dark:bg-violet-900/20'}`}>
             <div>
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total a pagar</p>
-              {isCredito && <p className="text-xs text-emerald-600 mt-0.5">Vía crédito autorizado</p>}
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                {isCredito ? 'Total estimado' : 'Total a pagar'}
+              </p>
+              <p className={`text-xs mt-0.5 ${isCredito ? 'text-emerald-600' : 'text-violet-600'}`}>
+                {isCredito ? 'Pendiente de aprobación' : 'Se cobra al confirmar pago'}
+              </p>
             </div>
-            <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-teal-600'}`}>
+            <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-violet-600'}`}>
               {formatCurrency(total)}
             </span>
           </div>
@@ -476,12 +464,14 @@ function ConfirmModal({
             className={`w-full py-4 rounded-xl font-bold text-lg text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
               isCredito
                 ? 'bg-emerald-600 hover:bg-emerald-500'
-                : 'bg-teal-600 hover:bg-teal-500'
+                : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500'
             }`}
           >
             {loading
               ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
-              : <><CheckCircle2 className="w-5 h-5" /> {isCredito ? 'Confirmar a Crédito' : 'Confirmar Pedido ✅'}</>
+              : isCredito
+                ? <><CheckCircle2 className="w-5 h-5" /> Enviar Orden</>
+                : <><CreditCard className="w-5 h-5" /> Pagar con Tarjeta</>
             }
           </button>
           <button
@@ -700,7 +690,6 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const [cartOpen, setCartOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [tipoPago, setTipoPago] = useState<'pendiente' | 'credito'>('pendiente')
   const [successOrder, setSuccessOrder] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
@@ -815,36 +804,58 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
     router.push('/login')
   }
 
-  // Confirm order
+  // Confirm order — single entrypoint. Server decides orden vs Stripe.
   const handleConfirmOrder = async () => {
     setOrdering(true)
-    const items = cart.map(i => ({
-      presentacion_id: i.presentacionId,
-      cantidad: i.cantidad,
-      precio_unitario: i.precio,
-    }))
-    const res = await fetch('/api/tienda/pedido', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, notas, direccion_entrega: direccion, tipo_pago: tipoPago }),
-    })
-    const data = await res.json()
-    setOrdering(false)
-    if (!res.ok) {
-      toast.error(data.error ?? 'Error al crear la orden')
-      return
+    try {
+      const items = cart.map(i => ({
+        presentacion_id: i.presentacionId,
+        productoNombre: i.productoNombre,
+        presentacionNombre: i.presentacionNombre,
+        cantidad: i.cantidad,
+        precio_unitario: i.precio,
+      }))
+      const res = await fetch('/api/tienda/pedido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, notas, direccion_entrega: direccion }),
+      })
+
+      let data: any = {}
+      try { data = await res.json() } catch { /* ignore */ }
+
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al crear la orden')
+        return
+      }
+
+      // TYPE B (direct client) — redirect to Stripe
+      if (data.tipo === 'pago' && data.url) {
+        toast.success('Redirigiendo al pago seguro…')
+        // Don't clear cart yet — leave for retry if user cancels at Stripe
+        window.location.href = data.url
+        return
+      }
+
+      // TYPE A (credit client) — orden created, awaiting admin approval
+      if (data.tipo === 'orden' && data.numero) {
+        setCart([])
+        setConfirmOpen(false)
+        setCartOpen(false)
+        setSuccessOrder(data.numero)
+        setNotas('')
+        return
+      }
+
+      // Unexpected response
+      toast.error('Respuesta inesperada del servidor')
+      console.error('[tienda] unexpected response:', data)
+    } catch (err) {
+      console.error('[tienda] handleConfirmOrder threw:', err)
+      toast.error('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setOrdering(false)
     }
-    // Update local credit balance if used
-    if (tipoPago === 'credito') {
-      const subtotal = cart.reduce((s, i) => s + i.precio * i.cantidad, 0)
-      setCreditoUsado(prev => prev + subtotal)
-    }
-    setCart([])
-    setConfirmOpen(false)
-    setCartOpen(false)
-    setSuccessOrder(data.numero)
-    setNotas('')
-    setTipoPago('pendiente')
   }
 
   if (successOrder !== null) {
@@ -1082,9 +1093,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         onClose={() => setCartOpen(false)}
         onUpdate={updateCart}
         onRemove={removeFromCart}
-        onCheckout={() => { setTipoPago('pendiente'); setCartOpen(false); setConfirmOpen(true) }}
-        onCreditCheckout={() => { setTipoPago('credito'); setCartOpen(false); setConfirmOpen(true) }}
-        onStripeCheckout={() => { setCartOpen(false); handleStripeCheckout() }}
+        onCheckout={() => { setCartOpen(false); setConfirmOpen(true) }}
         creditoAutorizado={creditoAutorizado}
         limiteCredito={limiteCredito}
         creditoUsado={creditoUsado}
@@ -1100,7 +1109,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         setNotas={setNotas}
         direccion={direccion}
         setDireccion={setDireccion}
-        tipoPago={tipoPago}
+        creditoAutorizado={creditoAutorizado}
       />
 
       <ChatPanel

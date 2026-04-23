@@ -18,7 +18,7 @@ export default async function MisPedidosPage() {
 
   const clienteId = clienteData?.id ?? null
 
-  const [pedidosRes, ordenesRes] = await Promise.all([
+  const [pedidosRes, ordenesRes, facturasRes] = await Promise.all([
     clienteId
       ? supabase
           .from('pedidos')
@@ -46,12 +46,24 @@ export default async function MisPedidosPage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50),
+    clienteId
+      ? supabase
+          .from('facturas')
+          .select(`
+            id, numero, estado, total, monto_pagado,
+            fecha_emision, fecha_vencimiento, pedido_id
+          `)
+          .eq('cliente_id', clienteId)
+          .order('fecha_emision', { ascending: false })
+          .limit(50)
+      : Promise.resolve({ data: [] as any[] }),
   ])
 
   return (
     <MisPedidosClient
       pedidos={(pedidosRes.data ?? []) as any[]}
       ordenes={(ordenesRes.data ?? []) as any[]}
+      facturas={(facturasRes.data ?? []) as any[]}
       clienteId={clienteId}
       userId={user.id}
     />

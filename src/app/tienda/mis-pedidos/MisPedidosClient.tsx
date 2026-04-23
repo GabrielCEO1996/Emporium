@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/utils'
 import {
   ClipboardList, ChevronLeft, ChevronDown, ChevronUp,
   ShoppingBag, Clock, CheckCircle2, Truck, XCircle,
-  FileText, Package, RotateCcw,
+  FileText, Package, RotateCcw, Receipt,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -38,9 +38,17 @@ interface Orden {
   orden_items?: OrdenItem[]
   pedido?: { id: string; numero: string; estado: string } | null
 }
+interface Factura {
+  id: string; numero: string
+  estado: 'emitida' | 'pagada' | 'anulada' | 'con_nota_credito'
+  total: number; monto_pagado: number
+  fecha_emision: string; fecha_vencimiento: string | null
+  pedido_id: string | null
+}
 interface Props {
   pedidos: Pedido[]
   ordenes: Orden[]
+  facturas: Factura[]
   clienteId: string | null
   userId: string
 }
@@ -341,12 +349,60 @@ function OrdenCard({ orden }: { orden: Orden }) {
   )
 }
 
+// ── Factura card (compact) ────────────────────────────────────────────────────
+function FacturaCard({ factura }: { factura: Factura }) {
+  const map: Record<Factura['estado'], { cls: string; label: string; icon: string }> = {
+    pagada: {
+      cls: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+      label: 'Pagada', icon: '✅',
+    },
+    emitida: {
+      cls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+      label: 'Emitida', icon: '📄',
+    },
+    anulada: {
+      cls: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+      label: 'Anulada', icon: '🚫',
+    },
+    con_nota_credito: {
+      cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+      label: 'Con nota crédito', icon: '📝',
+    },
+  }
+  const m = map[factura.estado]
+  const saldo = Number(factura.total) - Number(factura.monto_pagado ?? 0)
+  return (
+    <motion.div layout className={`rounded-2xl border shadow-sm px-5 py-4 ${m.cls}`}>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-semibold opacity-80">
+            <span>{m.icon}</span>
+            <span>{m.label}</span>
+            <span className="opacity-60">·</span>
+            <span>
+              {new Date(factura.fecha_emision).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <p className="font-bold text-sm mt-1">{factura.numero}</p>
+          {factura.estado !== 'pagada' && saldo > 0 && (
+            <p className="text-xs opacity-80 mt-0.5">
+              Saldo pendiente: <span className="font-bold">{formatCurrency(saldo)}</span>
+            </p>
+          )}
+        </div>
+        <p className="font-black tabular-nums text-base">{formatCurrency(Number(factura.total))}</p>
+      </div>
+    </motion.div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function MisPedidosClient({
-  pedidos: initialPedidos, ordenes: initialOrdenes, clienteId, userId,
+  pedidos: initialPedidos, ordenes: initialOrdenes, facturas: initialFacturas, clienteId, userId,
 }: Props) {
   const [pedidos, setPedidos] = useState<Pedido[]>(initialPedidos)
   const [ordenes, setOrdenes] = useState<Orden[]>(initialOrdenes)
+  const [facturas, setFacturas] = useState<Factura[]>(initialFacturas)
   const router = useRouter()
   const supabase = createClient()
 
@@ -406,6 +462,38 @@ export default function MisPedidosClient({
 
     return () => { supabase.removeChannel(channel) }
   }, [userId, router, supabase])
+
+  // ── Supabase Realtime: facturas ───────────────────────────────────────────
+  useEffect(() => {
+    if (!clienteId) return
+
+    const channel = supabase
+      .channel(`facturas-cliente-${clienteId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'facturas', filter: `cliente_id=eq.${clienteId}` },
+        (payload) => {
+          const nueva = payload.new as any
+          if (payload.eventType === 'INSERT') {
+            setFacturas(prev => [nueva as Factura, ...prev])
+            toast.success(`Factura ${nueva.numero} emitida 📄`)
+          } else if (payload.eventType === 'UPDATE') {
+            setFacturas(prev =>
+              prev.map(f => (f.id === nueva.id ? { ...f, ...nueva } : f))
+            )
+            if (nueva.estado === 'pagada') {
+              toast.success(`Factura ${nueva.numero} pagada ✅`)
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const old = payload.old as any
+            setFacturas(prev => prev.filter(f => f.id !== old.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [clienteId, supabase])
 
   // ── Reorder handler ────────────────────────────────────────────────────────
   const handleReorder = (items: PedidoItem[]) => {
@@ -506,6 +594,33 @@ export default function MisPedidosClient({
             ))
           )}
         </section>
+
+        {/* ── Mis Facturas ─────────────────────────────────────────────── */}
+        {facturas.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Receipt className="w-4 h-4 text-violet-500" />
+              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Mis Facturas
+              </h2>
+              <span className="text-xs text-slate-400">
+                ({facturas.filter(f => f.estado === 'pagada').length} pagadas)
+              </span>
+            </div>
+            <div className="space-y-3">
+              {facturas.map((f, i) => (
+                <motion.div
+                  key={f.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                >
+                  <FacturaCard factura={f} />
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Bottom nav */}

@@ -1,31 +1,41 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
 import { rateLimit, rateLimitResponse } from '@/lib/security'
 
 // ─── POST /api/tienda/pedido ────────────────────────────────────────────────
-// Client submits cart from /tienda.
-//   1. Prefers creating an ORDEN (awaiting admin approval) if the
-//      `ordenes` table exists.
-//   2. If the table is missing (migration not yet applied), transparently
-//      falls back to creating a PEDIDO in estado 'borrador' so checkout
-//      is never broken while SQL is pending.
+// Single entrypoint for the tienda cart.
 //
-// ALWAYS returns a JSON response. Logs everything so failures are visible
-// in the server console.
+// Always creates an ORDEN (estado='pendiente'), then branches on the client:
+//   • credito_autorizado = TRUE  → orden stays pendiente, admin approves
+//       Response: { tipo: 'orden', numero, orden_id }
+//
+//   • credito_autorizado = FALSE → creates a Stripe checkout session with
+//       `orden_id` in the metadata. The Stripe webhook converts the orden
+//       into pedido + factura(pagada) + transaccion(ingreso) on payment.
+//       Response: { tipo: 'pago', url, numero, orden_id }
+//
+// If the `ordenes` table is not yet present (migration pending), transparently
+// falls back to creating a PEDIDO directly so checkout never breaks.
+//
+// ALWAYS returns a JSON response within the request; the outer try/catch
+// guarantees no hanging requests.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Postgres "relation does not exist" surface through supabase-js in a few
-// shapes depending on version; normalise the check here.
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
+  apiVersion: '2025-03-31.basil',
+})
+
 function isMissingRelation(err: any): boolean {
   if (!err) return false
   const code = err.code ?? err.details?.code
   const msg = (err.message ?? '').toLowerCase()
   return (
     code === '42P01' ||
-    code === 'PGRST205' || // PostgREST: schema cache could not find table
-    msg.includes('relation') && msg.includes('does not exist') ||
+    code === 'PGRST205' ||
+    (msg.includes('relation') && msg.includes('does not exist')) ||
     msg.includes('could not find the table') ||
-    msg.includes("schema cache")
+    msg.includes('schema cache')
   )
 }
 
@@ -44,6 +54,7 @@ export async function POST(req: Request) {
       return rateLimitResponse(60 * 60 * 1000)
     }
 
+    // Parse body safely
     let body: any
     try {
       body = await req.json()
@@ -52,7 +63,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 })
     }
 
-    const { items, notas, direccion_entrega, tipo_pago = 'pendiente' } = body ?? {}
+    const { items, notas, direccion_entrega } = body ?? {}
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
@@ -61,48 +72,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Máximo 100 productos por orden' }, { status: 400 })
     }
 
-    // ── Resolve cliente record (by user_id first, email fallback) ─────────
-    let clienteData: { id: string } | null = null
+    // ── Resolve cliente (includes credito_autorizado for branching) ───────
+    let clienteData:
+      | { id: string; credito_autorizado: boolean | null }
+      | null = null
 
-    // Try user_id match first (safer than .or with a possibly-empty email)
     {
       const { data, error } = await supabase
         .from('clientes')
-        .select('id')
+        .select('id, credito_autorizado')
         .eq('user_id', user.id)
         .maybeSingle()
-      if (error) console.error('[tienda/pedido] cliente by user_id error:', error)
-      if (data) clienteData = data
+      if (error) console.error('[tienda/pedido] cliente by user_id:', error)
+      if (data) clienteData = data as any
     }
 
-    // Fallback: by email
     if (!clienteData && user.email) {
       const { data, error } = await supabase
         .from('clientes')
-        .select('id')
+        .select('id, credito_autorizado')
         .eq('email', user.email)
         .maybeSingle()
-      if (error) console.error('[tienda/pedido] cliente by email error:', error)
+      if (error) console.error('[tienda/pedido] cliente by email:', error)
       if (data) {
-        clienteData = data
-        // Backfill user_id (best-effort)
+        clienteData = data as any
         await supabase
           .from('clientes')
           .update({ user_id: user.id })
           .eq('id', data.id)
           .is('user_id', null)
-          .then(() => null, err => console.error('[tienda/pedido] backfill user_id failed:', err))
+          .then(() => null, err =>
+            console.error('[tienda/pedido] backfill user_id:', err)
+          )
       }
     }
 
-    // Auto-create cliente if still missing
     if (!clienteData) {
       const { data: perfil } = await supabase
-        .from('profiles')
-        .select('nombre')
-        .eq('id', user.id)
-        .maybeSingle()
-
+        .from('profiles').select('nombre').eq('id', user.id).maybeSingle()
       const nombre =
         perfil?.nombre ??
         user.user_metadata?.full_name ??
@@ -111,8 +118,14 @@ export async function POST(req: Request) {
 
       const { data: newCliente, error: createError } = await supabase
         .from('clientes')
-        .insert({ nombre, email: user.email!, user_id: user.id, activo: true })
-        .select('id')
+        .insert({
+          nombre,
+          email: user.email!,
+          user_id: user.id,
+          activo: true,
+          // credito_autorizado defaults to false — direct-pay client
+        })
+        .select('id, credito_autorizado')
         .single()
 
       if (createError || !newCliente) {
@@ -122,10 +135,11 @@ export async function POST(req: Request) {
           { status: 500 }
         )
       }
-      clienteData = newCliente
+      clienteData = newCliente as any
     }
 
-    const cliente_id = clienteData.id
+    const cliente_id = clienteData!.id
+    const creditoAutorizado = !!clienteData!.credito_autorizado
 
     const total = items.reduce(
       (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
@@ -143,7 +157,7 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Path A: try ORDENES first
+    // Path A: create an ORDEN (preferred path)
     // ════════════════════════════════════════════════════════════════════════
     const ordenNumero = await nextNumero('ordenes', 'ORD')
 
@@ -162,7 +176,6 @@ export async function POST(req: Request) {
       .single()
 
     if (!ordenError && orden) {
-      // Insert orden_items
       const ordenItems = items.map((item: any) => ({
         orden_id: orden.id,
         presentacion_id: item.presentacion_id,
@@ -176,39 +189,108 @@ export async function POST(req: Request) {
         console.error('[tienda/pedido] orden_items insert failed:', itemsError)
         await supabase.from('ordenes').delete().eq('id', orden.id)
 
-        // If orden_items table is the one missing, fall through to pedidos path
         if (!isMissingRelation(itemsError)) {
           return NextResponse.json(
             { error: itemsError.message ?? 'Error al guardar los productos' },
             { status: 500 }
           )
         }
-        console.warn('[tienda/pedido] orden_items table missing — falling back to pedidos')
+        console.warn('[tienda/pedido] orden_items missing — fallback to pedidos')
       } else {
-        // Success
-        return NextResponse.json(
-          {
-            success: true,
-            orden_id: orden.id,
-            numero: orden.numero,
-            ...orden,
-          },
-          { status: 201 }
-        )
+        // ── Branch on credit ─────────────────────────────────────────────
+        if (creditoAutorizado) {
+          // TYPE A — admin approval flow
+          return NextResponse.json(
+            {
+              success: true,
+              tipo: 'orden',
+              numero: orden.numero,
+              orden_id: orden.id,
+            },
+            { status: 201 }
+          )
+        }
+
+        // TYPE B — Stripe checkout for direct clients
+        if (!process.env.STRIPE_SECRET_KEY) {
+          console.error('[tienda/pedido] STRIPE_SECRET_KEY missing')
+          // Roll back the orden so the client can retry later
+          await supabase.from('orden_items').delete().eq('orden_id', orden.id)
+          await supabase.from('ordenes').delete().eq('id', orden.id)
+          return NextResponse.json(
+            { error: 'Pago con tarjeta no configurado. Contacta al administrador.' },
+            { status: 503 }
+          )
+        }
+
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+        try {
+          const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((it: any) => ({
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: it.productoNombre
+                  ? `${it.productoNombre}${it.presentacionNombre ? ` — ${it.presentacionNombre}` : ''}`
+                  : (it.presentacionNombre ?? 'Producto'),
+                description: it.presentacionNombre ?? undefined,
+              },
+              unit_amount: Math.round(Number(it.precio_unitario) * 100),
+            },
+            quantity: Number(it.cantidad),
+          }))
+
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items,
+            mode: 'payment',
+            success_url: `${siteUrl}/tienda/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${siteUrl}/tienda/checkout/cancel`,
+            customer_email: user.email ?? undefined,
+            metadata: {
+              orden_id: orden.id,
+              orden_numero: orden.numero,
+              cliente_id,
+              user_id: user.id,
+              user_email: user.email ?? '',
+            },
+          })
+
+          return NextResponse.json(
+            {
+              success: true,
+              tipo: 'pago',
+              url: session.url,
+              numero: orden.numero,
+              orden_id: orden.id,
+            },
+            { status: 201 }
+          )
+        } catch (stripeErr: any) {
+          console.error('[tienda/pedido] stripe session create failed:', stripeErr)
+          // Leave the orden in place — admin can still approve it manually
+          // and the user can be told it went through as a manual-approval orden.
+          return NextResponse.json(
+            {
+              error: 'No se pudo iniciar el pago. Intenta de nuevo.',
+              stripe_error: stripeErr?.message,
+            },
+            { status: 502 }
+          )
+        }
       }
     } else if (ordenError && !isMissingRelation(ordenError)) {
-      // Real error — not a missing table. Surface it, don't hide as fallback.
       console.error('[tienda/pedido] ordenes insert failed:', ordenError)
       return NextResponse.json(
         { error: ordenError.message ?? 'Error al crear la orden' },
         { status: 500 }
       )
     } else if (ordenError) {
-      console.warn('[tienda/pedido] ordenes table missing — falling back to pedidos')
+      console.warn('[tienda/pedido] ordenes table missing — fallback to pedidos')
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Path B: fallback — create a PEDIDO directly (legacy path)
+    // Path B: legacy fallback — create a PEDIDO directly
+    // (only reached when the ordenes migration has not been applied)
     // ════════════════════════════════════════════════════════════════════════
     const pedidoNumero = await nextNumero('pedidos', 'PED')
 
@@ -219,7 +301,7 @@ export async function POST(req: Request) {
         cliente_id,
         vendedor_id: null,
         estado: 'borrador',
-        tipo_pago,
+        tipo_pago: creditoAutorizado ? 'credito' : 'pendiente',
         subtotal: total,
         descuento: 0,
         impuesto: 0,
@@ -260,14 +342,13 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: true,
-        pedido_id: pedido.id,
+        tipo: 'orden',       // UI treats it the same as an orden for messaging
         numero: pedido.numero,
-        ...pedido,
+        pedido_id: pedido.id,
       },
       { status: 201 }
     )
   } catch (err: any) {
-    // Last-resort: never let the request hang
     console.error('[tienda/pedido] unhandled exception:', err)
     return NextResponse.json(
       { error: err?.message ?? 'Error interno del servidor' },
