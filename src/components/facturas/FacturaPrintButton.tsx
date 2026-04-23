@@ -12,18 +12,32 @@ export interface EmpresaConfig {
   email?: string
   logo_url?: string
   mensaje_factura?: string
+  zelle_numero?: string | null
+  zelle_titular?: string | null
+  banco_nombre?: string | null
+  banco_cuenta?: string | null
+  banco_routing?: string | null
+  banco_titular?: string | null
+}
+
+export interface PagoInfo {
+  tipo_pago?: 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'pendiente' | null
+  numero_referencia?: string | null
+  pago_confirmado?: boolean | null
+  pago_confirmado_at?: string | null
 }
 
 interface FacturaPrintButtonProps {
   factura: Factura
   empresaConfig?: EmpresaConfig
+  pagoInfo?: PagoInfo | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Print button: uses the same FacturaPDF component as Download + Email.
 // Generates a PDF blob, opens it in a new window, and triggers print on load.
 // ─────────────────────────────────────────────────────────────────────────────
-function PrintPDFButton({ factura, empresaConfig }: { factura: Factura; empresaConfig?: EmpresaConfig }) {
+function PrintPDFButton({ factura, empresaConfig, pagoInfo }: { factura: Factura; empresaConfig?: EmpresaConfig; pagoInfo?: PagoInfo | null }) {
   const [loading, setLoading] = useState(false)
 
   const handlePrint = async () => {
@@ -35,7 +49,7 @@ function PrintPDFButton({ factura, empresaConfig }: { factura: Factura; empresaC
       ])
 
       const blob = await pdf(
-        <FacturaPDF factura={factura} empresaConfig={empresaConfig} />
+        <FacturaPDF factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />
       ).toBlob()
 
       const blobUrl = URL.createObjectURL(blob)
@@ -77,7 +91,7 @@ function PrintPDFButton({ factura, empresaConfig }: { factura: Factura; empresaC
 // ─────────────────────────────────────────────────────────────────────────────
 // Download PDF button — same renderer, download link
 // ─────────────────────────────────────────────────────────────────────────────
-function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empresaConfig?: EmpresaConfig }) {
+function PDFDownloadButton({ factura, empresaConfig, pagoInfo }: { factura: Factura; empresaConfig?: EmpresaConfig; pagoInfo?: PagoInfo | null }) {
   const [modules, setModules] = useState<{
     PDFDownloadLink: any
     FacturaPDF: any
@@ -114,7 +128,7 @@ function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empre
 
   return (
     <PDFDownloadLink
-      document={<FacturaPDF factura={factura} empresaConfig={empresaConfig} />}
+      document={<FacturaPDF factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
       fileName={fileName}
     >
       {({
@@ -146,7 +160,7 @@ function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empre
   )
 }
 
-export default function FacturaPrintButton({ factura, empresaConfig }: FacturaPrintButtonProps) {
+export default function FacturaPrintButton({ factura, empresaConfig, pagoInfo }: FacturaPrintButtonProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -155,8 +169,8 @@ export default function FacturaPrintButton({ factura, empresaConfig }: FacturaPr
 
   return (
     <div className="flex items-center gap-2 print:hidden">
-      {mounted && <PrintPDFButton factura={factura} empresaConfig={empresaConfig} />}
-      {mounted && <PDFDownloadButton factura={factura} empresaConfig={empresaConfig} />}
+      {mounted && <PrintPDFButton factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
+      {mounted && <PDFDownloadButton factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
     </div>
   )
 }

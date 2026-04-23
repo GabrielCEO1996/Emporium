@@ -66,11 +66,20 @@ export default async function TiendaPage() {
     clienteData = data
   }
 
+  // Empresa payment info — shown inside the checkout modal when the client
+  // picks Zelle or bank transfer, so they know where to send the money.
+  const { data: empresaPayment } = await supabase
+    .from('empresa_config')
+    .select('zelle_numero, zelle_titular, banco_nombre, banco_cuenta, banco_routing, banco_titular')
+    .limit(1)
+    .maybeSingle()
+
   return (
     <TiendaClient
       profile={profile as any}
       productos={productos as any[]}
       clienteInfo={clienteData as any}
+      empresaPayment={empresaPayment as any}
     />
   )
 }

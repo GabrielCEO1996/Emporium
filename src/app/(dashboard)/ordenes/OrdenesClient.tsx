@@ -6,8 +6,11 @@ import { toast } from 'sonner'
 import {
   CheckCircle2, XCircle, Clock, Loader2, MapPin, StickyNote,
   Package2, ChevronDown, ChevronUp, User,
+  Wallet, Landmark, CreditCard, FileText, BadgeCheck,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+
+type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito'
 
 interface Orden {
   id: string
@@ -18,6 +21,9 @@ interface Orden {
   direccion_entrega: string | null
   motivo_rechazo: string | null
   created_at: string
+  tipo_pago: TipoPago | null
+  numero_referencia: string | null
+  pago_confirmado: boolean | null
   cliente: { id: string; nombre: string; rif: string | null; email: string | null; telefono: string | null } | null
   items: Array<{
     id: string
@@ -49,6 +55,23 @@ export default function OrdenesClient({
       router.refresh()
     } catch (err: any) {
       toast.error(err.message ?? 'Error al aprobar')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleConfirmarPago = async (orden: Orden) => {
+    const tipo = orden.tipo_pago === 'zelle' ? 'Zelle' : 'transferencia'
+    if (!confirm(`¿Confirmar que recibiste el pago de ${orden.numero} por ${tipo}? Esto aprobará la orden y creará el pedido.`)) return
+    setBusyId(orden.id)
+    try {
+      const res = await fetch(`/api/ordenes/${orden.id}/confirmar-pago`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error')
+      toast.success(data.message ?? 'Pago confirmado')
+      router.refresh()
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al confirmar pago')
     } finally {
       setBusyId(null)
     }
@@ -102,8 +125,9 @@ export default function OrdenesClient({
             {/* Row header */}
             <div className="flex flex-wrap items-center gap-4 p-4">
               <div className="flex-1 min-w-[200px]">
-                <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
                   <EstadoBadge estado={orden.estado} />
+                  <TipoPagoBadge tipo={orden.tipo_pago} confirmado={orden.pago_confirmado} />
                   <span>{formatDate(orden.created_at)}</span>
                 </div>
                 <p className="font-bold text-slate-800 dark:text-white mt-1">
@@ -114,6 +138,11 @@ export default function OrdenesClient({
                   {orden.cliente?.nombre ?? 'Cliente desconocido'}
                   {orden.cliente?.rif && <span className="text-slate-400">· {orden.cliente.rif}</span>}
                 </p>
+                {orden.tipo_pago === 'transferencia' && orden.numero_referencia && (
+                  <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5 font-mono">
+                    Ref: <span className="font-bold">{orden.numero_referencia}</span>
+                  </p>
+                )}
               </div>
 
               <div className="text-right">
@@ -127,14 +156,26 @@ export default function OrdenesClient({
               <div className="flex items-center gap-2 flex-wrap">
                 {orden.estado === 'pendiente' && isAdmin && (
                   <>
-                    <button
-                      disabled={busy}
-                      onClick={() => handleAprobar(orden)}
-                      className="ripple inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
-                    >
-                      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                      Aprobar
-                    </button>
+                    {/* Manual payment methods need the admin to confirm receipt */}
+                    {(orden.tipo_pago === 'zelle' || orden.tipo_pago === 'transferencia') && !orden.pago_confirmado ? (
+                      <button
+                        disabled={busy}
+                        onClick={() => handleConfirmarPago(orden)}
+                        className="ripple inline-flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+                      >
+                        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                        Confirmar pago recibido
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busy}
+                        onClick={() => handleAprobar(orden)}
+                        className="ripple inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+                      >
+                        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        Aprobar
+                      </button>
+                    )}
                     <button
                       disabled={busy}
                       onClick={() => { setRejectId(orden.id); setMotivo('') }}
@@ -250,6 +291,30 @@ export default function OrdenesClient({
         </div>
       )}
     </div>
+  )
+}
+
+function TipoPagoBadge({
+  tipo, confirmado,
+}: {
+  tipo: TipoPago | null
+  confirmado: boolean | null
+}) {
+  if (!tipo || tipo === 'pendiente') return null
+  const map: Record<Exclude<TipoPago, 'pendiente'>, { cls: string; icon: React.ReactNode; label: string }> = {
+    zelle:         { cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300', icon: <Wallet   className="w-3 h-3" />, label: 'Zelle' },
+    transferencia: { cls: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',                  icon: <Landmark className="w-3 h-3" />, label: 'Transf.' },
+    stripe:        { cls: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',      icon: <CreditCard className="w-3 h-3" />, label: 'Tarjeta' },
+    credito:       { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',          icon: <FileText className="w-3 h-3" />, label: 'Crédito' },
+  }
+  const m = map[tipo as Exclude<TipoPago, 'pendiente'>]
+  if (!m) return null
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${m.cls}`}>
+      {m.icon}
+      {m.label}
+      {confirmado && <BadgeCheck className="w-3 h-3" />}
+    </span>
   )
 }
 

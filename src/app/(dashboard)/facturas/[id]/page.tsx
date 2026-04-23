@@ -65,6 +65,29 @@ export default async function FacturaDetailPage({ params }: PageProps) {
   const overdue = isOverdue(f)
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
 
+  // Resolve payment info: factura → pedido → orden (only ordenes carry tipo_pago).
+  let pagoInfo: {
+    tipo_pago?: string | null
+    numero_referencia?: string | null
+    pago_confirmado?: boolean | null
+    pago_confirmado_at?: string | null
+  } | null = null
+  if (f.pedido_id) {
+    const { data: pedidoRow } = await supabase
+      .from('pedidos')
+      .select('orden_id')
+      .eq('id', f.pedido_id)
+      .maybeSingle()
+    if (pedidoRow?.orden_id) {
+      const { data: ordenRow } = await supabase
+        .from('ordenes')
+        .select('tipo_pago, numero_referencia, pago_confirmado, pago_confirmado_at')
+        .eq('id', pedidoRow.orden_id)
+        .maybeSingle()
+      pagoInfo = (ordenRow as any) ?? null
+    }
+  }
+
   return (
     <div className="min-h-full bg-slate-50">
       {/* Header */}
@@ -109,7 +132,11 @@ export default async function FacturaDetailPage({ params }: PageProps) {
               clienteEmail={f.cliente?.email}
               clienteId={f.cliente_id}
             />
-            <FacturaPrintButton factura={f} empresaConfig={empresaConfig ?? undefined} />
+            <FacturaPrintButton
+              factura={f}
+              empresaConfig={empresaConfig ?? undefined}
+              pagoInfo={pagoInfo as any}
+            />
 
             {/* ── State-transition buttons (exclusive per state) ── */}
 
@@ -376,6 +403,88 @@ export default async function FacturaDetailPage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+        {/* Payment method block */}
+        {pagoInfo?.tipo_pago && pagoInfo.tipo_pago !== 'pendiente' && (
+          <div className={`rounded-lg bg-white border p-6 ${
+            pagoInfo.pago_confirmado ? 'border-emerald-200' : 'border-amber-200'
+          }`}>
+            <div className="flex items-start justify-between mb-3">
+              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-slate-400" />
+                Método de pago
+              </h2>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                pagoInfo.pago_confirmado
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : pagoInfo.tipo_pago === 'stripe' && f.monto_pagado > 0
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : pagoInfo.tipo_pago === 'credito'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {pagoInfo.pago_confirmado
+                  ? '✓ Pago confirmado'
+                  : pagoInfo.tipo_pago === 'stripe' && f.monto_pagado > 0
+                  ? '✓ Pago procesado'
+                  : pagoInfo.tipo_pago === 'credito'
+                  ? 'Cargado a crédito'
+                  : '⏳ Esperando confirmación'}
+              </span>
+            </div>
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Tipo</dt>
+                <dd className="font-semibold text-slate-900 capitalize">
+                  {pagoInfo.tipo_pago === 'stripe'        ? 'Tarjeta (Stripe)'
+                   : pagoInfo.tipo_pago === 'transferencia' ? 'Transferencia bancaria'
+                   : pagoInfo.tipo_pago === 'zelle'         ? 'Zelle'
+                   :                                          'Línea de crédito'}
+                </dd>
+              </div>
+              {pagoInfo.tipo_pago === 'zelle' && empresaConfig?.zelle_numero && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Zelle de destino</dt>
+                  <dd className="font-mono text-slate-900">{empresaConfig.zelle_numero}</dd>
+                </div>
+              )}
+              {pagoInfo.tipo_pago === 'transferencia' && (
+                <>
+                  {empresaConfig?.banco_nombre && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Banco</dt>
+                      <dd className="font-semibold text-slate-900">{empresaConfig.banco_nombre}</dd>
+                    </div>
+                  )}
+                  {empresaConfig?.banco_cuenta && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Cuenta</dt>
+                      <dd className="font-mono text-slate-900">{empresaConfig.banco_cuenta}</dd>
+                    </div>
+                  )}
+                  {pagoInfo.numero_referencia && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Número de referencia</dt>
+                      <dd className="font-mono font-semibold text-teal-700">{pagoInfo.numero_referencia}</dd>
+                    </div>
+                  )}
+                </>
+              )}
+              {pagoInfo.tipo_pago === 'credito' && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Saldo pendiente</dt>
+                  <dd className="font-semibold text-amber-700">{formatCurrency(saldo)}</dd>
+                </div>
+              )}
+              {pagoInfo.pago_confirmado && pagoInfo.pago_confirmado_at && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Confirmado</dt>
+                  <dd className="text-slate-900">{formatDate(pagoInfo.pago_confirmado_at)}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
 
         {/* Notes */}
         {f.notas && (

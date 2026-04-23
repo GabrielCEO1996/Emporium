@@ -42,7 +42,12 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json()
-    const allowed = ['nombre', 'rif', 'direccion', 'telefono', 'email', 'logo_url', 'mensaje_factura']
+    const allowed = [
+      'nombre', 'rif', 'direccion', 'telefono', 'email', 'logo_url', 'mensaje_factura',
+      // Payment methods advertised to clients on the tienda checkout
+      'zelle_numero', 'zelle_titular',
+      'banco_nombre', 'banco_cuenta', 'banco_routing', 'banco_titular',
+    ]
     const updates: Record<string, string> = {}
     for (const key of allowed) {
       if (key in body) updates[key] = body[key]

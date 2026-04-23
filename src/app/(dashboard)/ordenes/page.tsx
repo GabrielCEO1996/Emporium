@@ -29,6 +29,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
     .select(`
       id, numero, estado, total, notas, direccion_entrega,
       motivo_rechazo, created_at, updated_at, cliente_id,
+      tipo_pago, numero_referencia, pago_confirmado,
       cliente:clientes(id, nombre, rif, email, telefono),
       items:orden_items(
         id, cantidad, precio_unitario, subtotal,

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Building2, FileText, MapPin, Phone, Mail, MessageSquare,
   Save, Loader2, Upload, X, CheckCircle, Image as ImageIcon,
-  Target, DollarSign, TrendingUp,
+  Target, DollarSign, TrendingUp, Wallet, Landmark,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +22,13 @@ interface EmpresaConfig {
   meta_mensual?: number
   moneda_secundaria?: string
   tasa_cambio?: number
+  // Payment methods advertised to clients in the tienda checkout
+  zelle_numero?: string
+  zelle_titular?: string
+  banco_nombre?: string
+  banco_cuenta?: string
+  banco_routing?: string
+  banco_titular?: string
 }
 
 interface Props {
@@ -330,6 +337,123 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
               />
             </div>
             <p className="text-xs text-slate-400 mt-1">Actualiza manualmente la tasa oficial</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Métodos de pago */}
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <Wallet className="h-4 w-4 text-teal-600" />
+            Métodos de pago
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Datos que verán tus clientes al seleccionar Zelle o transferencia bancaria en la tienda.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2">
+          {/* Zelle */}
+          <div className="sm:col-span-2">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">Z</span>
+              Zelle
+            </h3>
+          </div>
+
+          <div>
+            <label className={labelClass}>Número / email Zelle</label>
+            <div className="relative">
+              <Wallet className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.zelle_numero ?? ''}
+                onChange={e => set('zelle_numero', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="pagos@empresa.com o +1 786 000 0000"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Titular de la cuenta Zelle</label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.zelle_titular ?? ''}
+                onChange={e => set('zelle_titular', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="Emporium LLC"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+
+          {/* Transferencia */}
+          <div className="sm:col-span-2 mt-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-50 text-sky-600">
+                <Landmark className="h-3.5 w-3.5" />
+              </span>
+              Transferencia bancaria
+            </h3>
+          </div>
+
+          <div>
+            <label className={labelClass}>Nombre del banco</label>
+            <div className="relative">
+              <Landmark className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.banco_nombre ?? ''}
+                onChange={e => set('banco_nombre', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="Bank of America"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Titular de la cuenta</label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.banco_titular ?? ''}
+                onChange={e => set('banco_titular', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="Emporium LLC"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Número de cuenta</label>
+            <input
+              type="text"
+              value={form.banco_cuenta ?? ''}
+              onChange={e => set('banco_cuenta', e.target.value)}
+              disabled={!isAdmin}
+              placeholder="0123456789"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label className={labelClass}>Routing number</label>
+            <input
+              type="text"
+              value={form.banco_routing ?? ''}
+              onChange={e => set('banco_routing', e.target.value)}
+              disabled={!isAdmin}
+              placeholder="021000021"
+              className={inputClass}
+            />
           </div>
         </div>
       </section>

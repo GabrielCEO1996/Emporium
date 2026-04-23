@@ -8,6 +8,7 @@ import {
   ShoppingCart, Search, X, Plus, Minus, Trash2, MessageCircle,
   Send, Package2, CheckCircle2, ClipboardList, User, LogOut,
   ChevronRight, Loader2, ShoppingBag, Sparkles, CreditCard, Star,
+  Wallet, Landmark, FileText, Copy,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -39,7 +40,18 @@ interface Props {
     ciudad?: string; tipo_cliente?: string
     credito_autorizado?: boolean; limite_credito?: number; credito_usado?: number
   } | null
+  empresaPayment?: {
+    zelle_numero?: string | null
+    zelle_titular?: string | null
+    banco_nombre?: string | null
+    banco_cuenta?: string | null
+    banco_routing?: string | null
+    banco_titular?: string | null
+  } | null
 }
+
+// Payment methods supported by the checkout flow.
+type TipoPago = 'zelle' | 'transferencia' | 'stripe' | 'credito'
 
 // Types shared with the shipping form
 type TipoClienteForm =
@@ -215,7 +227,7 @@ function ProductCard({
 // ── Cart Panel ────────────────────────────────────────────────────────────────
 function CartPanel({
   items, open, onClose, onUpdate, onRemove, onCheckout,
-  canCreateOrdenes, creditoAutorizado, limiteCredito, creditoUsado,
+  creditoAutorizado, limiteCredito, creditoUsado,
 }: {
   items: CartItem[]
   open: boolean
@@ -223,7 +235,6 @@ function CartPanel({
   onUpdate: (id: string, delta: number) => void
   onRemove: (id: string) => void
   onCheckout: () => void
-  canCreateOrdenes: boolean   // rol='cliente' → admin-approval flow; else Stripe
   creditoAutorizado?: boolean
   limiteCredito?: number
   creditoUsado?: number
@@ -320,7 +331,7 @@ function CartPanel({
                 </div>
 
                 {/* Credit balance display (informational, only for authorized clientes) */}
-                {canCreateOrdenes && creditoAutorizado && (
+                {creditoAutorizado && (
                   <div className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                     <span className="font-medium">Crédito disponible</span>
                     <span className="font-bold">{formatCurrency(creditoDisponible)}</span>
@@ -329,29 +340,17 @@ function CartPanel({
 
                 {/* Flow explainer */}
                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-snug">
-                  {canCreateOrdenes
-                    ? 'Tu orden será enviada al administrador para aprobación. Te notificaremos cuando esté lista.'
-                    : 'Al continuar serás redirigido al pago seguro con tarjeta. Tu pedido se activa automáticamente tras el pago.'}
+                  Elige cómo quieres pagar en el siguiente paso.
                 </p>
 
-                {/* Single CTA — branch on rol */}
-                {canCreateOrdenes ? (
-                  <button
-                    onClick={onCheckout}
-                    className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Confirmar Orden
-                  </button>
-                ) : (
-                  <button
-                    onClick={onCheckout}
-                    className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    Pagar con tarjeta 💳
-                  </button>
-                )}
+                {/* Unified CTA → opens ConfirmModal with payment selector */}
+                <button
+                  onClick={onCheckout}
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  Continuar al pago
+                </button>
               </div>
             )}
           </motion.div>
@@ -361,22 +360,115 @@ function CartPanel({
   )
 }
 
+// ── Payment method metadata ───────────────────────────────────────────────────
+const PAGO_METHODS: Record<TipoPago, {
+  label: string
+  tagline: string
+  emoji: string
+  accent: string     // bg for selected card
+  ring: string       // ring color when selected
+  text: string       // title color when selected
+  Icon: any
+}> = {
+  zelle: {
+    label: 'Zelle',
+    tagline: 'Envía a nuestra cuenta Zelle y el admin confirma',
+    emoji: '💚',
+    accent: 'bg-emerald-50 dark:bg-emerald-900/20',
+    ring: 'ring-emerald-500',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    Icon: Wallet,
+  },
+  transferencia: {
+    label: 'Transferencia',
+    tagline: 'Transferencia bancaria — requiere número de referencia',
+    emoji: '🏦',
+    accent: 'bg-sky-50 dark:bg-sky-900/20',
+    ring: 'ring-sky-500',
+    text: 'text-sky-700 dark:text-sky-300',
+    Icon: Landmark,
+  },
+  stripe: {
+    label: 'Tarjeta',
+    tagline: 'Pago seguro con tarjeta crédito/débito vía Stripe',
+    emoji: '💳',
+    accent: 'bg-violet-50 dark:bg-violet-900/20',
+    ring: 'ring-violet-500',
+    text: 'text-violet-700 dark:text-violet-300',
+    Icon: CreditCard,
+  },
+  credito: {
+    label: 'Crédito',
+    tagline: 'Usa tu línea de crédito autorizada',
+    emoji: '📋',
+    accent: 'bg-amber-50 dark:bg-amber-900/20',
+    ring: 'ring-amber-500',
+    text: 'text-amber-700 dark:text-amber-300',
+    Icon: FileText,
+  },
+}
+
+// ── Copy helper ───────────────────────────────────────────────────────────────
+function CopyRow({ label, value }: { label: string; value: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`${label} copiado`)
+    } catch {
+      toast.error('No se pudo copiar')
+    }
+  }
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs">
+      <div className="min-w-0">
+        <p className="text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="font-mono font-semibold text-slate-800 dark:text-slate-100 truncate">{value}</p>
+      </div>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-teal-600 transition"
+      >
+        <Copy className="w-3 h-3" /> Copiar
+      </button>
+    </div>
+  )
+}
+
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 function ConfirmModal({
   items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
-  canCreateOrdenes,
+  tipoPago, setTipoPago, numeroRef, setNumeroRef,
+  creditoAutorizado, creditoDisponible,
+  empresaPayment,
 }: {
   items: CartItem[]; open: boolean; onClose: () => void; onConfirm: () => void
   loading: boolean; notas: string; setNotas: (v: string) => void
   direccion: string; setDireccion: (v: string) => void
-  canCreateOrdenes: boolean
+  tipoPago: TipoPago; setTipoPago: (t: TipoPago) => void
+  numeroRef: string; setNumeroRef: (v: string) => void
+  creditoAutorizado: boolean; creditoDisponible: number
+  empresaPayment?: Props['empresaPayment']
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
-  // isCredito drives the "orden / admin approval" styling (rol=cliente);
-  // when false the modal drives the Stripe payment flow (rol=comprador).
-  const isCredito = canCreateOrdenes
+
+  // Build the list of enabled payment methods. Credito only appears when the
+  // cliente row has credito_autorizado=true on the server.
+  const methods: TipoPago[] = ['zelle', 'transferencia', 'stripe']
+  if (creditoAutorizado) methods.push('credito')
 
   if (!open) return null
+
+  const meta = PAGO_METHODS[tipoPago]
+  const creditoInsuficiente = tipoPago === 'credito' && total > creditoDisponible
+  const refFaltante = tipoPago === 'transferencia' && !numeroRef.trim()
+  const ctaDisabled = loading || creditoInsuficiente || refFaltante
+
+  const ctaLabel =
+    tipoPago === 'stripe'  ? 'Pagar con Tarjeta' :
+    tipoPago === 'credito' ? 'Usar Crédito' :
+    tipoPago === 'zelle'   ? 'Enviar orden por Zelle' :
+                             'Enviar orden por Transferencia'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -390,37 +482,29 @@ function ConfirmModal({
       {/* Modal — bottom sheet en móvil, card centrado en desktop */}
       <div
         className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl"
-        style={{ maxHeight: '85vh' }}
+        style={{ maxHeight: '90vh' }}
       >
         {/* Drag handle visible solo en móvil */}
         <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
 
         {/* ── HEADER FIJO ─────────────────────────────────────────────────── */}
-        <div className={`shrink-0 flex items-center justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-violet-50 dark:bg-violet-900/10'}`}>
+        <div className={`shrink-0 flex items-center justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 ${meta.accent}`}>
           <h2 className="font-bold text-slate-800 dark:text-white text-lg">
-            {isCredito ? '📋 Confirmar Orden' : '💳 Pagar con Tarjeta'}
+            {meta.emoji} Confirmar pedido
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white/60 dark:hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* ── BREADCRUMB FIJO ──────────────────────────────────────────────── */}
-        <div className="shrink-0 flex items-center gap-2 px-5 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-          {isCredito
-            ? <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tu orden será revisada por el administrador antes de procesarse.</p>
-            : <p className="text-xs text-violet-600 dark:text-violet-400 font-medium">Al confirmar, serás redirigido al pago seguro con Stripe.</p>
-          }
-        </div>
-
         {/* ── CONTENIDO SCROLLEABLE ────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
           {/* Lista de productos */}
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {items.map(item => (
               <li key={item.presentacionId} className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -435,19 +519,151 @@ function ConfirmModal({
           </ul>
 
           {/* Total */}
-          <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${isCredito ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-violet-50 dark:bg-violet-900/20'}`}>
+          <div className={`flex items-center justify-between px-4 py-3 rounded-xl ${meta.accent}`}>
             <div>
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                {isCredito ? 'Total estimado' : 'Total a pagar'}
-              </p>
-              <p className={`text-xs mt-0.5 ${isCredito ? 'text-emerald-600' : 'text-violet-600'}`}>
-                {isCredito ? 'Pendiente de aprobación' : 'Se cobra al confirmar pago'}
-              </p>
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total a pagar</p>
+              <p className={`text-xs mt-0.5 ${meta.text}`}>{meta.label}</p>
             </div>
-            <span className={`text-2xl font-black tabular-nums ${isCredito ? 'text-emerald-600' : 'text-violet-600'}`}>
+            <span className={`text-2xl font-black tabular-nums ${meta.text}`}>
               {formatCurrency(total)}
             </span>
           </div>
+
+          {/* Método de pago — selector */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              Método de pago
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {methods.map(m => {
+                const mm = PAGO_METHODS[m]
+                const active = tipoPago === m
+                const Icon = mm.Icon
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setTipoPago(m)}
+                    className={`relative text-left p-3 rounded-2xl border transition-all active:scale-[0.98] ${
+                      active
+                        ? `${mm.accent} border-transparent ring-2 ${mm.ring} shadow-sm`
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className={`w-4 h-4 ${active ? mm.text : 'text-slate-400'}`} />
+                      <span className={`text-sm font-bold ${active ? mm.text : 'text-slate-700 dark:text-slate-200'}`}>
+                        {mm.label}
+                      </span>
+                      {active && <CheckCircle2 className={`w-3.5 h-3.5 ml-auto ${mm.text}`} />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                      {mm.tagline}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Instrucciones específicas por método */}
+          {tipoPago === 'zelle' && (
+            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-4 space-y-3">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+                <Wallet className="w-3.5 h-3.5" /> Enviar pago por Zelle
+              </p>
+              {empresaPayment?.zelle_numero ? (
+                <div className="space-y-2">
+                  <CopyRow label="Zelle" value={empresaPayment.zelle_numero} />
+                  {empresaPayment.zelle_titular && (
+                    <CopyRow label="Titular" value={empresaPayment.zelle_titular} />
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">
+                  El admin aún no ha configurado la cuenta de Zelle.
+                </p>
+              )}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Al confirmar, tu orden queda pendiente. El admin verificará el pago y la aprobará.
+              </p>
+            </div>
+          )}
+
+          {tipoPago === 'transferencia' && (
+            <div className="rounded-2xl border border-sky-200 dark:border-sky-900/40 bg-sky-50/60 dark:bg-sky-900/10 p-4 space-y-3">
+              <p className="text-xs font-bold text-sky-700 dark:text-sky-300 uppercase tracking-wider flex items-center gap-1">
+                <Landmark className="w-3.5 h-3.5" /> Datos bancarios
+              </p>
+              {empresaPayment?.banco_nombre || empresaPayment?.banco_cuenta ? (
+                <div className="space-y-2">
+                  {empresaPayment?.banco_nombre  && <CopyRow label="Banco"   value={empresaPayment.banco_nombre}  />}
+                  {empresaPayment?.banco_cuenta  && <CopyRow label="Cuenta"  value={empresaPayment.banco_cuenta}  />}
+                  {empresaPayment?.banco_routing && <CopyRow label="Routing" value={empresaPayment.banco_routing} />}
+                  {empresaPayment?.banco_titular && <CopyRow label="Titular" value={empresaPayment.banco_titular} />}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">
+                  El admin aún no ha configurado los datos bancarios.
+                </p>
+              )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Número de referencia <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  value={numeroRef}
+                  onChange={e => setNumeroRef(e.target.value)}
+                  placeholder="Últimos 6-8 dígitos de la transferencia"
+                  className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                {refFaltante && (
+                  <p className="text-[11px] text-rose-500 mt-1">Requerido para verificar tu transferencia.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tipoPago === 'stripe' && (
+            <div className="rounded-2xl border border-violet-200 dark:border-violet-900/40 bg-violet-50/60 dark:bg-violet-900/10 p-4 space-y-1">
+              <p className="text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider flex items-center gap-1">
+                <CreditCard className="w-3.5 h-3.5" /> Pago con tarjeta
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                Al confirmar serás redirigido a la pasarela segura de Stripe.
+                Tu pedido se activa automáticamente cuando el pago se procese.
+              </p>
+            </div>
+          )}
+
+          {tipoPago === 'credito' && (
+            <div className={`rounded-2xl border p-4 space-y-2 ${
+              creditoInsuficiente
+                ? 'border-rose-200 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-900/10'
+                : 'border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10'
+            }`}>
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5" /> Línea de crédito
+              </p>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 dark:text-slate-400">Crédito disponible</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">
+                  {formatCurrency(creditoDisponible)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 dark:text-slate-400">Saldo tras esta compra</span>
+                <span className={`font-bold tabular-nums ${creditoInsuficiente ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {formatCurrency(creditoDisponible - total)}
+                </span>
+              </div>
+              {creditoInsuficiente && (
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                  Crédito insuficiente para esta compra. Elige otro método de pago.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Campo dirección */}
           <div>
@@ -481,18 +697,20 @@ function ConfirmModal({
         <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-2">
           <button
             onClick={onConfirm}
-            disabled={loading}
+            disabled={ctaDisabled}
             className={`w-full py-4 rounded-xl font-bold text-lg text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${
-              isCredito
-                ? 'bg-emerald-600 hover:bg-emerald-500'
-                : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500'
+              tipoPago === 'stripe'
+                ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500'
+                : tipoPago === 'credito'
+                ? 'bg-amber-600 hover:bg-amber-500'
+                : tipoPago === 'transferencia'
+                ? 'bg-sky-600 hover:bg-sky-500'
+                : 'bg-emerald-600 hover:bg-emerald-500'
             }`}
           >
             {loading
               ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando…</>
-              : isCredito
-                ? <><CheckCircle2 className="w-5 h-5" /> Enviar Orden</>
-                : <><CreditCard className="w-5 h-5" /> Pagar con Tarjeta</>
+              : <><meta.Icon className="w-5 h-5" /> {ctaLabel}</>
             }
           </button>
           <button
@@ -870,18 +1088,15 @@ function ChatPanel({
 }
 
 // ── Main TiendaClient ─────────────────────────────────────────────────────────
-export default function TiendaClient({ profile, productos, clienteInfo }: Props) {
+export default function TiendaClient({ profile, productos, clienteInfo, empresaPayment }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
-  // Rol-based flow branching:
-  //   rol='cliente'   → admin-approval flow (Confirmar Orden, no payment upfront)
-  //   rol='comprador' → Stripe-only flow (Pagar con tarjeta)
-  // Credit info still shown informationally if present on the linked cliente row.
-  const canCreateOrdenes = profile.rol === 'cliente'
+  // Credit info (shown conditionally in UI and enforced server-side on the API).
   const creditoAutorizado = clienteInfo?.credito_autorizado ?? false
   const limiteCredito = clienteInfo?.limite_credito ?? 0
-  const [creditoUsado, setCreditoUsado] = useState(clienteInfo?.credito_usado ?? 0)
+  const [creditoUsado] = useState(clienteInfo?.credito_usado ?? 0)
+  const creditoDisponible = (limiteCredito ?? 0) - (creditoUsado ?? 0)
 
   // State
   const [cart, setCart] = useState<CartItem[]>([])
@@ -896,6 +1111,11 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
   const [ordering, setOrdering] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Payment method — defaults to Zelle for clientes, Stripe for otros roles.
+  // Will be overridden by user selection in the ConfirmModal.
+  const [tipoPago, setTipoPago] = useState<TipoPago>(profile.rol === 'comprador' ? 'stripe' : 'zelle')
+  const [numeroRef, setNumeroRef] = useState('')
 
   // Shipping profile: seeded from clienteInfo, updated via ShippingForm.
   // Passed to the API as `cliente_data` on order creation so the server can
@@ -1051,6 +1271,8 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
           notas,
           direccion_entrega: direccion || shipping.direccion,
           cliente_data,
+          tipo_pago: tipoPago,
+          numero_referencia: tipoPago === 'transferencia' ? numeroRef.trim() : undefined,
         }),
       })
 
@@ -1062,20 +1284,26 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         return
       }
 
-      // Stripe redirect branch (comprador)
+      // Stripe redirect branch
       if (data.tipo === 'pago' && data.url) {
         toast.success('Redirigiendo al pago seguro…')
         window.location.href = data.url
         return
       }
 
-      // SUCCESS — admin-approval orden
+      // SUCCESS — orden creada (zelle / transferencia / credito)
       setCart([])
       setConfirmOpen(false)
       setCartOpen(false)
       setNotas('')
+      setNumeroRef('')
       router.push('/tienda/mis-pedidos')
-      toast.success(`Orden ${data.numero ?? ''} enviada correctamente`)
+      const msg =
+        tipoPago === 'credito'       ? `Orden ${data.numero ?? ''} creada con crédito` :
+        tipoPago === 'zelle'         ? `Orden ${data.numero ?? ''} enviada — confirma tu pago por Zelle` :
+        tipoPago === 'transferencia' ? `Orden ${data.numero ?? ''} enviada — verificaremos tu transferencia` :
+                                       `Orden ${data.numero ?? ''} enviada correctamente`
+      toast.success(msg)
     } catch (err: any) {
       console.error('[tienda] handleConfirmOrder threw:', err)
       toast.error(err?.message ?? 'Error de conexión. Intenta de nuevo.')
@@ -1329,7 +1557,6 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
             setConfirmOpen(true)
           }
         }}
-        canCreateOrdenes={canCreateOrdenes}
         creditoAutorizado={creditoAutorizado}
         limiteCredito={limiteCredito}
         creditoUsado={creditoUsado}
@@ -1359,7 +1586,13 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         setNotas={setNotas}
         direccion={direccion}
         setDireccion={setDireccion}
-        canCreateOrdenes={canCreateOrdenes}
+        tipoPago={tipoPago}
+        setTipoPago={setTipoPago}
+        numeroRef={numeroRef}
+        setNumeroRef={setNumeroRef}
+        creditoAutorizado={creditoAutorizado}
+        creditoDisponible={creditoDisponible}
+        empresaPayment={empresaPayment}
       />
 
       <ChatPanel

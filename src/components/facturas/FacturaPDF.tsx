@@ -351,14 +351,65 @@ interface EmpresaConfig {
   email?: string
   logo_url?: string
   mensaje_factura?: string
+  zelle_numero?: string | null
+  zelle_titular?: string | null
+  banco_nombre?: string | null
+  banco_cuenta?: string | null
+  banco_routing?: string | null
+  banco_titular?: string | null
+}
+
+// Payment-method info pulled from the linked orden (pedido → orden).
+// When present, we render a dedicated "Método de Pago" block on the invoice.
+export interface PagoInfo {
+  tipo_pago?: 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'pendiente' | null
+  numero_referencia?: string | null
+  pago_confirmado?: boolean | null
+  pago_confirmado_at?: string | null
 }
 
 interface FacturaPDFProps {
   factura: Factura
   empresaConfig?: EmpresaConfig
+  pagoInfo?: PagoInfo | null
 }
 
-export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) {
+// Human-readable labels / status text per payment method, used on the PDF.
+function pagoMetaFor(pago?: PagoInfo | null, monto_pagado?: number) {
+  const tipo = pago?.tipo_pago
+  if (!tipo || tipo === 'pendiente') return null
+  switch (tipo) {
+    case 'zelle':
+      return {
+        label: 'Zelle',
+        estado: pago?.pago_confirmado ? '✓ Pago confirmado' : '⏳ Esperando confirmación',
+        confirmado: !!pago?.pago_confirmado,
+      }
+    case 'transferencia':
+      return {
+        label: 'Transferencia bancaria',
+        estado: pago?.pago_confirmado ? '✓ Pago confirmado' : '⏳ Esperando verificación',
+        referencia: pago?.numero_referencia ?? null,
+        confirmado: !!pago?.pago_confirmado,
+      }
+    case 'stripe':
+      return {
+        label: 'Tarjeta de crédito/débito (Stripe)',
+        estado: (monto_pagado ?? 0) > 0 ? '✓ Pago procesado' : '⏳ Pago pendiente',
+        confirmado: (monto_pagado ?? 0) > 0,
+      }
+    case 'credito':
+      return {
+        label: 'Línea de crédito',
+        estado: 'Cargado a crédito del cliente',
+        confirmado: false,
+      }
+    default:
+      return null
+  }
+}
+
+export default function FacturaPDF({ factura, empresaConfig, pagoInfo }: FacturaPDFProps) {
   const f = factura
   const empresa = {
     nombre: empresaConfig?.nombre ?? 'EMPORIUM',
@@ -371,6 +422,7 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
   }
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
   const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.blue }
+  const pagoMeta = pagoMetaFor(pagoInfo, f.monto_pagado)
 
   return (
     <Document
@@ -550,6 +602,71 @@ export default function FacturaPDF({ factura, empresaConfig }: FacturaPDFProps) 
               </View>
             </View>
           </View>
+
+          {/* ── Payment method block ── */}
+          {pagoMeta && (
+            <View style={[S.notesBox, { borderColor: pagoMeta.confirmado ? C.green : C.blue }]}>
+              <Text style={[S.notesTitle, { color: pagoMeta.confirmado ? C.green : C.blue }]}>
+                Método de Pago
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={[S.notesText, { fontFamily: 'Helvetica-Bold', color: C.text }]}>
+                  {pagoMeta.label}
+                </Text>
+                <Text style={[S.notesText, { fontFamily: 'Helvetica-Bold', color: pagoMeta.confirmado ? C.green : C.amber }]}>
+                  {pagoMeta.estado}
+                </Text>
+              </View>
+
+              {pagoInfo?.tipo_pago === 'zelle' && empresaConfig?.zelle_numero && (
+                <Text style={S.notesText}>
+                  Enviar a Zelle:{' '}
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{empresaConfig.zelle_numero}</Text>
+                  {empresaConfig.zelle_titular ? `  ·  Titular: ${empresaConfig.zelle_titular}` : ''}
+                </Text>
+              )}
+
+              {pagoInfo?.tipo_pago === 'transferencia' && (
+                <>
+                  {empresaConfig?.banco_nombre && (
+                    <Text style={S.notesText}>
+                      Banco:{' '}
+                      <Text style={{ fontFamily: 'Helvetica-Bold' }}>{empresaConfig.banco_nombre}</Text>
+                      {empresaConfig.banco_cuenta ? `  ·  Cuenta: ${empresaConfig.banco_cuenta}` : ''}
+                      {empresaConfig.banco_titular ? `  ·  Titular: ${empresaConfig.banco_titular}` : ''}
+                    </Text>
+                  )}
+                  {pagoMeta.referencia && (
+                    <Text style={S.notesText}>
+                      Referencia del cliente:{' '}
+                      <Text style={{ fontFamily: 'Helvetica-Bold', color: C.navy }}>
+                        {pagoMeta.referencia}
+                      </Text>
+                    </Text>
+                  )}
+                </>
+              )}
+
+              {pagoInfo?.tipo_pago === 'stripe' && (
+                <Text style={S.notesText}>
+                  Pago procesado de forma segura a través de Stripe.
+                </Text>
+              )}
+
+              {pagoInfo?.tipo_pago === 'credito' && (
+                <Text style={S.notesText}>
+                  Saldo cargado a la línea de crédito autorizada del cliente.
+                  Saldo pendiente: <Text style={{ fontFamily: 'Helvetica-Bold', color: C.navy }}>{fmtCurrency(saldo)}</Text>
+                </Text>
+              )}
+
+              {pagoInfo?.pago_confirmado && pagoInfo.pago_confirmado_at && (
+                <Text style={[S.notesText, { color: C.textMuted, marginTop: 3 }]}>
+                  Confirmado el {fmtDate(pagoInfo.pago_confirmado_at)}
+                </Text>
+              )}
+            </View>
+          )}
 
           {/* ── Notes ── */}
           {f.notas && (

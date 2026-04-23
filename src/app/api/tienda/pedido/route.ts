@@ -84,13 +84,33 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 })
     }
-    const { items, notas, direccion_entrega, cliente_data } = body ?? {}
+    const { items, notas, direccion_entrega, cliente_data, tipo_pago, numero_referencia } = body ?? {}
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
     }
     if (items.length > 100) {
       return NextResponse.json({ error: 'Máximo 100 productos por orden' }, { status: 400 })
+    }
+
+    // Validate tipo_pago. If missing, infer from rol for backward-compat:
+    //   • comprador → stripe (upfront card)
+    //   • other roles → credito (admin approves manually)
+    const ALLOWED_PAGOS = ['zelle', 'transferencia', 'stripe', 'credito'] as const
+    type TipoPago = typeof ALLOWED_PAGOS[number]
+    let tipoPago: TipoPago
+    if (typeof tipo_pago === 'string' && (ALLOWED_PAGOS as readonly string[]).includes(tipo_pago)) {
+      tipoPago = tipo_pago as TipoPago
+    } else {
+      // Legacy clients (no selector) — infer
+      tipoPago = (rol === 'comprador') ? 'stripe' : 'credito'
+    }
+    const referencia = typeof numero_referencia === 'string' ? numero_referencia.trim() : ''
+    if (tipoPago === 'transferencia' && !referencia) {
+      return NextResponse.json(
+        { error: 'Debes proporcionar el número de referencia de la transferencia' },
+        { status: 400 }
+      )
     }
 
     // ── Normalize optional cliente_data from shipping form ─────────────────
@@ -180,6 +200,28 @@ export async function POST(req: Request) {
       0
     )
 
+    // ── Credit check — only when client chose 'credito' ────────────────────
+    if (tipoPago === 'credito') {
+      const { data: cli } = await supabase
+        .from('clientes')
+        .select('credito_autorizado, limite_credito, credito_usado')
+        .eq('id', cliente_id)
+        .maybeSingle()
+      if (!cli?.credito_autorizado) {
+        return NextResponse.json(
+          { error: 'Tu cuenta no tiene crédito autorizado. Elige otro método de pago.' },
+          { status: 403 }
+        )
+      }
+      const disponible = Number(cli.limite_credito ?? 0) - Number(cli.credito_usado ?? 0)
+      if (total > disponible) {
+        return NextResponse.json(
+          { error: `El total ($${total.toFixed(2)}) excede tu crédito disponible ($${disponible.toFixed(2)}).` },
+          { status: 400 }
+        )
+      }
+    }
+
     // ── Sequence number helper ─────────────────────────────────────────────
     // Tries the get_next_sequence RPC first; if missing/fails, queries the
     // target table for the most recent `PREFIX-YYYY-NNNN` value and increments.
@@ -228,6 +270,8 @@ export async function POST(req: Request) {
         notas: notas?.trim() || null,
         direccion_entrega: direccion_entrega?.trim() || null,
         total,
+        tipo_pago: tipoPago,
+        numero_referencia: tipoPago === 'transferencia' ? referencia : null,
       })
       .select()
       .single()
@@ -278,17 +322,41 @@ export async function POST(req: Request) {
         // orden_items table doesn't exist yet — fall through to PATH B
         console.warn('[tienda/pedido] orden_items table missing — falling back to pedidos')
       } else {
-        // ── Items saved. Branch on rol. ─────────────────────────────────
-        if (canCreateOrdenes) {
-          // TYPE A — admin-approval flow (cliente, vendedor, admin, conductor)
-          console.log(`[tienda/pedido] orden ${orden.numero} created (rol=${rol}) — pending admin approval`)
+        // ── Items saved. Branch on tipo_pago. ────────────────────────────
+        // credito: consume the credit line (fire-and-forget RPC) and return.
+        if (tipoPago === 'credito') {
+          supabase.rpc('usar_credito', { p_cliente_id: cliente_id, p_monto: total })
+            .then(() => null, err => console.error('[tienda/pedido] usar_credito:', err))
+          console.log(`[tienda/pedido] orden ${orden.numero} created — credito`)
           return NextResponse.json(
-            { success: true, tipo: 'orden', numero: orden.numero, orden_id: orden.id },
+            {
+              success: true,
+              tipo: 'orden',
+              numero: orden.numero,
+              orden_id: orden.id,
+              tipo_pago: tipoPago,
+            },
             { status: 201 }
           )
         }
 
-        // TYPE B — comprador: Stripe checkout required
+        // zelle / transferencia: admin confirms payment manually later.
+        if (tipoPago === 'zelle' || tipoPago === 'transferencia') {
+          console.log(`[tienda/pedido] orden ${orden.numero} created — ${tipoPago} (pending manual confirmation)`)
+          return NextResponse.json(
+            {
+              success: true,
+              tipo: 'orden',
+              numero: orden.numero,
+              orden_id: orden.id,
+              tipo_pago: tipoPago,
+              numero_referencia: tipoPago === 'transferencia' ? referencia : null,
+            },
+            { status: 201 }
+          )
+        }
+
+        // stripe: create checkout session and return the URL.
         if (!process.env.STRIPE_SECRET_KEY) {
           console.error('[tienda/pedido] STRIPE_SECRET_KEY missing')
           await supabase.from('orden_items').delete().eq('orden_id', orden.id)
@@ -341,7 +409,14 @@ export async function POST(req: Request) {
         if (stripeSession?.url) {
           console.log(`[tienda/pedido] stripe session created for orden ${orden.numero}`)
           return NextResponse.json(
-            { success: true, tipo: 'pago', url: stripeSession.url, numero: orden.numero, orden_id: orden.id },
+            {
+              success: true,
+              tipo: 'pago',
+              url: stripeSession.url,
+              numero: orden.numero,
+              orden_id: orden.id,
+              tipo_pago: 'stripe',
+            },
             { status: 201 }
           )
         }
@@ -374,7 +449,7 @@ export async function POST(req: Request) {
         cliente_id,
         vendedor_id: null,
         estado: 'borrador',
-        tipo_pago: canCreateOrdenes ? 'credito' : 'pendiente',
+        tipo_pago: tipoPago,
         subtotal: total,
         descuento: 0,
         impuesto: 0,
