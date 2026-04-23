@@ -14,7 +14,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const { data: pedido } = await supabase.from('pedidos').select('estado').eq('id', params.id).single()
   if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
-  if (pedido.estado !== 'despachado') {
+  if (!['despachado', 'en_ruta'].includes(pedido.estado)) {
     return NextResponse.json({ error: `Solo se pueden entregar pedidos despachados (estado: ${pedido.estado})` }, { status: 400 })
   }
 
