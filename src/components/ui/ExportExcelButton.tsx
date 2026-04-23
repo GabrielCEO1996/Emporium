@@ -29,14 +29,48 @@ export default function ExportExcelButton<T>({
     if (loading || data.length === 0) return
     setLoading(true)
     try {
-      const XLSX = await import('xlsx')
-      const rows = data.map(row =>
-        Object.fromEntries(columns.map(col => [col.header, col.accessor(row) ?? '']))
+      const ExcelJS = (await import('exceljs')).default
+
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet(sheetName)
+
+      // Header row
+      ws.addRow(columns.map(c => c.header))
+      const headerRow = ws.getRow(1)
+      headerRow.font = { bold: true }
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0D9488' }, // teal-600
+      }
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+
+      // Data rows
+      data.forEach(row =>
+        ws.addRow(columns.map(col => col.accessor(row) ?? ''))
       )
-      const ws = XLSX.utils.json_to_sheet(rows)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, sheetName)
-      XLSX.writeFile(wb, `${filename}.xlsx`)
+
+      // Auto-width (cap at 60)
+      ws.columns.forEach(col => {
+        let max = 10
+        col.eachCell?.({ includeEmpty: false }, cell => {
+          const len = String(cell.value ?? '').length
+          if (len > max) max = len
+        })
+        col.width = Math.min(max + 2, 60)
+      })
+
+      // Write to buffer → Blob → download
+      const buffer = await wb.xlsx.writeBuffer()
+      const blob   = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url  = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href     = url
+      link.download = `${filename}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
     } finally {
       setLoading(false)
     }
