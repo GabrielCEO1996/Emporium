@@ -105,15 +105,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     await Promise.all(items.map(async (item: any) => {
       const presentacionId: string = item.presentacion_id
-      const productoId: string | null = (item.presentaciones as any)?.producto_id ?? null
+      let productoId: string | null = (item.presentaciones as any)?.producto_id ?? null
       const cantidad: number = item.cantidad
 
-      // 1. Update presentaciones.stock (backward-compat column)
+      // 1. Update presentaciones.stock (backward-compat column) +
+      //    resolve producto_id directly from presentaciones if join missed it.
       const { data: pres } = await supabase
         .from('presentaciones')
-        .select('stock')
+        .select('stock, producto_id')
         .eq('id', presentacionId)
         .single()
+
+      if (!productoId) productoId = (pres as any)?.producto_id ?? null
 
       const nuevoStockPres = (pres?.stock ?? 0) + cantidad
       await supabase
@@ -133,7 +136,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const nuevoTotal = (inv.stock_total ?? 0) + cantidad
         await supabase
           .from('inventario')
-          .update({ stock_total: nuevoTotal })
+          .update({ stock_total: nuevoTotal, updated_at: new Date().toISOString() })
           .eq('id', inv.id)
 
         // INSERT inventario_movimientos
@@ -150,7 +153,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           notas:          'Compra recibida',
         })
       } else if (productoId) {
-        // NO → INSERT new inventario record
+        // NO → INSERT new inventario record with stock_total = cantidad
         await supabase.from('inventario').insert({
           producto_id:    productoId,
           presentacion_id: presentacionId,
@@ -199,7 +202,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json({ success: true, ...data })
 }
 
 // ── DELETE /api/compras/[id] ──────────────────────────────────────────────────

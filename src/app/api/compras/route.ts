@@ -70,11 +70,14 @@ export async function POST(req: Request) {
       estado: 'borrador',
       notas: notas?.trim() || null,
     })
-    .select()
+    .select('*')
     .single()
 
-  if (compraError || !compra) {
-    return NextResponse.json({ error: compraError?.message ?? 'Error al crear compra' }, { status: 500 })
+  if (compraError || !compra?.id) {
+    return NextResponse.json(
+      { error: compraError?.message ?? 'Error al crear compra' },
+      { status: 500 },
+    )
   }
 
   // Insert items with subtotal
@@ -92,5 +95,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
 
-  return NextResponse.json(compra, { status: 201 })
+  // Return { success, id, compra } so the client can redirect to /compras/[id]
+  return NextResponse.json(
+    { success: true, id: compra.id, compra },
+    { status: 201 },
+  )
 }

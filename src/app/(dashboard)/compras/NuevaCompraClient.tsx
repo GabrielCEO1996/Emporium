@@ -75,14 +75,20 @@ export default function NuevaCompraClient({ presentaciones, proveedores }: Props
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ proveedor_id: proveedorId || null, fecha, notas, items: validItems }),
       })
-      const d = await res.json()
+      const d = await res.json().catch(() => ({} as any))
       if (!res.ok) {
-        toast.error(d.error ?? 'Error al registrar compra')
+        toast.error(d?.error ?? 'Error al registrar compra')
+        return
+      }
+      // API returns { success, id, compra } — fall back to d.id or d.compra.id for safety.
+      const newId: string | undefined = d?.id ?? d?.compra?.id
+      if (!newId) {
+        toast.error('La compra se creó pero no se recibió el ID. Revisa la lista de compras.')
+        router.push('/compras')
         return
       }
       toast.success('Compra registrada en borrador. Márcala como recibida para actualizar el inventario.')
-      router.push(`/compras/${d.id}`)
-      router.refresh()
+      router.push(`/compras/${newId}`)
     } catch {
       toast.error('Error de conexión')
     } finally {
