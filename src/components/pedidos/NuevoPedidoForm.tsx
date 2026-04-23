@@ -228,14 +228,12 @@ function StepProductos({
   onRemove,
   onChangeQty,
   onChangePrice,
-  showCosto,
 }: {
   items: CartItem[]
   onAdd: (p: Presentacion & { producto?: { nombre: string; categoria?: string } }) => void
   onRemove: (id: string) => void
   onChangeQty: (id: string, qty: number) => void
   onChangePrice: (id: string, precio: number) => void
-  showCosto: boolean
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<
@@ -252,7 +250,7 @@ function StepProductos({
         .select(`
           *,
           producto:productos(id, codigo, nombre, categoria),
-          inventario(stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo)
+          inventario(stock_total, stock_reservado, stock_disponible, precio_venta)
         `)
         .eq('activo', true)
         .order('nombre')
@@ -269,8 +267,7 @@ function StepProductos({
         const inv = Array.isArray(pres.inventario) ? pres.inventario[0] : pres.inventario
         const stock = inv?.stock_disponible ?? pres.stock ?? 0
         const precio = inv?.precio_venta && inv.precio_venta > 0 ? inv.precio_venta : (pres.precio ?? 0)
-        const costo = inv?.precio_costo && inv.precio_costo > 0 ? inv.precio_costo : (pres.costo ?? 0)
-        return { ...pres, stock, precio, costo }
+        return { ...pres, stock, precio }
       })
       setResults(mapped)
       setLoading(false)
@@ -337,11 +334,6 @@ function StepProductos({
                       <span className="text-xs font-semibold text-teal-700">
                         {formatCurrency(pres.precio)}
                       </span>
-                      {showCosto && pres.costo > 0 && (
-                        <span className="text-xs text-slate-400">
-                          costo: {formatCurrency(pres.costo)}
-                        </span>
-                      )}
                       <span
                         className={cn(
                           'text-xs font-semibold rounded-full px-1.5 py-0.5',
@@ -780,8 +772,6 @@ export default function NuevoPedidoForm() {
   const [submitting, setSubmitting] = useState(false)
   const [ventaDirectaOpen, setVentaDirectaOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Admin only — costo price visibility.
-  const [isAdmin, setIsAdmin] = useState(false)
 
   const [form, setForm] = useState<FormState>({
     cliente: null,
@@ -805,17 +795,6 @@ export default function NuevoPedidoForm() {
         if (data) setForm((f) => ({ ...f, cliente: data as Cliente }))
       })
   }, [preClienteId])
-
-  // Current user role: costo only visible to admin
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('profiles').select('rol').eq('id', user.id).single().then(({ data }) => {
-        if (data?.rol === 'admin') setIsAdmin(true)
-      })
-    })
-  }, [])
 
   const updateForm = (partial: Partial<FormState>) =>
     setForm((f) => ({ ...f, ...partial }))
@@ -977,7 +956,6 @@ export default function NuevoPedidoForm() {
             onRemove={removeItem}
             onChangeQty={changeQty}
             onChangePrice={changePrice}
-            showCosto={isAdmin}
           />
         )}
         {step === 3 && (

@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         id, cantidad, precio_costo, subtotal,
         presentacion:presentaciones(
           id, nombre, stock,
-          productos(id, codigo, nombre)
+          producto:productos(id, codigo, nombre)
         )
       )
     `)
@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       id, estado,
       items:compra_items(
         id, presentacion_id, cantidad, precio_costo,
-        presentaciones(producto_id)
+        presentacion:presentaciones(producto_id)
       )
     `)
     .eq('id', params.id)
@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     await Promise.all(items.map(async (item: any) => {
       const presentacionId: string = item.presentacion_id
-      let productoId: string | null = (item.presentaciones as any)?.producto_id ?? null
+      let productoId: string | null = (item.presentacion as any)?.producto_id ?? null
       const cantidad: number = item.cantidad
 
       // 1. Update presentaciones.stock (backward-compat column) +

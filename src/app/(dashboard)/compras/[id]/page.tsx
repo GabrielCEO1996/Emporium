@@ -386,8 +386,8 @@ export default function CompraDetailPage() {
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-3">
                         <p className="font-medium text-slate-900">
-                          {/* GET route: presentacion:presentaciones(... productos(nombre)) */}
-                          {item.presentacion?.productos?.nombre ?? '—'}
+                          {/* GET route: presentacion:presentaciones(... producto:productos(nombre)) */}
+                          {item.presentacion?.producto?.nombre ?? item.producto?.nombre ?? '—'}
                         </p>
                         <p className="text-xs text-slate-500">
                           {item.presentacion?.nombre ?? ''}
