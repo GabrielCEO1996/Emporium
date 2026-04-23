@@ -42,6 +42,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (key in body) updates[key] = body[key]
   }
 
+  // Get current estado before updating (for inventario sync)
+  const { data: pedidoActual } = await supabase
+    .from('pedidos')
+    .select('estado')
+    .eq('id', params.id)
+    .single()
+
   const { data, error } = await supabase
     .from('pedidos')
     .update(updates)
@@ -50,6 +57,57 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Sync inventario on estado transitions ────────────────────────────────
+  const nuevoEstado = body.estado as string | undefined
+  const estadoAnterior = pedidoActual?.estado as string | undefined
+
+  const isTransitionTo = (target: string) =>
+    nuevoEstado === target && estadoAnterior !== target
+
+  // entregado: stock_total -= cantidad, stock_reservado -= cantidad (goods leave warehouse)
+  // cancelado: stock_reservado -= cantidad (release reservation without changing stock_total)
+  if (isTransitionTo('entregado') || isTransitionTo('cancelado')) {
+    const { data: items } = await supabase
+      .from('pedido_items')
+      .select('presentacion_id, cantidad, presentaciones(producto_id)')
+      .eq('pedido_id', params.id)
+
+    if (items && items.length > 0) {
+      await Promise.all(items.map(async (item: any) => {
+        const { data: inv } = await supabase
+          .from('inventario')
+          .select('id, stock_total, stock_reservado, producto_id')
+          .eq('presentacion_id', item.presentacion_id)
+          .single()
+
+        if (inv) {
+          const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
+          const nuevoTotal = isTransitionTo('entregado')
+            ? Math.max(0, (inv.stock_total ?? 0) - item.cantidad)
+            : inv.stock_total
+
+          await supabase
+            .from('inventario')
+            .update({ stock_total: nuevoTotal, stock_reservado: nuevoReservado })
+            .eq('id', inv.id)
+
+          await supabase.from('inventario_movimientos').insert({
+            producto_id: inv.producto_id,
+            presentacion_id: item.presentacion_id,
+            tipo: isTransitionTo('entregado') ? 'salida' : 'liberacion',
+            cantidad: item.cantidad,
+            stock_anterior: inv.stock_total,
+            stock_nuevo: nuevoTotal,
+            referencia_tipo: isTransitionTo('entregado') ? 'pedido_entregado' : 'pedido_cancelado',
+            referencia_id: params.id,
+            usuario_id: user.id,
+          })
+        }
+      }))
+    }
+  }
+
   return NextResponse.json(data)
 }
 

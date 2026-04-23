@@ -44,11 +44,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   if (!compra) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  // Reverse stock for all items in parallel (replaces sequential loop)
+  // Reverse stock for all items in parallel
   await Promise.all((compra.items ?? []).map(async (item: any) => {
     const { data: pres } = await supabase
       .from('presentaciones')
-      .select('stock')
+      .select('stock, producto_id')
       .eq('id', item.presentacion_id)
       .single()
     if (pres) {
@@ -57,6 +57,34 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
         .from('presentaciones')
         .update({ stock: newStock, updated_at: new Date().toISOString() })
         .eq('id', item.presentacion_id)
+
+      // Sync inventario.stock_total
+      const { data: inv } = await supabase
+        .from('inventario')
+        .select('id, stock_total, stock_reservado')
+        .eq('presentacion_id', item.presentacion_id)
+        .single()
+
+      if (inv) {
+        const nuevoTotal = Math.max(inv.stock_reservado ?? 0, (inv.stock_total ?? 0) - item.cantidad)
+        await supabase
+          .from('inventario')
+          .update({ stock_total: nuevoTotal })
+          .eq('id', inv.id)
+
+        await supabase.from('inventario_movimientos').insert({
+          producto_id: pres.producto_id,
+          presentacion_id: item.presentacion_id,
+          tipo: 'salida',
+          cantidad: item.cantidad,
+          stock_anterior: inv.stock_total,
+          stock_nuevo: nuevoTotal,
+          referencia_tipo: 'compra',
+          referencia_id: params.id,
+          usuario_id: user.id,
+          notas: 'Anulación de compra',
+        })
+      }
     }
   }))
 

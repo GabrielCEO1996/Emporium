@@ -10,20 +10,39 @@ export async function GET() {
     .from('productos')
     .select(`
       id, nombre, descripcion, categoria, imagen_url,
-      presentaciones(id, nombre, precio, stock, stock_minimo, unidad, activo)
+      presentaciones(
+        id, nombre, precio, stock, stock_minimo, unidad, activo,
+        inventario(stock_total, stock_reservado, stock_disponible)
+      )
     `)
     .eq('activo', true)
     .order('nombre')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Only return products that have at least one active presentation
-  const filtered = (data ?? []).filter((p: any) =>
-    p.presentaciones?.some((pr: any) => pr.activo)
-  ).map((p: any) => ({
-    ...p,
-    presentaciones: p.presentaciones.filter((pr: any) => pr.activo),
-  }))
+  // Only return products with at least one active presentation with stock
+  const filtered = (data ?? [])
+    .filter((p: any) => p.presentaciones?.some((pr: any) => pr.activo))
+    .map((p: any) => ({
+      ...p,
+      presentaciones: p.presentaciones
+        .filter((pr: any) => pr.activo)
+        .map((pr: any) => {
+          // Prefer inventario.stock_disponible; fall back to presentaciones.stock
+          const inv = Array.isArray(pr.inventario) ? pr.inventario[0] : pr.inventario
+          const stockDisponible = inv?.stock_disponible ?? pr.stock ?? 0
+          const stockTotal = inv?.stock_total ?? pr.stock ?? 0
+
+          return {
+            ...pr,
+            stock_disponible: stockDisponible,
+            stock_total: stockTotal,
+            // Convenience flags for tienda UI
+            agotado: stockDisponible <= 0,
+            ultimas_unidades: stockDisponible > 0 && stockDisponible <= 5,
+          }
+        }),
+    }))
 
   return NextResponse.json(filtered)
 }
