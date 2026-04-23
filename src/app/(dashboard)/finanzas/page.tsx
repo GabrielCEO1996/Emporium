@@ -6,7 +6,8 @@ import MargenesChart from '@/components/finanzas/MargenesChart'
 import {
   TrendingUp, DollarSign, Package, Clock,
   CreditCard, Zap, ShoppingBag, BarChart3,
-  Lightbulb, ArrowUpRight, AlertCircle, Star
+  Lightbulb, ArrowUpRight, AlertCircle, Star,
+  ArrowDownRight, Wallet,
 } from 'lucide-react'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -55,6 +56,7 @@ export default async function FinanzasPage() {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const startOf30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const startOf6Months = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0]
 
   const [
     { data: presentaciones },
@@ -62,6 +64,8 @@ export default async function FinanzasPage() {
     { data: facturasEsteMes },
     { data: pedidosEsteMes },
     { data: itemsRecientes },
+    { data: transaccionesMes },
+    { data: transacciones6m },
   ] = await Promise.all([
     supabase.from('presentaciones')
       .select('id, nombre, precio, costo, stock, stock_minimo, producto_id, productos(nombre, categoria)')
@@ -79,6 +83,12 @@ export default async function FinanzasPage() {
     supabase.from('factura_items')
       .select('presentacion_id, cantidad, subtotal')
       .gte('created_at', startOf30Days),
+    supabase.from('transacciones')
+      .select('tipo, monto, fecha')
+      .gte('fecha', startOfMonth),
+    supabase.from('transacciones')
+      .select('tipo, monto, fecha')
+      .gte('fecha', startOf6Months),
   ])
 
   // ── 1. Capital en inventario ──────────────────────────────────────────────
@@ -104,8 +114,19 @@ export default async function FinanzasPage() {
 
   // ── 5. Tasa de conversión ─────────────────────────────────────────────────
   const totalPedidos = (pedidosEsteMes ?? []).length
-  const pedidosFacturados = (pedidosEsteMes ?? []).filter(p => p.estado === 'facturado').length
+  const pedidosFacturados = (pedidosEsteMes ?? []).filter(p =>
+    ['facturado', 'despachada', 'despachado', 'entregada', 'entregado'].includes(p.estado)
+  ).length
   const tasaConversion = totalPedidos > 0 ? (pedidosFacturados / totalPedidos) * 100 : 0
+
+  // ── 5b. Transacciones (ledger) ────────────────────────────────────────────
+  const ingresosMes = (transaccionesMes ?? [])
+    .filter(t => t.tipo === 'ingreso')
+    .reduce((s, t) => s + (t.monto ?? 0), 0)
+  const gastosMes = (transaccionesMes ?? [])
+    .filter(t => t.tipo === 'gasto')
+    .reduce((s, t) => s + (t.monto ?? 0), 0)
+  const utilidadNeta = ingresosMes - gastosMes
 
   // ── 6. Margen bruto por producto ──────────────────────────────────────────
   // Ventas recientes por presentacion_id
@@ -155,17 +176,35 @@ export default async function FinanzasPage() {
   const ventasDiarias = totalUnidadesVendidas30 / 30
   const diasInventario = ventasDiarias > 0 ? totalStockActual / ventasDiarias : 999
 
-  // ── 9. Cash flow últimos 6 meses ──────────────────────────────────────────
-  const cashFlowData: { mes: string; ingresos: number }[] = []
+  // ── 9. Cash flow últimos 6 meses — ingresos + gastos + utilidad ──────────
+  // Sourced from transacciones (ledger) when available, fallback to facturas.pagada for ingresos.
+  const cashFlowData: { mes: string; ingresos: number; gastos: number; utilidad: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
     const toDate = new Date(d.getFullYear(), d.getMonth() + 1, 1)
     const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-01`
-    const ingresos = (facturasAll ?? [])
-      .filter(f => f.estado === 'pagada' && f.fecha_emision >= from && f.fecha_emision < to)
-      .reduce((s, f) => s + (f.monto_pagado ?? f.total ?? 0), 0)
-    cashFlowData.push({ mes: MESES[d.getMonth()], ingresos })
+
+    let ingresos = (transacciones6m ?? [])
+      .filter(t => t.tipo === 'ingreso' && t.fecha >= from && t.fecha < to)
+      .reduce((s, t) => s + (t.monto ?? 0), 0)
+    const gastos = (transacciones6m ?? [])
+      .filter(t => t.tipo === 'gasto' && t.fecha >= from && t.fecha < to)
+      .reduce((s, t) => s + (t.monto ?? 0), 0)
+
+    // Fallback to facturas if ledger empty for this month
+    if (ingresos === 0) {
+      ingresos = (facturasAll ?? [])
+        .filter(f => f.estado === 'pagada' && f.fecha_emision >= from && f.fecha_emision < to)
+        .reduce((s, f) => s + (f.monto_pagado ?? f.total ?? 0), 0)
+    }
+
+    cashFlowData.push({
+      mes: MESES[d.getMonth()],
+      ingresos,
+      gastos,
+      utilidad: ingresos - gastos,
+    })
   }
 
   // ── 10. Qué priorizar vender ──────────────────────────────────────────────
@@ -207,6 +246,33 @@ export default async function FinanzasPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           Dashboard financiero · {MESES[now.getMonth()]} {now.getFullYear()}
         </p>
+      </div>
+
+      {/* ── Resumen del mes (ledger) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <MetricCard
+          title="Ingresos del mes"
+          value={formatCurrency(ingresosMes)}
+          subtitle="Pagos registrados en transacciones"
+          icon={ArrowUpRight}
+          color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+        />
+        <MetricCard
+          title="Gastos del mes"
+          value={formatCurrency(gastosMes)}
+          subtitle="Compras recibidas en transacciones"
+          icon={ArrowDownRight}
+          color="bg-red-100 dark:bg-red-900/30 text-red-500"
+        />
+        <MetricCard
+          title="Utilidad Neta"
+          value={formatCurrency(utilidadNeta)}
+          subtitle={utilidadNeta >= 0 ? 'Mes en positivo' : 'Mes en negativo'}
+          icon={Wallet}
+          color={utilidadNeta >= 0
+            ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
+            : 'bg-red-100 dark:bg-red-900/30 text-red-500'}
+        />
       </div>
 
       {/* ── 8 KPIs ── */}
@@ -349,7 +415,7 @@ export default async function FinanzasPage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
             <h2 className="font-semibold text-sm text-slate-800 dark:text-white">Flujo de Caja — Últimos 6 meses</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Total facturas cobradas por mes</p>
+            <p className="text-xs text-slate-400 mt-0.5">Ingresos y gastos por mes (transacciones)</p>
           </div>
           <div className="p-4">
             <CashFlowChart data={cashFlowData} />

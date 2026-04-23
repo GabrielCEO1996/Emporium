@@ -56,6 +56,17 @@ export async function POST(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
+    // Ledger: insert ingreso in transacciones
+    await supabase.from('transacciones').insert({
+      tipo: 'ingreso',
+      monto: factura.total,
+      fecha: new Date().toISOString().split('T')[0],
+      concepto: `Factura ${factura.numero} pagada`,
+      referencia_tipo: 'factura',
+      referencia_id: params.id,
+      usuario_id: user.id,
+    })
+
     return NextResponse.json({
       message: `Factura ${factura.numero} marcada como pagada`,
       factura: updated,

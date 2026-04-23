@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { EstadoPedido } from '@/lib/types'
 import {
   Loader2, CheckCircle2, Truck, Package, AlertCircle, Lock,
-  XCircle, FileText, Trash2, X,
+  XCircle, FileText, Trash2, X, ShieldCheck,
 } from 'lucide-react'
 
 interface Conductor {
@@ -24,7 +24,7 @@ interface PedidoActionsProps {
   facturaId?: string | null
 }
 
-type LoadingKey = 'confirmar' | 'preparar' | 'despachar' | 'entregar' | 'cancelar' | 'eliminar' | 'guardar'
+type LoadingKey = 'confirmar' | 'aprobar' | 'despachar' | 'entregar' | 'cancelar' | 'eliminar' | 'guardar'
 
 export default function PedidoActions({
   pedidoId,
@@ -66,17 +66,17 @@ export default function PedidoActions({
     setLoad('confirmar')
     try {
       await doPost('confirmar')
-      showMsg('success', 'Pedido confirmado — inventario reservado')
+      showMsg('success', 'Pedido confirmado')
       router.refresh()
     } catch (e: any) { showMsg('error', e.message) }
     finally { clearLoad() }
   }
 
-  const handlePreparar = async () => {
-    setLoad('preparar')
+  const handleAprobar = async () => {
+    setLoad('aprobar')
     try {
-      await doPost('preparar')
-      showMsg('success', 'Pedido en preparación')
+      await doPost('aprobar')
+      showMsg('success', 'Pedido aprobado — inventario reservado')
       router.refresh()
     } catch (e: any) { showMsg('error', e.message) }
     finally { clearLoad() }
@@ -85,7 +85,7 @@ export default function PedidoActions({
   const handleDespachar = async () => {
     setLoad('despachar')
     try {
-      const data = await doPost('despachar')
+      await doPost('despachar')
       showMsg('success', 'Pedido despachado — factura emitida')
       router.refresh()
     } catch (e: any) { showMsg('error', e.message) }
@@ -145,7 +145,17 @@ export default function PedidoActions({
 
   const conductorChanged = conductorId !== (currentConductorId ?? '')
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Normalize state for flow logic: map legacy → new where applicable
+  const isBorrador = currentEstado === 'borrador'
+  const isConfirmada = currentEstado === 'confirmada' || currentEstado === 'confirmado'
+  const isAprobada = currentEstado === 'aprobada' || currentEstado === 'preparando'
+  const isDespachada = currentEstado === 'despachada' || currentEstado === 'despachado' || currentEstado === 'en_ruta'
+  const isEntregada = currentEstado === 'entregada' || currentEstado === 'entregado'
+  const isCancelada = currentEstado === 'cancelada' || currentEstado === 'cancelado'
+  const isFacturadoLegacy = currentEstado === 'facturado'
+
+  // Delete button visibility: admin any except entregada; (vendedor own borrador handled in parent)
+  const canAdminDelete = isAdmin && !isEntregada
 
   return (
     <>
@@ -164,10 +174,9 @@ export default function PedidoActions({
           </div>
         )}
 
-        {/* ── BORRADOR ───────────────────────────────────────────────────────── */}
-        {currentEstado === 'borrador' && (
+        {/* ── BORRADOR ─────────────────────────────────────────────────────── */}
+        {isBorrador && (
           <div className="flex flex-wrap items-center gap-2">
-            {/* Conductor selector (borrador) */}
             {conductores.length > 0 && (
               <>
                 <div className="relative">
@@ -196,7 +205,6 @@ export default function PedidoActions({
               </>
             )}
 
-            {/* Confirmar */}
             <button
               onClick={handleConfirmar}
               disabled={loading === 'confirmar'}
@@ -206,36 +214,33 @@ export default function PedidoActions({
               Confirmar Pedido
             </button>
 
-            {/* Eliminar (admin only) */}
-            {isAdmin && (
-              <button
-                onClick={handleEliminar}
-                disabled={loading === 'eliminar'}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-              >
-                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Eliminar
-              </button>
-            )}
+            <button
+              onClick={handleEliminar}
+              disabled={loading === 'eliminar'}
+              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+            >
+              {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Eliminar
+            </button>
           </div>
         )}
 
-        {/* ── CONFIRMADO 🔒 ──────────────────────────────────────────────────── */}
-        {currentEstado === 'confirmado' && (
+        {/* ── CONFIRMADA ───────────────────────────────────────────────────── */}
+        {isConfirmada && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-700">
               <Lock className="h-3.5 w-3.5" />
-              Confirmado — bloqueado
+              Confirmada — pendiente de aprobación
             </div>
             {isAdmin && (
               <>
                 <button
-                  onClick={handlePreparar}
-                  disabled={loading === 'preparar'}
+                  onClick={handleAprobar}
+                  disabled={loading === 'aprobar'}
                   className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {loading === 'preparar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-                  En Preparación
+                  {loading === 'aprobar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Aprobar Pedido
                 </button>
                 <button
                   onClick={() => setShowCancelarModal(true)}
@@ -244,17 +249,27 @@ export default function PedidoActions({
                   <XCircle className="h-4 w-4" />
                   Cancelar Pedido
                 </button>
+                {canAdminDelete && (
+                  <button
+                    onClick={handleEliminar}
+                    disabled={loading === 'eliminar'}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                  >
+                    {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Eliminar
+                  </button>
+                )}
               </>
             )}
           </div>
         )}
 
-        {/* ── PREPARANDO ─────────────────────────────────────────────────────── */}
-        {currentEstado === 'preparando' && (
+        {/* ── APROBADA ─────────────────────────────────────────────────────── */}
+        {isAprobada && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
               <Package className="h-3.5 w-3.5" />
-              Preparando pedido
+              Aprobada — stock reservado
             </div>
             {isAdmin && (
               <>
@@ -273,17 +288,27 @@ export default function PedidoActions({
                   <XCircle className="h-4 w-4" />
                   Cancelar
                 </button>
+                {canAdminDelete && (
+                  <button
+                    onClick={handleEliminar}
+                    disabled={loading === 'eliminar'}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                  >
+                    {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Eliminar
+                  </button>
+                )}
               </>
             )}
           </div>
         )}
 
-        {/* ── DESPACHADO ─────────────────────────────────────────────────────── */}
-        {currentEstado === 'despachado' && (
+        {/* ── DESPACHADA ───────────────────────────────────────────────────── */}
+        {isDespachada && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">
               <Truck className="h-3.5 w-3.5" />
-              En camino
+              Despachada — en camino
             </div>
             {facturaId && (
               <Link
@@ -302,7 +327,7 @@ export default function PedidoActions({
                   className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
                   {loading === 'entregar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Marcar Entregado
+                  Marcar Entregada
                 </button>
                 <button
                   onClick={() => setShowCancelarModal(true)}
@@ -311,17 +336,27 @@ export default function PedidoActions({
                   <XCircle className="h-4 w-4" />
                   Cancelar
                 </button>
+                {canAdminDelete && (
+                  <button
+                    onClick={handleEliminar}
+                    disabled={loading === 'eliminar'}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                  >
+                    {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Eliminar
+                  </button>
+                )}
               </>
             )}
           </div>
         )}
 
-        {/* ── ENTREGADO ✅ ────────────────────────────────────────────────────── */}
-        {currentEstado === 'entregado' && (
+        {/* ── ENTREGADA ────────────────────────────────────────────────────── */}
+        {isEntregada && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Entregado
+              Entregada
             </div>
             {facturaId && (
               <Link
@@ -335,16 +370,28 @@ export default function PedidoActions({
           </div>
         )}
 
-        {/* ── CANCELADO ❌ ────────────────────────────────────────────────────── */}
-        {currentEstado === 'cancelado' && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-            <XCircle className="h-3.5 w-3.5 shrink-0" />
-            Cancelado
+        {/* ── CANCELADA ────────────────────────────────────────────────────── */}
+        {isCancelada && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
+              Cancelada
+            </div>
+            {canAdminDelete && (
+              <button
+                onClick={handleEliminar}
+                disabled={loading === 'eliminar'}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+              >
+                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Eliminar
+              </button>
+            )}
           </div>
         )}
 
-        {/* ── FACTURADO (legacy) ─────────────────────────────────────────────── */}
-        {currentEstado === 'facturado' && (
+        {/* ── FACTURADO legacy ─────────────────────────────────────────────── */}
+        {isFacturadoLegacy && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -361,27 +408,9 @@ export default function PedidoActions({
             )}
           </div>
         )}
-
-        {/* ── EN RUTA (legacy) ──────────────────────────────────────────────── */}
-        {currentEstado === 'en_ruta' && isAdmin && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-700">
-              <Truck className="h-3.5 w-3.5" />
-              En Ruta
-            </div>
-            <button
-              onClick={handleEntregar}
-              disabled={loading === 'entregar'}
-              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {loading === 'entregar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Marcar Entregado
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* ── Cancelar Modal ────────────────────────────────────────────────────── */}
+      {/* ── Cancelar Modal ──────────────────────────────────────────────────── */}
       {showCancelarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">

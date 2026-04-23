@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Pedido, EstadoPedido } from '@/lib/types'
+import { EstadoPedido } from '@/lib/types'
 import {
   formatCurrency,
   formatDate,
@@ -19,7 +19,6 @@ import {
   FileText,
   Lock,
 } from 'lucide-react'
-import GenerarFacturaButton from '@/components/pedidos/GenerarFacturaButton'
 import EliminarPedidoButton from '@/components/pedidos/EliminarPedidoButton'
 import PedidosExportButton from './PedidosExportButton'
 
@@ -43,6 +42,8 @@ export default async function PedidosPage({ searchParams }: PageProps) {
     ? await supabase.from('profiles').select('rol').eq('id', user.id).single()
     : { data: null }
   const isAdmin = currentProfile?.rol === 'admin'
+  const isVendedor = currentProfile?.rol === 'vendedor'
+  const currentUserId = user?.id ?? ''
 
   const estadoFilter = searchParams.estado || ''
   const fechaInicio = searchParams.fecha_inicio || ''
@@ -56,6 +57,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       id,
       numero,
       estado,
+      vendedor_id,
       fecha_pedido,
       fecha_entrega_estimada,
       subtotal,
@@ -94,9 +96,17 @@ export default async function PedidosPage({ searchParams }: PageProps) {
   const pendientes =
     allPedidos?.filter((p) => p.estado === 'borrador').length ?? 0
   const confirmados =
-    allPedidos?.filter((p) => p.estado === 'confirmado').length ?? 0
+    allPedidos?.filter((p) => ['confirmada', 'confirmado', 'aprobada', 'preparando'].includes(p.estado)).length ?? 0
   const enRuta =
-    allPedidos?.filter((p) => p.estado === 'en_ruta').length ?? 0
+    allPedidos?.filter((p) => ['despachada', 'despachado', 'en_ruta'].includes(p.estado)).length ?? 0
+
+  // Role-based delete visibility
+  const canDelete = (p: any): boolean => {
+    const estado = p.estado as string
+    if (isAdmin) return !['entregada', 'entregado'].includes(estado)
+    if (isVendedor) return estado === 'borrador' && p.vendedor_id === currentUserId
+    return false
+  }
 
   const hasFilters = estadoFilter || fechaInicio || fechaFin || clienteFilter
 
@@ -346,7 +356,7 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                               ESTADO_PEDIDO_COLORS[pedido.estado] ?? 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            {pedido.estado === 'confirmado' && (
+                            {['confirmada', 'confirmado'].includes(pedido.estado) && (
                               <Lock className="h-3 w-3" />
                             )}
                             {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
@@ -367,15 +377,10 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-end gap-2">
-                            {isAdmin && pedido.estado === 'borrador' && (
+                            {canDelete(pedido) && (
                               <EliminarPedidoButton pedidoId={pedido.id} pedidoNumero={pedido.numero} />
                             )}
-                            {pedido.estado === 'confirmado' ? (
-                              <GenerarFacturaButton
-                                pedidoId={pedido.id}
-                                clienteId={pedido.cliente?.id ?? ''}
-                              />
-                            ) : pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
+                            {pedido.facturas?.[0]?.id ? (
                               <Link
                                 href={`/facturas/${pedido.facturas[0].id}`}
                                 className="flex items-center justify-end gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"

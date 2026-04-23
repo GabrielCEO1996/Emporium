@@ -185,6 +185,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Ledger: insert gasto when compra is received
+  if (estado === 'recibida') {
+    await supabase.from('transacciones').insert({
+      tipo: 'gasto',
+      monto: data.total ?? 0,
+      fecha: new Date().toISOString().split('T')[0],
+      concepto: `Compra recibida${data.numero ? ` — ${data.numero}` : ''}`,
+      referencia_tipo: 'compra',
+      referencia_id: params.id,
+      usuario_id: user.id,
+    })
+  }
+
   return NextResponse.json(data)
 }
 

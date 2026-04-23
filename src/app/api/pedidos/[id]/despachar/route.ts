@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/pedidos/[id]/despachar — ADMIN ONLY
-// preparando → despachado; auto-creates factura if none exists
+// aprobada → despachada ; auto-creates factura (estado='emitida') if none exists
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
 
@@ -10,30 +10,34 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores pueden despachar pedidos' }, { status: 403 })
+  if (profile?.rol !== 'admin') {
+    return NextResponse.json({ error: 'Solo administradores pueden despachar pedidos' }, { status: 403 })
+  }
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('id, estado, cliente_id, vendedor_id, subtotal, descuento, total, notas')
+    .select('id, estado, cliente_id, vendedor_id, subtotal, descuento, total')
     .eq('id', params.id)
     .single()
 
   if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
-  if (pedido.estado !== 'preparando') {
-    return NextResponse.json({ error: `Solo se pueden despachar pedidos en preparación (estado: ${pedido.estado})` }, { status: 400 })
+  if (pedido.estado !== 'aprobada') {
+    return NextResponse.json(
+      { error: `Solo se pueden despachar pedidos aprobados (estado actual: ${pedido.estado})` },
+      { status: 400 }
+    )
   }
 
-  // Auto-create factura if it doesn't exist yet for this pedido
+  // Auto-create factura if not exists
   const { data: existingFactura } = await supabase
     .from('facturas')
-    .select('id, numero')
+    .select('id')
     .eq('pedido_id', params.id)
     .maybeSingle()
 
   let facturaId: string | null = existingFactura?.id ?? null
 
   if (!facturaId) {
-    // Pull pedido items
     const { data: pedidoItems } = await supabase
       .from('pedido_items')
       .select('*, presentacion:presentaciones(nombre)')
@@ -48,7 +52,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       subtotal: pi.subtotal,
     }))
 
-    // Generate factura number
     const { data: seqData } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })
 
     const { data: nuevaFactura, error: facturaError } = await supabase
@@ -67,7 +70,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         impuesto: 0,
         total: pedido.total,
         monto_pagado: 0,
-        notas: null,
       })
       .select()
       .single()
@@ -76,20 +78,18 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: facturaError?.message ?? 'Error al crear factura' }, { status: 500 })
     }
 
-    // Insert factura items
     if (facturaItemsData.length > 0) {
       await supabase.from('factura_items').insert(
-        facturaItemsData.map((i: any) => ({ ...i, factura_id: nuevaFactura.id }))
+        facturaItemsData.map((i) => ({ ...i, factura_id: nuevaFactura.id }))
       )
     }
 
     facturaId = nuevaFactura.id
   }
 
-  // Update pedido to despachado
   const { data, error } = await supabase
     .from('pedidos')
-    .update({ estado: 'despachado', updated_at: new Date().toISOString() })
+    .update({ estado: 'despachada', updated_at: new Date().toISOString() })
     .eq('id', params.id)
     .select()
     .single()

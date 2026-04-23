@@ -78,10 +78,22 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', factura_id)
-    .select()
+    .select('id, numero, total, monto_pagado')
     .single()
 
   if (facturaError) return NextResponse.json({ error: facturaError.message }, { status: 500 })
+
+  // Ledger: insert ingreso in transacciones
+  await supabase.from('transacciones').insert({
+    tipo: 'ingreso',
+    monto,
+    fecha: new Date().toISOString().split('T')[0],
+    concepto: `Pago factura ${updated.numero} (${metodo})`,
+    referencia_tipo: 'factura',
+    referencia_id: factura_id,
+    usuario_id: user.id,
+  })
+
   return NextResponse.json(updated, { status: 201 })
 }
 

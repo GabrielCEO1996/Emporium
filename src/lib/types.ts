@@ -67,7 +67,23 @@ export interface Conductor {
   created_at: string
 }
 
-export type EstadoPedido = 'borrador' | 'confirmado' | 'preparando' | 'despachado' | 'en_ruta' | 'entregado' | 'cancelado' | 'facturado'
+// Nuevos estados (flujo actual): borrador → confirmada → aprobada → despachada → entregada | cancelada
+// Estados legacy mantenidos por compatibilidad hacia atrás con datos existentes.
+export type EstadoPedido =
+  | 'borrador'
+  | 'confirmada'
+  | 'aprobada'
+  | 'despachada'
+  | 'entregada'
+  | 'cancelada'
+  // legacy
+  | 'confirmado'
+  | 'preparando'
+  | 'despachado'
+  | 'en_ruta'
+  | 'entregado'
+  | 'cancelado'
+  | 'facturado'
 
 export interface Pedido {
   id: string
@@ -105,7 +121,7 @@ export interface PedidoItem {
   presentacion?: Presentacion & { producto?: Producto }
 }
 
-export type EstadoFactura = 'emitida' | 'pagada' | 'anulada' | 'con_nota_credito'
+export type EstadoFactura = 'emitida' | 'enviada' | 'pagada' | 'anulada' | 'con_nota_credito'
 
 export interface Factura {
   id: string

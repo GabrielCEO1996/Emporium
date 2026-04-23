@@ -19,7 +19,64 @@ interface FacturaPrintButtonProps {
   empresaConfig?: EmpresaConfig
 }
 
-// Inner component that only renders on client after PDF modules are loaded
+// ─────────────────────────────────────────────────────────────────────────────
+// Print button: uses the same FacturaPDF component as Download + Email.
+// Generates a PDF blob, opens it in a new window, and triggers print on load.
+// ─────────────────────────────────────────────────────────────────────────────
+function PrintPDFButton({ factura, empresaConfig }: { factura: Factura; empresaConfig?: EmpresaConfig }) {
+  const [loading, setLoading] = useState(false)
+
+  const handlePrint = async () => {
+    setLoading(true)
+    try {
+      const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('./FacturaPDF'),
+      ])
+
+      const blob = await pdf(
+        <FacturaPDF factura={factura} empresaConfig={empresaConfig} />
+      ).toBlob()
+
+      const blobUrl = URL.createObjectURL(blob)
+      const printWindow = window.open(blobUrl, '_blank')
+
+      if (printWindow) {
+        printWindow.addEventListener('load', () => {
+          try {
+            printWindow.focus()
+            printWindow.print()
+          } catch {
+            // browser may block — user can still print from preview
+          }
+        })
+      }
+
+      // Revoke after a delay to let the window render
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (err) {
+      console.error('Error al generar PDF para imprimir:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handlePrint}
+      disabled={loading}
+      className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+      title="Imprimir factura"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+      Imprimir
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Download PDF button — same renderer, download link
+// ─────────────────────────────────────────────────────────────────────────────
 function PDFDownloadButton({ factura, empresaConfig }: { factura: Factura; empresaConfig?: EmpresaConfig }) {
   const [modules, setModules] = useState<{
     PDFDownloadLink: any
@@ -96,23 +153,9 @@ export default function FacturaPrintButton({ factura, empresaConfig }: FacturaPr
     setMounted(true)
   }, [])
 
-  const handlePrint = () => {
-    window.print()
-  }
-
   return (
     <div className="flex items-center gap-2 print:hidden">
-      {/* Print button — always available */}
-      <button
-        onClick={handlePrint}
-        className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-        title="Abrir diálogo de impresión"
-      >
-        <Printer className="h-4 w-4" />
-        Imprimir
-      </button>
-
-      {/* PDF download — client-side only to avoid SSR issues with @react-pdf/renderer */}
+      {mounted && <PrintPDFButton factura={factura} empresaConfig={empresaConfig} />}
       {mounted && <PDFDownloadButton factura={factura} empresaConfig={empresaConfig} />}
     </div>
   )

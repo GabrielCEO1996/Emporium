@@ -18,7 +18,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (pedidoError || !pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
-  if (pedido.estado === 'facturado') return NextResponse.json({ error: 'Pedido ya fue facturado' }, { status: 400 })
+
+  // Check if factura already exists (new flow auto-creates on despachar)
+  const { data: existingFactura } = await supabase
+    .from('facturas')
+    .select('id')
+    .eq('pedido_id', pedido.id)
+    .maybeSingle()
+  if (existingFactura) {
+    return NextResponse.json({ error: 'Este pedido ya tiene factura emitida' }, { status: 400 })
+  }
 
   // Get user for vendedor_id
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,8 +75,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   await supabase.from('factura_items').insert(facturaItems)
 
-  // Update pedido estado to facturado
-  await supabase.from('pedidos').update({ estado: 'facturado' }).eq('id', params.id)
+  // NOTE: pedido estado is NOT changed here; use /despachar or PATCH for state transitions
 
   return NextResponse.json(factura, { status: 201 })
 }

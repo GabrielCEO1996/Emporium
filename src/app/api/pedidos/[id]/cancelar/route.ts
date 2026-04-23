@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-// POST /api/pedidos/[id]/cancelar — ADMIN ONLY
-// Cancels a confirmed/preparando/despachado pedido and releases inventory reservation
+// POST /api/pedidos/[id]/cancelar
+//   Body (optional): { motivo?: string }
+//   vendedor: only own borrador
+//   admin:    any state except entregada
+//             releases stock_reservado if pedido was aprobada/despachada
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
 
@@ -10,68 +13,92 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores pueden cancelar pedidos confirmados' }, { status: 403 })
+  const isAdmin = profile?.rol === 'admin'
+  const isVendedor = profile?.rol === 'vendedor'
+
+  if (!isAdmin && !isVendedor) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
-  const motivo: string = body.motivo?.trim() ?? ''
-  if (!motivo) return NextResponse.json({ error: 'Se requiere un motivo de cancelación' }, { status: 400 })
+  const motivo: string = (body.motivo ?? '').trim()
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('estado')
+    .select('estado, vendedor_id, notas')
     .eq('id', params.id)
     .single()
 
   if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
 
-  const cancelableStates = ['confirmado', 'preparando', 'despachado']
-  if (!cancelableStates.includes(pedido.estado)) {
-    return NextResponse.json(
-      { error: `No se puede cancelar un pedido en estado "${pedido.estado}"` },
-      { status: 400 }
-    )
+  const estadoActual: string = pedido.estado
+  const estadoEntregada = ['entregada', 'entregado'].includes(estadoActual)
+
+  if (isVendedor) {
+    if (pedido.vendedor_id !== user.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+    if (estadoActual !== 'borrador') {
+      return NextResponse.json(
+        { error: 'Los vendedores solo pueden cancelar pedidos en borrador' },
+        { status: 403 }
+      )
+    }
+  } else if (isAdmin) {
+    if (estadoEntregada) {
+      return NextResponse.json(
+        { error: 'No se puede cancelar un pedido ya entregado' },
+        { status: 400 }
+      )
+    }
   }
 
-  // Release inventory reservation (stock_reservado -= cantidad)
-  const { data: items } = await supabase
-    .from('pedido_items')
-    .select('presentacion_id, cantidad, presentaciones(producto_id)')
-    .eq('pedido_id', params.id)
+  const requiereLiberacion = ['aprobada', 'despachada', 'despachado', 'en_ruta', 'preparando', 'confirmado'].includes(estadoActual)
 
-  if (items && items.length > 0) {
-    await Promise.all(items.map(async (item: any) => {
-      const { data: inv } = await supabase
-        .from('inventario')
-        .select('id, stock_total, stock_reservado, producto_id')
-        .eq('presentacion_id', item.presentacion_id)
-        .single()
+  if (requiereLiberacion) {
+    const { data: items } = await supabase
+      .from('pedido_items')
+      .select('presentacion_id, cantidad, presentaciones(producto_id)')
+      .eq('pedido_id', params.id)
 
-      if (inv) {
-        const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
-        await supabase.from('inventario').update({ stock_reservado: nuevoReservado }).eq('id', inv.id)
-        await supabase.from('inventario_movimientos').insert({
-          producto_id: inv.producto_id,
-          presentacion_id: item.presentacion_id,
-          tipo: 'liberacion',
-          cantidad: item.cantidad,
-          stock_anterior: inv.stock_reservado,
-          stock_nuevo: nuevoReservado,
-          referencia_tipo: 'pedido_cancelado',
-          referencia_id: params.id,
-          usuario_id: user.id,
-          notas: `Cancelación: ${motivo}`,
-        })
-      }
-    }))
+    if (items && items.length > 0) {
+      await Promise.all(items.map(async (item: any) => {
+        const { data: inv } = await supabase
+          .from('inventario')
+          .select('id, stock_reservado, producto_id')
+          .eq('presentacion_id', item.presentacion_id)
+          .maybeSingle()
+
+        if (inv) {
+          const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
+          await supabase
+            .from('inventario')
+            .update({ stock_reservado: nuevoReservado })
+            .eq('id', inv.id)
+
+          await supabase.from('inventario_movimientos').insert({
+            producto_id: inv.producto_id,
+            presentacion_id: item.presentacion_id,
+            tipo: 'liberacion',
+            cantidad: item.cantidad,
+            stock_anterior: inv.stock_reservado ?? 0,
+            stock_nuevo: nuevoReservado,
+            referencia_tipo: 'pedido_cancelado',
+            referencia_id: params.id,
+            usuario_id: user.id,
+            notas: motivo ? `Cancelación: ${motivo}` : 'Pedido cancelado — liberación de reserva',
+          })
+        }
+      }))
+    }
   }
+
+  const updates: Record<string, unknown> = { estado: 'cancelada', updated_at: new Date().toISOString() }
+  if (motivo) updates.notas = motivo
 
   const { data, error } = await supabase
     .from('pedidos')
-    .update({
-      estado: 'cancelado',
-      notas: motivo,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updates)
     .eq('id', params.id)
     .select()
     .single()
