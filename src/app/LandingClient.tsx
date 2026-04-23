@@ -1,16 +1,27 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Truck, DollarSign, ShieldCheck, Smartphone,
-  ArrowRight, ChevronDown, Menu, X, ShoppingBag, Star,
+  ArrowRight, Menu, X, ShieldCheck, Truck, DollarSign, Smartphone,
+  Package, Clock, Award, Briefcase,
 } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
 
+// ── Brand constants ───────────────────────────────────────────────────────────
 const LOGO_URL =
   'https://axeefndebatrmgqzncuo.supabase.co/storage/v1/object/public/empresa/Editable%20Emporium%20logo%20transparente%20.png'
+
+const HERO_IMG =
+  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=1920&q=80'
+
+// Brand palette (kept as hex strings so the Tailwind compiler can't tree-shake them out)
+const TEAL = '#0D9488'
+const NAVY = '#1E3A5F'
+const NAVY_DARK = '#132944'
+const GOLD = '#D4A017'
+const MINT = '#F0FDFA'
+const BG = '#FAFAFA'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ProductoDestacado {
@@ -27,696 +38,611 @@ interface Props {
   userRole: string | null
 }
 
-// ── Static data ───────────────────────────────────────────────────────────────
+// ── Static content ────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { name: 'Salud y Bienestar',  img: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=80', emoji: '💊' },
-  { name: 'Cuidado Personal',   img: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400&q=80', emoji: '🧴' },
-  { name: 'Alimentos',          img: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400&q=80', emoji: '🥗' },
-  { name: 'Hogar y Limpieza',   img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400&q=80', emoji: '🏠' },
-  { name: 'Belleza',            img: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&q=80', emoji: '💄' },
-  { name: 'Nutrición',          img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80', emoji: '🥦' },
+  {
+    name: 'Medicamentos OTC',
+    img: 'https://images.unsplash.com/photo-1550572017-edd951b55104?w=400',
+  },
+  {
+    name: 'Vitaminas y Suplementos',
+    img: 'https://images.unsplash.com/photo-1612531386530-97286d97c2d2?w=400',
+  },
+  {
+    name: 'Cuidado Personal',
+    img: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400',
+  },
+  {
+    name: 'Higiene del Hogar',
+    img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400',
+  },
+  {
+    name: 'Bebés y Maternidad',
+    img: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400',
+  },
+  {
+    name: 'Primeros Auxilios',
+    img: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=400',
+  },
+]
+
+const STATS = [
+  { value: '500+', label: 'Productos disponibles', icon: Package },
+  { value: '24h',  label: 'Entrega express',       icon: Clock },
+  { value: '100%', label: 'Calidad garantizada',   icon: Award },
+  { value: 'B2B',  label: 'Distribución mayorista', icon: Briefcase },
 ]
 
 const FEATURES = [
   {
+    icon: ShieldCheck,
+    title: 'Productos Certificados',
+    desc: 'Todos nuestros productos cumplen estándares FDA y regulaciones locales.',
+  },
+  {
     icon: Truck,
-    label: 'Entrega rápida',
-    desc: 'Recibe tus pedidos directamente en tu puerta en tiempo récord.',
-    gradient: 'from-teal-500 to-cyan-400',
-    shadow: 'shadow-teal-200',
+    title: 'Entrega Directa',
+    desc: 'Llevamos tus pedidos directamente a tu tienda o farmacia.',
   },
   {
     icon: DollarSign,
-    label: 'Precios directos',
-    desc: 'Sin intermediarios. Precios de distribuidor directo al comprador.',
-    gradient: 'from-emerald-500 to-teal-400',
-    shadow: 'shadow-emerald-200',
-  },
-  {
-    icon: ShieldCheck,
-    label: 'Calidad garantizada',
-    desc: 'Todos nuestros productos pasan por estricto control de calidad.',
-    gradient: 'from-amber-500 to-orange-400',
-    shadow: 'shadow-amber-200',
+    title: 'Precios Mayoristas',
+    desc: 'Obtén los mejores precios del mercado para maximizar tu margen.',
   },
   {
     icon: Smartphone,
-    label: 'Pide desde donde estés',
-    desc: 'Tienda digital disponible 24/7 desde cualquier dispositivo.',
-    gradient: 'from-violet-500 to-purple-400',
-    shadow: 'shadow-violet-200',
+    title: 'Pedidos Online 24/7',
+    desc: 'Haz tus pedidos cuando quieras desde cualquier dispositivo.',
   },
 ]
 
-const PRODUCT_GRADIENTS = [
-  'from-teal-400 to-emerald-500',
-  'from-violet-400 to-purple-500',
-  'from-orange-400 to-amber-500',
-  'from-sky-400 to-blue-500',
-  'from-rose-400 to-pink-500',
-  'from-amber-400 to-yellow-500',
+const STEPS = [
+  { n: 1, title: 'Crea tu cuenta',       desc: 'Regístrate y solicita acceso mayorista.' },
+  { n: 2, title: 'Explora el catálogo',  desc: 'Miles de productos disponibles.' },
+  { n: 3, title: 'Recibe tu pedido',     desc: 'Entrega rápida a tu negocio.' },
 ]
 
+// ── Animation helpers ─────────────────────────────────────────────────────────
+const fadeUp = {
+  hidden:  { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' as const } },
+}
+const stagger = {
+  visible: { transition: { staggerChildren: 0.08 } },
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function LandingClient({ empresa, productos, isLoggedIn, userRole }: Props) {
-  const [scrolled, setScrolled]         = useState(false)
-  const [mobileOpen, setMobileOpen]     = useState(false)
-  const heroRef = useRef<HTMLDivElement>(null)
+export default function LandingClient({ empresa, isLoggedIn, userRole }: Props) {
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
+    const onScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Determine the right dashboard link and CTA label for logged-in users
-  const dashboardHref =
-    userRole === 'cliente' ? '/tienda' :
-    userRole ? '/dashboard' : '/login'
+  const logoSrc = empresa?.logo_url || LOGO_URL
+  const empresaName = empresa?.nombre || 'Emporium'
 
-  const dashboardLabel =
-    userRole === 'cliente' ? 'Ir a mi tienda' :
-    userRole === 'admin'   ? 'Ir al dashboard' :
-    userRole               ? 'Ir al sistema'   : 'Ingresar'
-
-  const companyName = empresa?.nombre ?? 'Emporium'
+  // Where do we send a logged-in user who clicks "Ver Catálogo"?
+  const catalogHref =
+    isLoggedIn
+      ? userRole === 'admin' || userRole === 'vendedor'
+        ? '/dashboard'
+        : '/tienda'
+      : '/tienda'
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
-
-      {/* ── NAVBAR ──────────────────────────────────────────────────────────── */}
+    <div className="min-h-screen bg-[#FAFAFA] text-slate-800 antialiased">
+      {/* ── Top nav ──────────────────────────────────────────────────────── */}
       <header
-        className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-          scrolled || mobileOpen
-            ? 'bg-white/95 backdrop-blur-lg shadow-sm'
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? 'bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm'
             : 'bg-transparent'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={empresa?.logo_url ?? LOGO_URL}
-              alt={companyName}
-              className="h-[50px] w-auto object-contain"
-            />
-            <span className={`font-extrabold text-lg tracking-tight transition-colors ${scrolled || mobileOpen ? 'text-slate-900' : 'text-white'}`}>
-              {companyName}
-            </span>
+            <img src={logoSrc} alt={empresaName} className="h-9 w-auto" />
           </Link>
 
-          {/* Desktop nav links */}
-          <nav className="hidden md:flex items-center gap-8">
-            {[
-              { label: 'Inicio',   href: '/' },
-              { label: 'Tienda',   href: '/tienda' },
-              { label: 'Contacto', href: '#contacto' },
-            ].map(({ label, href }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`text-sm font-medium transition-colors ${
-                  scrolled ? 'text-slate-600 hover:text-teal-600' : 'text-white/80 hover:text-white'
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Desktop CTA */}
-          <div className="hidden md:flex items-center gap-3">
+          <nav className="hidden items-center gap-8 md:flex">
+            <a
+              href="#categorias"
+              className={`text-sm font-medium transition-colors ${
+                scrolled ? 'text-slate-700 hover:text-[#0D9488]' : 'text-white/90 hover:text-white'
+              }`}
+            >
+              Categorías
+            </a>
+            <a
+              href="#nosotros"
+              className={`text-sm font-medium transition-colors ${
+                scrolled ? 'text-slate-700 hover:text-[#0D9488]' : 'text-white/90 hover:text-white'
+              }`}
+            >
+              Nosotros
+            </a>
+            <a
+              href="#como-funciona"
+              className={`text-sm font-medium transition-colors ${
+                scrolled ? 'text-slate-700 hover:text-[#0D9488]' : 'text-white/90 hover:text-white'
+              }`}
+            >
+              Cómo funciona
+            </a>
             {isLoggedIn ? (
               <Link
-                href={dashboardHref}
-                className="bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition-all shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105"
+                href={catalogHref}
+                className="rounded-full bg-[#0D9488] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0B7A6F] hover:shadow-md"
               >
-                {dashboardLabel}
+                Mi cuenta
               </Link>
             ) : (
               <>
                 <Link
                   href="/login"
                   className={`text-sm font-medium transition-colors ${
-                    scrolled ? 'text-slate-600 hover:text-slate-900' : 'text-white/80 hover:text-white'
+                    scrolled ? 'text-slate-700 hover:text-[#0D9488]' : 'text-white/90 hover:text-white'
                   }`}
                 >
-                  Ingresar
+                  Iniciar sesión
                 </Link>
                 <Link
-                  href="/tienda"
-                  className="bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 rounded-full text-sm font-semibold transition-all shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105"
+                  href="/signup"
+                  className="rounded-full bg-[#0D9488] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0B7A6F] hover:shadow-md"
                 >
-                  Comprar ahora
+                  Solicitar cuenta
                 </Link>
               </>
             )}
-          </div>
+          </nav>
 
-          {/* Mobile hamburger */}
           <button
-            className="md:hidden p-2 rounded-lg"
-            onClick={() => setMobileOpen(v => !v)}
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className={`md:hidden ${scrolled ? 'text-slate-700' : 'text-white'}`}
             aria-label="Menú"
           >
-            {mobileOpen
-              ? <X className={`w-5 h-5 ${scrolled || mobileOpen ? 'text-slate-900' : 'text-white'}`} />
-              : <Menu className={`w-5 h-5 ${scrolled ? 'text-slate-900' : 'text-white'}`} />
-            }
+            {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
 
-        {/* Mobile menu */}
-        <AnimatePresence>
-          {mobileOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="md:hidden bg-white border-t border-slate-100 overflow-hidden"
-            >
-              <div className="px-4 py-4 flex flex-col gap-1">
-                {[
-                  { label: 'Inicio',   href: '/' },
-                  { label: 'Tienda',   href: '/tienda' },
-                  { label: 'Contacto', href: '#contacto' },
-                ].map(({ label, href }) => (
-                  <Link
-                    key={label}
-                    href={href}
-                    onClick={() => setMobileOpen(false)}
-                    className="py-3 px-3 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-                  >
-                    {label}
+        {menuOpen && (
+          <div className="border-t border-slate-200 bg-white md:hidden">
+            <div className="flex flex-col gap-1 px-6 py-4">
+              <a href="#categorias" onClick={() => setMenuOpen(false)} className="py-2 text-sm font-medium text-slate-700">Categorías</a>
+              <a href="#nosotros" onClick={() => setMenuOpen(false)} className="py-2 text-sm font-medium text-slate-700">Nosotros</a>
+              <a href="#como-funciona" onClick={() => setMenuOpen(false)} className="py-2 text-sm font-medium text-slate-700">Cómo funciona</a>
+              {isLoggedIn ? (
+                <Link href={catalogHref} className="mt-2 rounded-full bg-[#0D9488] px-4 py-2 text-center text-sm font-semibold text-white">
+                  Mi cuenta
+                </Link>
+              ) : (
+                <>
+                  <Link href="/login" className="py-2 text-sm font-medium text-slate-700">Iniciar sesión</Link>
+                  <Link href="/signup" className="mt-2 rounded-full bg-[#0D9488] px-4 py-2 text-center text-sm font-semibold text-white">
+                    Solicitar cuenta
                   </Link>
-                ))}
-                <div className="pt-2 flex flex-col gap-2">
-                  {!isLoggedIn && (
-                    <Link
-                      href="/login"
-                      onClick={() => setMobileOpen(false)}
-                      className="py-3 px-3 rounded-xl text-center text-teal-600 font-semibold border border-teal-200 hover:bg-teal-50 transition-colors"
-                    >
-                      Ingresar al sistema
-                    </Link>
-                  )}
-                  <Link
-                    href={isLoggedIn ? dashboardHref : '/tienda'}
-                    onClick={() => setMobileOpen(false)}
-                    className="py-3 px-3 rounded-xl text-center bg-teal-600 hover:bg-teal-500 text-white font-semibold transition-colors"
-                  >
-                    {isLoggedIn ? dashboardLabel : 'Comprar ahora'}
-                  </Link>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* ── HERO ────────────────────────────────────────────────────────────── */}
-      <section
-        ref={heroRef}
-        className="relative min-h-screen flex items-center justify-center overflow-hidden"
-      >
-        {/* Background image */}
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <section className="relative min-h-[680px] overflow-hidden">
+        {/* Background image + overlay */}
         <div className="absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=1920&q=80"
+            src={HERO_IMG}
             alt=""
-            className="w-full h-full object-cover"
-            fetchPriority="high"
+            aria-hidden="true"
+            className="h-full w-full object-cover"
           />
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-black/80" />
-          {/* Color tint */}
-          <div className="absolute inset-0 bg-teal-900/20" />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: NAVY, opacity: 0.65 }}
+          />
+          {/* Subtle radial highlight for depth */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, rgba(13,148,136,0.15) 0%, rgba(30,58,95,0) 60%)',
+            }}
+          />
         </div>
 
-        {/* Floating particles (decorative) */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(6)].map((_, i) => (
+        <div className="relative mx-auto flex min-h-[680px] max-w-5xl flex-col items-center justify-center px-6 pt-24 pb-16 text-center">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={stagger}
+            className="flex flex-col items-center"
+          >
+            <motion.div variants={fadeUp} className="mb-8">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoSrc}
+                alt={empresaName}
+                className="h-20 w-auto drop-shadow-lg sm:h-24"
+              />
+            </motion.div>
+
             <motion.div
-              key={i}
-              className="absolute w-1 h-1 bg-teal-400/40 rounded-full"
-              style={{
-                left: `${15 + i * 15}%`,
-                top: `${20 + (i % 3) * 20}%`,
-              }}
-              animate={{ y: [-20, 20, -20], opacity: [0.3, 0.8, 0.3] }}
-              transition={{ repeat: Infinity, duration: 3 + i * 0.5, ease: 'easeInOut' }}
-            />
-          ))}
-        </div>
-
-        {/* Hero content */}
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto pt-16">
-
-          {/* Logo badge */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.7, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
-            className="flex justify-center mb-8"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={empresa?.logo_url ?? LOGO_URL}
-              alt={companyName}
-              className="h-[120px] w-auto object-contain drop-shadow-2xl"
-              style={{ filter: 'drop-shadow(0 8px 32px rgba(13,148,136,0.45))' }}
-            />
-          </motion.div>
-
-          {/* Badge chip */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="inline-flex items-center gap-2 bg-teal-500/20 backdrop-blur-sm border border-teal-400/30 text-teal-300 text-sm font-semibold px-4 py-1.5 rounded-full mb-6"
-          >
-            <Star className="w-3.5 h-3.5 fill-teal-400 text-teal-400" />
-            Distribución premium
-            <Star className="w-3.5 h-3.5 fill-teal-400 text-teal-400" />
-          </motion.div>
-
-          {/* Main headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-            className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white leading-[0.95] tracking-tight mb-5"
-          >
-            {companyName}
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-2xl sm:text-3xl font-bold text-teal-300 mb-4 leading-tight"
-          >
-            Tu tienda de distribución de confianza
-          </motion.p>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="text-lg sm:text-xl text-white/65 mb-10 max-w-lg mx-auto leading-relaxed"
-          >
-            Productos de calidad · Entrega rápida · Precios directos
-          </motion.p>
-
-          {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-          >
-            <Link
-              href="/tienda"
-              className="group w-full sm:w-auto bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white px-8 py-4 rounded-2xl text-lg font-bold transition-all shadow-2xl shadow-teal-500/40 hover:shadow-teal-400/60 hover:scale-105 flex items-center justify-center gap-2.5"
+              variants={fadeUp}
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-medium tracking-wide text-white/90 backdrop-blur-sm"
             >
-              <ShoppingBag className="w-5 h-5" />
-              Comprar ahora
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: GOLD }} />
+              Distribuidor autorizado
+            </motion.div>
 
-            <Link
-              href={isLoggedIn ? dashboardHref : '/login'}
-              className="group w-full sm:w-auto border-2 border-white/30 hover:border-white/70 text-white px-8 py-4 rounded-2xl text-lg font-bold transition-all hover:bg-white/10 backdrop-blur-sm flex items-center justify-center gap-2"
+            <motion.h1
+              variants={fadeUp}
+              className="max-w-3xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl md:text-6xl"
             >
-              {isLoggedIn ? dashboardLabel : 'Ingresar al sistema'}
-            </Link>
-          </motion.div>
+              Distribución de Salud y{' '}
+              <span style={{ color: '#5EEAD4' }}>Cuidado Personal</span>
+            </motion.h1>
 
-          {/* Stats row */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="flex flex-wrap justify-center gap-8 mt-14 pt-10 border-t border-white/10"
-          >
-            {[
-              { value: '100%', label: 'Calidad garantizada' },
-              { value: '24/7', label: 'Tienda online' },
-              { value: '🚚', label: 'Entrega a domicilio' },
-            ].map(stat => (
-              <div key={stat.label} className="text-center">
-                <p className="text-3xl font-black text-white">{stat.value}</p>
-                <p className="text-sm text-white/50 mt-0.5">{stat.label}</p>
-              </div>
-            ))}
+            <motion.p
+              variants={fadeUp}
+              className="mt-6 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg"
+            >
+              Productos farmacéuticos, vitaminas y cuidado del hogar entregados
+              directamente a tu negocio.
+            </motion.p>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-10 flex flex-col gap-3 sm:flex-row sm:gap-4"
+            >
+              <Link
+                href={catalogHref}
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#0D9488] px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/30 transition-all hover:bg-[#0B7A6F] hover:shadow-xl hover:shadow-teal-900/40"
+              >
+                Ver Catálogo
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href={isLoggedIn ? '/mi-cuenta' : '/signup'}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/40 bg-transparent px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white hover:text-[#1E3A5F]"
+              >
+                Solicitar Cuenta
+              </Link>
+            </motion.div>
           </motion.div>
         </div>
 
-        {/* Scroll indicator */}
+        {/* Soft curve to stats bar */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-12"
+          style={{
+            background: `linear-gradient(to bottom, transparent, ${BG})`,
+          }}
+        />
+      </section>
+
+      {/* ── Stats bar ────────────────────────────────────────────────────── */}
+      <section className="relative -mt-12 px-4 sm:-mt-16 sm:px-6">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={stagger}
+          className="mx-auto grid max-w-6xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 shadow-xl shadow-slate-900/5 lg:grid-cols-4"
         >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-          >
-            <ChevronDown className="w-7 h-7 text-white/40" />
-          </motion.div>
+          {STATS.map((stat) => {
+            const Icon = stat.icon
+            return (
+              <motion.div
+                key={stat.label}
+                variants={fadeUp}
+                className="flex flex-col items-center justify-center gap-2 bg-white px-6 py-8"
+              >
+                <Icon className="h-5 w-5" style={{ color: TEAL }} />
+                <div className="text-3xl font-bold tracking-tight" style={{ color: NAVY }}>
+                  {stat.value}
+                </div>
+                <div className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  {stat.label}
+                </div>
+              </motion.div>
+            )
+          })}
         </motion.div>
       </section>
 
-      {/* ── CATEGORIES ──────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 bg-slate-50">
-        <div className="max-w-7xl mx-auto">
+      {/* ── Categories ───────────────────────────────────────────────────── */}
+      <section id="categorias" className="px-6 py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-80px' }}
-            className="text-center mb-14"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="mb-14 text-center"
           >
-            <span className="inline-block text-teal-600 font-bold text-xs uppercase tracking-[0.2em] bg-teal-50 px-4 py-1.5 rounded-full mb-4">
-              Categorías
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-black text-slate-900 leading-tight">
-              Todo lo que necesitas
-            </h2>
-            <p className="text-slate-500 mt-3 max-w-md mx-auto">
-              Encuentra productos de las mejores marcas en cada categoría
-            </p>
+            <motion.p
+              variants={fadeUp}
+              className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]"
+              style={{ color: TEAL }}
+            >
+              Catálogo
+            </motion.p>
+            <motion.h2
+              variants={fadeUp}
+              className="text-3xl font-bold tracking-tight sm:text-4xl"
+              style={{ color: NAVY }}
+            >
+              Nuestras Categorías
+            </motion.h2>
+            <motion.p
+              variants={fadeUp}
+              className="mx-auto mt-4 max-w-xl text-base text-slate-500"
+            >
+              Todo lo que tu negocio necesita, en un solo lugar.
+            </motion.p>
           </motion.div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-            {CATEGORIES.map((cat, i) => (
-              <motion.div
-                key={cat.name}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-60px' }}
-                transition={{ delay: i * 0.07 }}
-                whileHover={{ y: -4 }}
-                className="group relative rounded-2xl overflow-hidden aspect-square cursor-pointer shadow-sm hover:shadow-xl transition-shadow duration-300"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={cat.img}
-                  alt={cat.name}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-                {/* Dark overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-                {/* Hover tint */}
-                <div className="absolute inset-0 bg-teal-600/0 group-hover:bg-teal-600/20 transition-colors duration-300" />
-
-                <div className="absolute inset-x-0 bottom-0 p-3 text-center">
-                  <span className="text-xl mb-1 block">{cat.emoji}</span>
-                  <p className="text-white font-bold text-xs sm:text-sm leading-tight drop-shadow">
-                    {cat.name}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── WHY EMPORIUM ────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-80px' }}
-            className="text-center mb-16"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.1 }}
+            variants={stagger}
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
-            <span className="inline-block text-teal-600 font-bold text-xs uppercase tracking-[0.2em] bg-teal-50 px-4 py-1.5 rounded-full mb-4">
-              Ventajas
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-black text-slate-900">
-              ¿Por qué elegir {companyName}?
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.label}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-60px' }}
-                transition={{ delay: i * 0.1 }}
-                whileHover={{ y: -6 }}
-                className="group text-center p-7 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-2xl transition-all duration-300 border border-transparent hover:border-slate-100"
-              >
-                <div
-                  className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mx-auto mb-5 shadow-lg ${f.shadow} group-hover:scale-110 transition-transform duration-300`}
+            {CATEGORIES.map((cat) => (
+              <motion.div key={cat.name} variants={fadeUp}>
+                <Link
+                  href={catalogHref}
+                  className="group relative block aspect-[4/3] overflow-hidden rounded-2xl shadow-sm ring-1 ring-slate-200 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900/10 hover:ring-slate-300"
                 >
-                  <f.icon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="font-black text-slate-900 text-lg mb-2">{f.label}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={cat.img}
+                    alt={cat.name}
+                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  {/* Dark overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1E3A5F]/90 via-[#1E3A5F]/40 to-transparent" />
+                  {/* Label */}
+                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-6">
+                    <h3 className="text-lg font-bold leading-tight text-white sm:text-xl">
+                      {cat.name}
+                    </h3>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm transition-all group-hover:bg-[#0D9488]">
+                      <ArrowRight className="h-4 w-4 text-white" />
+                    </span>
+                  </div>
+                </Link>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* ── FEATURED PRODUCTS ───────────────────────────────────────────────── */}
-      {productos.length > 0 && (
-        <section className="py-24 px-4 bg-gradient-to-b from-slate-50 to-white">
-          <div className="max-w-7xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-80px' }}
-              className="text-center mb-14"
+      {/* ── Why Emporium ─────────────────────────────────────────────────── */}
+      <section id="nosotros" className="bg-white px-6 py-24 sm:py-32">
+        <div className="mx-auto max-w-6xl">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="mb-14 text-center"
+          >
+            <motion.p
+              variants={fadeUp}
+              className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]"
+              style={{ color: TEAL }}
             >
-              <span className="inline-block text-teal-600 font-bold text-xs uppercase tracking-[0.2em] bg-teal-50 px-4 py-1.5 rounded-full mb-4">
-                Destacados
-              </span>
-              <h2 className="text-4xl sm:text-5xl font-black text-slate-900">
-                Productos populares
-              </h2>
-              <p className="text-slate-500 mt-3">
-                Lo más pedido por nuestros clientes
-              </p>
-            </motion.div>
+              Por qué elegirnos
+            </motion.p>
+            <motion.h2
+              variants={fadeUp}
+              className="text-3xl font-bold tracking-tight sm:text-4xl"
+              style={{ color: NAVY }}
+            >
+              La distribución que tu negocio merece
+            </motion.h2>
+          </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {productos.slice(0, 6).map((p, i) => {
-                const grad = PRODUCT_GRADIENTS[p.nombre.charCodeAt(0) % PRODUCT_GRADIENTS.length]
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 24 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: '-40px' }}
-                    transition={{ delay: i * 0.08 }}
-                    whileHover={{ y: -4 }}
-                    className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all duration-300 group"
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.1 }}
+            variants={stagger}
+            className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+          >
+            {FEATURES.map((f) => {
+              const Icon = f.icon
+              return (
+                <motion.div
+                  key={f.title}
+                  variants={fadeUp}
+                  className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white p-8 shadow-sm transition-all hover:-translate-y-1 hover:border-teal-200 hover:shadow-xl hover:shadow-teal-900/5"
+                >
+                  <div
+                    className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl transition-colors group-hover:scale-105"
+                    style={{ backgroundColor: MINT }}
                   >
-                    {/* Image */}
-                    <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                      {p.imagen_url ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={p.imagen_url}
-                          alt={p.nombre}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className={`w-full h-full bg-gradient-to-br ${grad} flex items-center justify-center`}>
-                          <span className="text-6xl font-black text-white/80 select-none">
-                            {p.nombre.charAt(0)}
-                          </span>
-                        </div>
-                      )}
-                      {/* Category badge */}
-                      {p.categoria && (
-                        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full text-slate-600 shadow-sm">
-                          {p.categoria}
-                        </span>
-                      )}
-                    </div>
+                    <Icon className="h-5 w-5" style={{ color: TEAL }} />
+                  </div>
+                  <h3 className="mb-2 text-base font-semibold" style={{ color: NAVY }}>
+                    {f.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-slate-500">{f.desc}</p>
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        </div>
+      </section>
 
-                    {/* Info */}
-                    <div className="p-5">
-                      <h3 className="font-bold text-slate-800 text-base leading-snug line-clamp-2">
-                        {p.nombre}
-                      </h3>
-                      <div className="flex items-center justify-between mt-4">
-                        <div>
-                          <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Desde</p>
-                          <p className="text-2xl font-black text-teal-600 leading-none mt-0.5">
-                            {formatCurrency(p.precio_desde)}
-                          </p>
-                        </div>
-                        <Link
-                          href="/tienda"
-                          className="bg-teal-600 hover:bg-teal-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-md shadow-teal-500/20 hover:shadow-teal-500/40 flex items-center gap-1.5 group/btn"
-                        >
-                          Ver más
-                          <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
-                        </Link>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
-
-            {/* CTA link */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-center mt-12"
-            >
-              <Link
-                href="/tienda"
-                className="inline-flex items-center gap-2.5 bg-teal-600 hover:bg-teal-500 text-white px-9 py-4 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105"
-              >
-                <ShoppingBag className="w-5 h-5" />
-                Ver catálogo completo
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-            </motion.div>
-          </div>
-        </section>
-      )}
-
-      {/* ── CTA BANNER ──────────────────────────────────────────────────────── */}
-      <section className="relative py-24 px-4 overflow-hidden">
-        {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-teal-600 via-emerald-600 to-teal-700" />
-        {/* Pattern overlay */}
+      {/* ── How it works ─────────────────────────────────────────────────── */}
+      <section
+        id="como-funciona"
+        className="relative overflow-hidden px-6 py-24 sm:py-32"
+        style={{ backgroundColor: NAVY }}
+      >
+        {/* Decorative accent */}
         <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-            backgroundSize: '30px 30px',
-          }}
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full opacity-20 blur-3xl"
+          style={{ backgroundColor: TEAL }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-32 -left-24 h-96 w-96 rounded-full opacity-10 blur-3xl"
+          style={{ backgroundColor: GOLD }}
         />
 
-        <div className="relative max-w-4xl mx-auto text-center">
+        <div className="relative mx-auto max-w-5xl">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-80px' }}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={stagger}
+            className="mb-16 text-center"
           >
-            <span className="inline-block text-teal-200 font-bold text-xs uppercase tracking-[0.2em] bg-white/10 px-4 py-1.5 rounded-full mb-6">
-              ¡Empieza hoy!
-            </span>
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-5 leading-tight">
-              ¿Listo para empezar a{' '}
-              <span className="text-teal-200">ahorrar?</span>
-            </h2>
-            <p className="text-teal-100 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
-              Únete a cientos de clientes que ya disfrutan de precios directos
-              y entrega rápida a domicilio.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/tienda"
-                className="group inline-flex items-center justify-center gap-2.5 bg-white hover:bg-teal-50 text-teal-700 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-2xl hover:scale-105"
+            <motion.p
+              variants={fadeUp}
+              className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]"
+              style={{ color: '#5EEAD4' }}
+            >
+              Proceso simple
+            </motion.p>
+            <motion.h2
+              variants={fadeUp}
+              className="text-3xl font-bold tracking-tight text-white sm:text-4xl"
+            >
+              Cómo funciona
+            </motion.h2>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.1 }}
+            variants={stagger}
+            className="grid grid-cols-1 gap-10 md:grid-cols-3"
+          >
+            {STEPS.map((step, idx) => (
+              <motion.div
+                key={step.n}
+                variants={fadeUp}
+                className="relative flex flex-col items-start text-left"
               >
-                <ShoppingBag className="w-5 h-5" />
-                Explorar tienda
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              {!isLoggedIn && (
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-white/40 hover:border-white text-white px-8 py-4 rounded-2xl font-bold text-lg transition-all hover:bg-white/10"
+                {/* Connector line (desktop only, skip on last) */}
+                {idx < STEPS.length - 1 && (
+                  <div className="absolute left-16 top-7 hidden h-px w-[calc(100%-4rem)] md:block"
+                       style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.2), rgba(255,255,255,0))' }} />
+                )}
+
+                <div
+                  className="mb-5 flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold"
+                  style={{
+                    backgroundColor: 'rgba(13,148,136,0.15)',
+                    border: `1px solid ${TEAL}`,
+                    color: '#5EEAD4',
+                  }}
                 >
-                  Ingresar al sistema
-                </Link>
-              )}
-            </div>
+                  {step.n.toString().padStart(2, '0')}
+                </div>
+                <h3 className="mb-2 text-xl font-semibold text-white">{step.title}</h3>
+                <p className="text-sm leading-relaxed text-white/60">{step.desc}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={fadeUp}
+            className="mt-14 flex justify-center"
+          >
+            <Link
+              href={isLoggedIn ? catalogHref : '/signup'}
+              className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold shadow-lg transition-all hover:shadow-xl"
+              style={{ color: NAVY }}
+            >
+              {isLoggedIn ? 'Ir al catálogo' : 'Empezar ahora'}
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </motion.div>
         </div>
       </section>
 
-      {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
-      <footer id="contacto" className="bg-slate-900 text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
-
-            {/* Brand */}
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer style={{ backgroundColor: NAVY_DARK }} className="px-6 py-14 text-white/70">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
             <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={empresa?.logo_url ?? LOGO_URL}
-                  alt={companyName}
-                  className="h-10 w-auto object-contain"
-                />
-                <span className="text-white font-extrabold text-lg">{companyName}</span>
-              </div>
-              <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
-                Tu tienda de distribución de confianza. Calidad, rapidez y precios directos.
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoSrc} alt={empresaName} className="mb-4 h-9 w-auto brightness-200" />
+              <p className="max-w-xs text-sm leading-relaxed text-white/60">
+                Distribución especializada en salud y cuidado personal.
               </p>
             </div>
 
-            {/* Links */}
             <div>
-              <h3 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">
+              <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-white">
                 Navegación
-              </h3>
-              <nav className="flex flex-col gap-2.5">
-                {[
-                  { label: 'Inicio',  href: '/' },
-                  { label: 'Tienda',  href: '/tienda' },
-                  { label: 'Ingresar', href: '/login' },
-                ].map(({ label, href }) => (
-                  <Link
-                    key={label}
-                    href={href}
-                    className="text-sm text-slate-400 hover:text-teal-400 transition-colors"
-                  >
-                    {label}
+              </h4>
+              <ul className="space-y-2.5 text-sm">
+                <li>
+                  <Link href={catalogHref} className="transition-colors hover:text-white">
+                    Catálogo
                   </Link>
-                ))}
-              </nav>
+                </li>
+                <li>
+                  <a href="#nosotros" className="transition-colors hover:text-white">
+                    Nosotros
+                  </a>
+                </li>
+                <li>
+                  <a href="#como-funciona" className="transition-colors hover:text-white">
+                    Cómo funciona
+                  </a>
+                </li>
+              </ul>
             </div>
 
-            {/* Contact */}
             <div>
-              <h3 className="text-white font-bold mb-4 text-sm uppercase tracking-wider">
+              <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-white">
                 Contacto
-              </h3>
-              <div className="flex flex-col gap-3 text-sm">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <ShoppingBag className="w-4 h-4 text-teal-500 shrink-0" />
-                  <span>Tienda disponible 24/7</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Truck className="w-4 h-4 text-teal-500 shrink-0" />
-                  <span>Entrega a domicilio</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <ShieldCheck className="w-4 h-4 text-teal-500 shrink-0" />
-                  <span>Calidad garantizada</span>
-                </div>
-              </div>
+              </h4>
+              <ul className="space-y-2.5 text-sm">
+                <li>
+                  <a href="mailto:contacto@emporium.com" className="transition-colors hover:text-white">
+                    Contacto
+                  </a>
+                </li>
+                <li>
+                  <Link href="/login" className="transition-colors hover:text-white">
+                    Iniciar sesión
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/signup" className="transition-colors hover:text-white">
+                    Solicitar cuenta
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
 
-          {/* Bottom bar */}
-          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-slate-600">
-              © {new Date().getFullYear()} {companyName}. Todos los derechos reservados.
-            </p>
-            <div className="flex items-center gap-1 text-xs text-slate-700">
-              Hecho con
-              <span className="text-teal-500 mx-1">♥</span>
-              para nuestros clientes
+          <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-6 text-xs text-white/50 sm:flex-row sm:items-center">
+            <p>© {new Date().getFullYear()} {empresaName}. Todos los derechos reservados.</p>
+            <div className="flex items-center gap-6">
+              <a href="#" className="transition-colors hover:text-white">Términos</a>
+              <a href="#" className="transition-colors hover:text-white">Privacidad</a>
             </div>
           </div>
         </div>
