@@ -2,50 +2,12 @@
   "name": "Emporium",
   "short_name": "Emporium",
   "description": "Sistema de Distribución Emporium",
-  "start_url": "/dashboard",
+  "start_url": "/tienda",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#F0FDFA",
   "theme_color": "#0D9488",
-  "lang": "es",
-  "categories": ["business", "productivity"],
   "icons": [
-    { "src": "/pwa-icons/72",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/96",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/128", "sizes": "128x128", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/144", "sizes": "144x144", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/152", "sizes": "152x152", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/180", "sizes": "180x180", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/192", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/192", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/pwa-icons/384", "sizes": "384x384", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/512", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa-icons/512", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ],
-  "shortcuts": [
-    {
-      "name": "Nuevo Pedido",
-      "short_name": "Pedido",
-      "description": "Crear un nuevo pedido",
-      "url": "/pedidos/nuevo",
-      "icons": [{ "src": "/pwa-icons/96", "sizes": "96x96" }]
-    },
-    {
-      "name": "Dashboard",
-      "short_name": "Inicio",
-      "description": "Ver el dashboard principal",
-      "url": "/dashboard",
-      "icons": [{ "src": "/pwa-icons/96", "sizes": "96x96" }]
-    },
-    {
-      "name": "Facturas",
-      "short_name": "Facturas",
-      "description": "Ver facturas",
-      "url": "/facturas",
-      "icons": [{ "src": "/pwa-icons/96", "sizes": "96x96" }]
-    }
-  ],
-  "screenshots": [],
-  "prefer_related_applications": false
+    { "src": "/icon", "sizes": "192x192", "type": "image/png" }
+  ]
 }

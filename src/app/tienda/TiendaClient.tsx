@@ -820,44 +820,42 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         cantidad: i.cantidad,
         precio_unitario: i.precio,
       }))
+
       const res = await fetch('/api/tienda/pedido', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items, notas, direccion_entrega: direccion }),
       })
 
-      let data: any = {}
-      try { data = await res.json() } catch { /* ignore */ }
-
       if (!res.ok) {
-        toast.error(data.error ?? 'Error al crear la orden')
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || `Error ${res.status}`)
+      }
+
+      const data = await res.json()
+
+      if (data.tipo === 'orden') {
+        // TYPE A — admin-approval flow: clear cart, notify, redirect
+        setCart([])
+        setConfirmOpen(false)
+        setCartOpen(false)
+        setNotas('')
+        toast.success('Orden enviada ✅ Pendiente de aprobación')
+        router.push('/tienda/mis-pedidos')
         return
       }
 
-      // TYPE B (direct client) — redirect to Stripe
       if (data.tipo === 'pago' && data.url) {
+        // TYPE B — Stripe checkout redirect
         toast.success('Redirigiendo al pago seguro…')
-        // Don't clear cart yet — leave for retry if user cancels at Stripe
         window.location.href = data.url
         return
       }
 
-      // TYPE A (credit client) — orden created, awaiting admin approval
-      if (data.tipo === 'orden' && data.numero) {
-        setCart([])
-        setConfirmOpen(false)
-        setCartOpen(false)
-        setSuccessOrder(data.numero)
-        setNotas('')
-        return
-      }
-
-      // Unexpected response
-      toast.error('Respuesta inesperada del servidor')
-      console.error('[tienda] unexpected response:', data)
-    } catch (err) {
+      throw new Error(data.error || 'Respuesta inesperada del servidor')
+    } catch (err: any) {
       console.error('[tienda] handleConfirmOrder threw:', err)
-      toast.error('Error de conexión. Intenta de nuevo.')
+      toast.error(err?.message ?? 'Error de conexión. Intenta de nuevo.')
     } finally {
       setOrdering(false)
     }

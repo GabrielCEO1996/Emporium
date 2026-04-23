@@ -37,6 +37,20 @@ function isMissingRelation(err: any): boolean {
   )
 }
 
+function isMissingColumn(err: any, column: string): boolean {
+  if (!err) return false
+  const code = err.code ?? err.details?.code
+  const msg = (err.message ?? '').toLowerCase()
+  const col = column.toLowerCase()
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    (msg.includes(col) && msg.includes('column')) ||
+    (msg.includes(col) && msg.includes('does not exist')) ||
+    (msg.includes(col) && msg.includes('could not find'))
+  )
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = createClient()
@@ -135,19 +149,42 @@ export async function POST(req: Request) {
     )
 
     // ── Sequence number helper ─────────────────────────────────────────────
-    const nextNumero = async (seqName: string, prefix: string): Promise<string> => {
+    // Tries the get_next_sequence RPC first; if missing/fails, queries the
+    // target table for the most recent `PREFIX-YYYY-NNNN` value and increments.
+    const nextNumero = async (
+      seqName: string,
+      prefix: string,
+      tableName: string,
+    ): Promise<string> => {
       const { data, error } = await supabase.rpc('get_next_sequence', { seq_name: seqName })
-      if (error || !data) {
-        console.warn(`[tienda/pedido] get_next_sequence('${seqName}') fallback:`, error?.message ?? 'no data')
-        return `${prefix}-${Date.now()}`
+      if (!error && typeof data === 'string' && data.length > 0) {
+        return data
       }
-      return data as string
+      if (error) {
+        console.warn(`[tienda/pedido] get_next_sequence('${seqName}') failed:`, error.message)
+      }
+
+      // Fallback: scan the table for the last numero of the current year.
+      const year = new Date().getFullYear()
+      const { data: last, error: scanErr } = await supabase
+        .from(tableName)
+        .select('numero')
+        .like('numero', `${prefix}-${year}-%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (scanErr && !isMissingRelation(scanErr)) {
+        console.warn(`[tienda/pedido] nextNumero scan('${tableName}') failed:`, scanErr.message)
+      }
+      const parts = last?.numero ? String(last.numero).split('-') : []
+      const lastNum = parts.length === 3 ? parseInt(parts[2], 10) || 0 : 0
+      return `${prefix}-${year}-${String(lastNum + 1).padStart(4, '0')}`
     }
 
     // ══════════════════════════════════════════════════════════════════════
     // PATH A — create ORDEN (preferred)
     // ══════════════════════════════════════════════════════════════════════
-    const ordenNumero = await nextNumero('ordenes', 'ORD')
+    const ordenNumero = await nextNumero('ordenes', 'ORD', 'ordenes')
 
     const { data: orden, error: ordenInsertErr } = await supabase
       .from('ordenes')
@@ -174,16 +211,26 @@ export async function POST(req: Request) {
       // ordenes table doesn't exist yet — fall through to PATH B
       console.warn('[tienda/pedido] ordenes table missing — falling back to pedidos')
     } else {
-      // Orden created — now insert items
-      const ordenItems = items.map((item: any) => ({
-        orden_id: orden.id,
-        presentacion_id: item.presentacion_id,
-        cantidad: Number(item.cantidad),
-        precio_unitario: Number(item.precio_unitario),
-        subtotal: Number(item.precio_unitario) * Number(item.cantidad),
-      }))
+      // Orden created — now insert items.
+      // Schema uses `precio_unitario`; retry with legacy `precio` column if needed.
+      const buildItems = (col: 'precio_unitario' | 'precio') =>
+        items.map((item: any) => ({
+          orden_id: orden.id,
+          presentacion_id: item.presentacion_id,
+          cantidad: Number(item.cantidad),
+          [col]: Number(item.precio_unitario),
+          subtotal: Number(item.precio_unitario) * Number(item.cantidad),
+        }))
 
-      const { error: itemsInsertErr } = await supabase.from('orden_items').insert(ordenItems)
+      let { error: itemsInsertErr } = await supabase
+        .from('orden_items')
+        .insert(buildItems('precio_unitario'))
+
+      if (itemsInsertErr && isMissingColumn(itemsInsertErr, 'precio_unitario')) {
+        console.warn('[tienda/pedido] orden_items.precio_unitario missing — retrying with `precio`')
+        const retry = await supabase.from('orden_items').insert(buildItems('precio'))
+        itemsInsertErr = retry.error
+      }
 
       if (itemsInsertErr) {
         // Roll back the orphaned orden
@@ -286,7 +333,7 @@ export async function POST(req: Request) {
     // Reached only when ordenes or orden_items table is missing.
     // ══════════════════════════════════════════════════════════════════════
     console.log('[tienda/pedido] PATH B: creating pedido directly')
-    const pedidoNumero = await nextNumero('pedidos', 'PED')
+    const pedidoNumero = await nextNumero('pedidos', 'PED', 'pedidos')
 
     const { data: pedido, error: pedidoInsertErr } = await supabase
       .from('pedidos')
