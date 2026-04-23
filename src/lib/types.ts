@@ -67,7 +67,7 @@ export interface Conductor {
   created_at: string
 }
 
-export type EstadoPedido = 'borrador' | 'confirmado' | 'en_ruta' | 'entregado' | 'cancelado' | 'facturado'
+export type EstadoPedido = 'borrador' | 'confirmado' | 'preparando' | 'despachado' | 'en_ruta' | 'entregado' | 'cancelado' | 'facturado'
 
 export interface Pedido {
   id: string

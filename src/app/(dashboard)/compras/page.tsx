@@ -9,11 +9,13 @@ export const dynamic = 'force-dynamic'
 
 const ESTADO_COLORS: Record<string, string> = {
   borrador: 'bg-amber-100 text-amber-700',
+  confirmada: 'bg-blue-100 text-blue-700',
   recibida: 'bg-green-100 text-green-700',
 }
 
 const ESTADO_LABELS: Record<string, string> = {
   borrador: 'Borrador',
+  confirmada: 'Confirmada',
   recibida: 'Recibida',
 }
 
@@ -39,7 +41,7 @@ export default async function ComprasPage() {
     .filter((c: any) => c.estado === 'recibida')
     .reduce((s: number, c: any) => s + (c.total ?? 0), 0)
 
-  const pendientes = (compras ?? []).filter((c: any) => c.estado === 'borrador').length
+  const pendientes = (compras ?? []).filter((c: any) => ['borrador', 'confirmada'].includes(c.estado)).length
 
   return (
     <div className="p-4 lg:p-8 space-y-6">

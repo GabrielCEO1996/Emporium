@@ -7,6 +7,10 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const { data: profile } = await supabase.from('profiles').select('rol, id').eq('id', user.id).single()
+  const isAdmin = profile?.rol === 'admin'
+  const isVendedor = profile?.rol === 'vendedor'
+
   const { searchParams } = new URL(request.url)
   const estado = searchParams.get('estado')
   const cliente_id = searchParams.get('cliente_id')
@@ -27,6 +31,9 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
+  // Vendedores only see their own pedidos (anti-fraud)
+  if (isVendedor) query = query.eq('vendedor_id', user.id)
+
   if (estado && estado !== 'todos') query = query.eq('estado', estado)
   if (cliente_id) query = query.eq('cliente_id', cliente_id)
   if (fecha_inicio) query = query.gte('fecha_pedido', fecha_inicio)
@@ -44,6 +51,11 @@ export async function POST(request: NextRequest) {
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', authUser.id).single()
+  if (!['admin', 'vendedor'].includes(profile?.rol ?? '')) {
+    return NextResponse.json({ error: 'Sin permiso para crear pedidos' }, { status: 403 })
+  }
+
   const body = await request.json()
   const { cliente_id, vendedor_id, items, descuento = 0, notas, direccion_entrega, fecha_entrega_estimada } = body
 
@@ -51,28 +63,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'cliente_id e items son requeridos' }, { status: 400 })
   }
 
-  // Generate sequence number
-  const { data: numData, error: numError } = await supabase
-    .rpc('get_next_sequence', { seq_name: 'pedidos' })
+  // Vendedores can only create pedidos in their own name
+  const effectiveVendedorId = profile?.rol === 'vendedor' ? authUser.id : (vendedor_id || null)
 
+  const { data: numData, error: numError } = await supabase.rpc('get_next_sequence', { seq_name: 'pedidos' })
   if (numError) return NextResponse.json({ error: numError.message }, { status: 500 })
 
-  // Calculate totals
   const subtotal = items.reduce((acc: number, item: any) => acc + item.subtotal, 0)
-  const base_imponible = subtotal - descuento
-  const impuesto = 0
-  const total = base_imponible
+  const total = subtotal - descuento
 
   const { data: pedido, error: pedidoError } = await supabase
     .from('pedidos')
     .insert({
       numero: numData,
       cliente_id,
-      vendedor_id: vendedor_id || null,
+      vendedor_id: effectiveVendedorId,
       estado: 'borrador',
       subtotal,
       descuento,
-      impuesto,
+      impuesto: 0,
       total,
       notas,
       direccion_entrega,
@@ -83,7 +92,6 @@ export async function POST(request: NextRequest) {
 
   if (pedidoError) return NextResponse.json({ error: pedidoError.message }, { status: 500 })
 
-  // Insert items
   const pedidoItems = items.map((item: any) => ({
     pedido_id: pedido.id,
     presentacion_id: item.presentacion_id,
@@ -94,7 +102,6 @@ export async function POST(request: NextRequest) {
   }))
 
   const { error: itemsError } = await supabase.from('pedido_items').insert(pedidoItems)
-
   if (itemsError) {
     await supabase.from('pedidos').delete().eq('id', pedido.id)
     return NextResponse.json({ error: itemsError.message }, { status: 500 })

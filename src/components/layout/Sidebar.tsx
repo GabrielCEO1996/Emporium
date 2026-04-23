@@ -58,7 +58,7 @@ const allNavItems: NavItem[] = [
 ]
 
 // Rutas bloqueadas para vendedores
-const adminOnlyHrefs = new Set(['/historial', '/configuracion', '/reportes', '/equipo', '/finanzas', '/compras', '/proveedores', '/inventario'])
+const adminOnlyHrefs = new Set(['/historial', '/configuracion', '/reportes', '/equipo', '/finanzas', '/compras', '/proveedores', '/inventario', '/rutas'])
 
 interface SidebarProps {
   profile: Profile | null

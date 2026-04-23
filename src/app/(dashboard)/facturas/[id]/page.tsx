@@ -21,12 +21,12 @@ import {
   FileMinus,
 } from 'lucide-react'
 import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
-import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
 import MarcarEnviadaButton from '@/components/facturas/MarcarEnviadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
 import AnularFacturaButton from '@/components/facturas/AnularFacturaButton'
 import EnviarEmailButton from '@/components/facturas/EnviarEmailButton'
+import RegistrarPagoButton from '@/components/facturas/RegistrarPagoButton'
 import { Profile } from '@/lib/types'
 
 interface PageProps {
@@ -118,9 +118,13 @@ export default async function FacturaDetailPage({ params }: PageProps) {
               <MarcarEnviadaButton facturaId={f.id} />
             )}
 
-            {/* enviada → can only advance to "pagada" */}
-            {f.estado === 'enviada' && (
-              <MarcarPagadaButton facturaId={f.id} />
+            {/* enviada → can only advance to "pagada" (admin: registra método de pago) */}
+            {f.estado === 'enviada' && isAdmin && (
+              <RegistrarPagoButton facturaId={f.id} total={f.total} />
+            )}
+            {/* emitida → also allow payment if admin wants to skip enviada step */}
+            {f.estado === 'emitida' && isAdmin && (
+              <RegistrarPagoButton facturaId={f.id} total={f.total} />
             )}
 
             {/* pagada → can only be anulada */}

@@ -17,8 +17,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     .single()
 
   if (!compra) return NextResponse.json({ error: 'Compra no encontrada' }, { status: 404 })
-  if (compra.estado !== 'borrador') {
-    return NextResponse.json({ error: 'Solo se pueden recibir compras en estado borrador' }, { status: 400 })
+  if (!['borrador', 'confirmada'].includes(compra.estado)) {
+    return NextResponse.json({ error: 'Solo se pueden recibir compras en borrador o confirmada' }, { status: 400 })
   }
 
   const items: any[] = compra.items ?? []

@@ -5,6 +5,7 @@ import { ArrowLeft, ShoppingBag, CalendarDays, Truck, PackageCheck, Clock } from
 import { formatCurrency, formatDate } from '@/lib/utils'
 import EliminarCompraButton from '../EliminarCompraButton'
 import MarcarRecibidaButton from '@/components/compras/MarcarRecibidaButton'
+import ConfirmarCompraButton from '@/components/compras/ConfirmarCompraButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,11 +15,13 @@ interface PageProps {
 
 const ESTADO_COLORS: Record<string, string> = {
   borrador: 'bg-amber-100 text-amber-700',
+  confirmada: 'bg-blue-100 text-blue-700',
   recibida: 'bg-green-100 text-green-700',
 }
 
 const ESTADO_LABELS: Record<string, string> = {
   borrador: 'Borrador',
+  confirmada: 'Confirmada',
   recibida: 'Recibida',
 }
 
@@ -51,6 +54,7 @@ export default async function CompraDetailPage({ params }: PageProps) {
 
   const c = compra as any
   const isBorrador = c.estado === 'borrador'
+  const isConfirmada = c.estado === 'confirmada'
   const isRecibida = c.estado === 'recibida'
 
   return (
@@ -85,7 +89,8 @@ export default async function CompraDetailPage({ params }: PageProps) {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            {isBorrador && <MarcarRecibidaButton compraId={c.id} />}
+            {isBorrador && <ConfirmarCompraButton compraId={c.id} />}
+            {(isBorrador || c.estado === 'confirmada') && <MarcarRecibidaButton compraId={c.id} />}
             <EliminarCompraButton compraId={c.id} />
           </div>
         </div>
@@ -99,8 +104,22 @@ export default async function CompraDetailPage({ params }: PageProps) {
             <div>
               <p className="font-semibold text-amber-800">Compra en borrador</p>
               <p className="text-sm text-amber-700">
-                El inventario <strong>no ha sido actualizado</strong> todavía. Haz clic en
-                "Marcar como Recibida" para confirmar la recepción y actualizar el stock.
+                Confirma la orden de compra con el proveedor antes de recibirla.
+                El inventario solo se actualizará al marcarla como recibida.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmada notice */}
+        {isConfirmada && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
+            <PackageCheck className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-blue-800">Orden confirmada</p>
+              <p className="text-sm text-blue-700">
+                La orden de compra fue confirmada. Cuando llegue la mercancía, haz clic en
+                "Marcar como Recibida" para actualizar el inventario.
               </p>
             </div>
           </div>
