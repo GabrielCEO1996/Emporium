@@ -827,32 +827,28 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         body: JSON.stringify({ items, notas, direccion_entrega: direccion }),
       })
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}))
-        throw new Error(errorData.error || `Error ${res.status}`)
-      }
+      const data = await res.json().catch(() => ({} as any))
 
-      const data = await res.json()
-
-      if (data.tipo === 'orden') {
-        // TYPE A — admin-approval flow: clear cart, notify, redirect
-        setCart([])
-        setConfirmOpen(false)
-        setCartOpen(false)
-        setNotas('')
-        toast.success('Orden enviada ✅ Pendiente de aprobación')
-        router.push('/tienda/mis-pedidos')
+      if (!res.ok || !data.success) {
+        toast.error(data.error || 'Error al enviar la orden')
+        setOrdering(false)
         return
       }
 
+      // Stripe redirect branch (comprador)
       if (data.tipo === 'pago' && data.url) {
-        // TYPE B — Stripe checkout redirect
         toast.success('Redirigiendo al pago seguro…')
         window.location.href = data.url
         return
       }
 
-      throw new Error(data.error || 'Respuesta inesperada del servidor')
+      // SUCCESS — admin-approval orden
+      setCart([])
+      setConfirmOpen(false)
+      setCartOpen(false)
+      setNotas('')
+      router.push('/tienda/mis-pedidos')
+      toast.success(`Orden ${data.numero ?? ''} enviada correctamente`)
     } catch (err: any) {
       console.error('[tienda] handleConfirmOrder threw:', err)
       toast.error(err?.message ?? 'Error de conexión. Intenta de nuevo.')
