@@ -6,11 +6,11 @@ import { rateLimit, rateLimitResponse } from '@/lib/security'
 // ─── POST /api/tienda/pedido ────────────────────────────────────────────────
 // Single entrypoint for the tienda cart.
 //
-// Always creates an ORDEN (estado='pendiente'), then branches on the client:
-//   • credito_autorizado = TRUE  → orden stays pendiente, admin approves
+// Always creates an ORDEN (estado='pendiente'), then branches on profiles.rol:
+//   • rol = 'cliente'    → orden stays pendiente, admin approves manually
 //       Response: { tipo: 'orden', numero, orden_id }
 //
-//   • credito_autorizado = FALSE → creates a Stripe checkout session with
+//   • rol = 'comprador'  → creates a Stripe checkout session with
 //       `orden_id` in the metadata. The Stripe webhook converts the orden
 //       into pedido + factura(pagada) + transaccion(ingreso) on payment.
 //       Response: { tipo: 'pago', url, numero, orden_id }
@@ -53,6 +53,12 @@ export async function POST(req: Request) {
     if (!rateLimit(`tienda_orden:${user.id}`, 20, 60 * 60 * 1000)) {
       return rateLimitResponse(60 * 60 * 1000)
     }
+
+    // Resolve rol — drives the entire flow branch later.
+    const { data: profileRow } = await supabase
+      .from('profiles').select('rol').eq('id', user.id).maybeSingle()
+    const rol: string = profileRow?.rol ?? 'comprador'
+    const canCreateOrdenes = rol === 'cliente'
 
     // Parse body safely
     let body: any
@@ -139,7 +145,6 @@ export async function POST(req: Request) {
     }
 
     const cliente_id = clienteData!.id
-    const creditoAutorizado = !!clienteData!.credito_autorizado
 
     const total = items.reduce(
       (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
@@ -197,9 +202,9 @@ export async function POST(req: Request) {
         }
         console.warn('[tienda/pedido] orden_items missing — fallback to pedidos')
       } else {
-        // ── Branch on credit ─────────────────────────────────────────────
-        if (creditoAutorizado) {
-          // TYPE A — admin approval flow
+        // ── Branch on rol ─────────────────────────────────────────────
+        if (canCreateOrdenes) {
+          // TYPE A — rol='cliente': admin approval flow, no payment upfront
           return NextResponse.json(
             {
               success: true,
@@ -211,7 +216,7 @@ export async function POST(req: Request) {
           )
         }
 
-        // TYPE B — Stripe checkout for direct clients
+        // TYPE B — rol='comprador': Stripe checkout (required)
         if (!process.env.STRIPE_SECRET_KEY) {
           console.error('[tienda/pedido] STRIPE_SECRET_KEY missing')
           // Roll back the orden so the client can retry later
@@ -301,7 +306,7 @@ export async function POST(req: Request) {
         cliente_id,
         vendedor_id: null,
         estado: 'borrador',
-        tipo_pago: creditoAutorizado ? 'credito' : 'pendiente',
+        tipo_pago: canCreateOrdenes ? 'credito' : 'pendiente',
         subtotal: total,
         descuento: 0,
         impuesto: 0,

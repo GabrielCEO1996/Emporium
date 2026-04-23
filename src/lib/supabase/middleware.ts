@@ -122,7 +122,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     .eq('id', user.id)
     .maybeSingle()
 
-  const rol: string = profile?.rol ?? 'cliente'
+  const rol: string = profile?.rol ?? 'comprador'
 
   // ── 5. Role-based routing ──────────────────────────────────────────────────
 
@@ -132,8 +132,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     return supabaseResponse
   }
 
-  // cliente: can only access /tienda/*
-  if (rol === 'cliente') {
+  // cliente + comprador: can only access /tienda/*
+  if (rol === 'cliente' || rol === 'comprador') {
     if (pathname.startsWith('/tienda')) return supabaseResponse
     // Any other authenticated route → send to tienda
     return redirect(request, '/tienda')

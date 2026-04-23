@@ -195,7 +195,7 @@ function ProductCard({
 // ── Cart Panel ────────────────────────────────────────────────────────────────
 function CartPanel({
   items, open, onClose, onUpdate, onRemove, onCheckout,
-  creditoAutorizado, limiteCredito, creditoUsado,
+  canCreateOrdenes, creditoAutorizado, limiteCredito, creditoUsado,
 }: {
   items: CartItem[]
   open: boolean
@@ -203,6 +203,7 @@ function CartPanel({
   onUpdate: (id: string, delta: number) => void
   onRemove: (id: string) => void
   onCheckout: () => void
+  canCreateOrdenes: boolean   // rol='cliente' → admin-approval flow; else Stripe
   creditoAutorizado?: boolean
   limiteCredito?: number
   creditoUsado?: number
@@ -298,8 +299,8 @@ function CartPanel({
                   <span className="text-xl font-black text-slate-800 dark:text-white">{formatCurrency(total)}</span>
                 </div>
 
-                {/* Credit balance display (informational) */}
-                {creditoAutorizado && (
+                {/* Credit balance display (informational, only for authorized clientes) */}
+                {canCreateOrdenes && creditoAutorizado && (
                   <div className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                     <span className="font-medium">Crédito disponible</span>
                     <span className="font-bold">{formatCurrency(creditoDisponible)}</span>
@@ -308,13 +309,13 @@ function CartPanel({
 
                 {/* Flow explainer */}
                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-snug">
-                  {creditoAutorizado
+                  {canCreateOrdenes
                     ? 'Tu orden será enviada al administrador para aprobación. Te notificaremos cuando esté lista.'
                     : 'Al continuar serás redirigido al pago seguro con tarjeta. Tu pedido se activa automáticamente tras el pago.'}
                 </p>
 
-                {/* Single CTA — branch on credit */}
-                {creditoAutorizado ? (
+                {/* Single CTA — branch on rol */}
+                {canCreateOrdenes ? (
                   <button
                     onClick={onCheckout}
                     className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -343,17 +344,17 @@ function CartPanel({
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 function ConfirmModal({
   items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
-  creditoAutorizado,
+  canCreateOrdenes,
 }: {
   items: CartItem[]; open: boolean; onClose: () => void; onConfirm: () => void
   loading: boolean; notas: string; setNotas: (v: string) => void
   direccion: string; setDireccion: (v: string) => void
-  creditoAutorizado: boolean
+  canCreateOrdenes: boolean
 }) {
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
-  // isCredito drives the "credit / admin approval" styling;
-  // when false the modal drives the Stripe payment flow.
-  const isCredito = creditoAutorizado
+  // isCredito drives the "orden / admin approval" styling (rol=cliente);
+  // when false the modal drives the Stripe payment flow (rol=comprador).
+  const isCredito = canCreateOrdenes
 
   if (!open) return null
 
@@ -680,7 +681,11 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const router = useRouter()
   const supabase = createClient()
 
-  // Credit info
+  // Rol-based flow branching:
+  //   rol='cliente'   → admin-approval flow (Confirmar Orden, no payment upfront)
+  //   rol='comprador' → Stripe-only flow (Pagar con tarjeta)
+  // Credit info still shown informationally if present on the linked cliente row.
+  const canCreateOrdenes = profile.rol === 'cliente'
   const creditoAutorizado = clienteInfo?.credito_autorizado ?? false
   const limiteCredito = clienteInfo?.limite_credito ?? 0
   const [creditoUsado, setCreditoUsado] = useState(clienteInfo?.credito_usado ?? 0)
@@ -1094,6 +1099,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         onUpdate={updateCart}
         onRemove={removeFromCart}
         onCheckout={() => { setCartOpen(false); setConfirmOpen(true) }}
+        canCreateOrdenes={canCreateOrdenes}
         creditoAutorizado={creditoAutorizado}
         limiteCredito={limiteCredito}
         creditoUsado={creditoUsado}
@@ -1109,7 +1115,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         setNotas={setNotas}
         direccion={direccion}
         setDireccion={setDireccion}
-        creditoAutorizado={creditoAutorizado}
+        canCreateOrdenes={canCreateOrdenes}
       />
 
       <ChatPanel

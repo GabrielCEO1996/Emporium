@@ -1,16 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, Shield, ShoppingBag, Truck, Clock, UserCheck, UserX, Users } from 'lucide-react'
+import { CheckCircle2, XCircle, Shield, ShoppingBag, Truck, Clock, UserCheck, UserX, Users, CreditCard, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Profile, Rol } from '@/lib/types'
 
 const ROL_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  admin:     { label: 'Admin',     color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300', icon: <Shield className="w-3 h-3" /> },
-  vendedor:  { label: 'Vendedor',  color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',         icon: <ShoppingBag className="w-3 h-3" /> },
-  conductor: { label: 'Conductor', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',     icon: <Truck className="w-3 h-3" /> },
-  pendiente: { label: 'Pendiente', color: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',        icon: <Clock className="w-3 h-3" /> },
-  cliente:   { label: 'Cliente',   color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',            icon: <Users className="w-3 h-3" /> },
+  admin:     { label: 'Admin',              color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300', icon: <Shield className="w-3 h-3" /> },
+  vendedor:  { label: 'Vendedor',           color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',         icon: <ShoppingBag className="w-3 h-3" /> },
+  conductor: { label: 'Conductor',          color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',     icon: <Truck className="w-3 h-3" /> },
+  pendiente: { label: 'Pendiente',          color: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',        icon: <Clock className="w-3 h-3" /> },
+  cliente:   { label: 'Cliente autorizado', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',              icon: <Star className="w-3 h-3" /> },
+  comprador: { label: 'Comprador',          color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300', icon: <CreditCard className="w-3 h-3" /> },
 }
 
 interface Props {
@@ -41,8 +42,11 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
   }
 
   const pendientes = profiles.filter(p => p.rol === 'pendiente')
+  const compradores = profiles.filter(p => p.rol === 'comprador')
   const clientes = profiles.filter(p => p.rol === 'cliente')
-  const activos = profiles.filter(p => p.rol !== 'pendiente' && p.rol !== 'cliente')
+  const activos = profiles.filter(
+    p => p.rol !== 'pendiente' && p.rol !== 'cliente' && p.rol !== 'comprador'
+  )
 
   return (
     <div className="space-y-6">
@@ -97,16 +101,68 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
         </div>
       )}
 
-      {/* ── Clientes registrados (solicitudes de acceso pendientes o solo portal) ── */}
+      {/* ── Compradores (Stripe-only, can be promoted to cliente) ── */}
+      {isAdmin && compradores.length > 0 && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-indigo-200 dark:border-indigo-800">
+            <CreditCard className="w-4 h-4 text-indigo-600" />
+            <h2 className="font-semibold text-sm text-indigo-800 dark:text-indigo-300">
+              Compradores
+            </h2>
+            <span className="ml-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {compradores.length}
+            </span>
+            <span className="text-xs text-indigo-500/80 ml-1 hidden sm:inline">
+              · solo pagan con tarjeta
+            </span>
+          </div>
+          <div className="divide-y divide-indigo-100 dark:divide-indigo-800/50">
+            {compradores.map(p => {
+              const busy = saving === p.id
+              return (
+                <div key={p.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <div className="w-9 h-9 rounded-full bg-indigo-200 dark:bg-indigo-800 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm flex-shrink-0">
+                    {p.nombre?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{p.nombre}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.email}</p>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/40 rounded-full px-2 py-0.5 mt-1">
+                      <CreditCard className="w-2.5 h-2.5" />
+                      Comprador
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      disabled={busy}
+                      onClick={() => update(p.id, { rol: 'cliente' as Rol, activo: true })}
+                      title="Autorizar al comprador para crear órdenes como cliente (sin pago inmediato)"
+                      className="flex items-center gap-1.5 text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all"
+                    >
+                      <Star className="w-3.5 h-3.5" />
+                      Autorizar como Cliente
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Clientes autorizados (pueden crear órdenes sin pago inmediato) ── */}
       {isAdmin && clientes.length > 0 && (
         <div className="bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-800 rounded-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3.5 border-b border-sky-200 dark:border-sky-800">
-            <Users className="w-4 h-4 text-sky-600" />
+            <Star className="w-4 h-4 text-sky-600" />
             <h2 className="font-semibold text-sm text-sky-800 dark:text-sky-300">
-              Clientes registrados
+              Clientes autorizados
             </h2>
             <span className="ml-1 bg-sky-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
               {clientes.length}
+            </span>
+            <span className="text-xs text-sky-500/80 ml-1 hidden sm:inline">
+              · crean órdenes para aprobación
             </span>
           </div>
           <div className="divide-y divide-sky-100 dark:divide-sky-800/50">
@@ -120,8 +176,21 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{p.nombre}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{p.email}</p>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/40 rounded-full px-2 py-0.5 mt-1">
+                      <Star className="w-2.5 h-2.5" />
+                      Cliente autorizado
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      disabled={busy}
+                      onClick={() => update(p.id, { rol: 'comprador' as Rol })}
+                      title="Revocar autorización — volverá a pagar con tarjeta"
+                      className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      Revocar
+                    </button>
                     <button
                       disabled={busy}
                       onClick={() => update(p.id, { rol: 'vendedor' as Rol, activo: true })}
@@ -129,7 +198,7 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
                       className="flex items-center gap-1.5 text-xs font-semibold bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-50 transition-all"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
-                      Dar acceso
+                      A Vendedor
                     </button>
                   </div>
                 </div>
@@ -188,7 +257,8 @@ export default function EquipoClient({ initialProfiles, currentUserId, isAdmin }
                           <option value="admin">Admin</option>
                           <option value="vendedor">Vendedor</option>
                           <option value="conductor">Conductor</option>
-                          <option value="cliente">Cliente</option>
+                          <option value="cliente">Cliente autorizado</option>
+                          <option value="comprador">Comprador</option>
                         </select>
                       ) : (
                         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${rolCfg.color}`}>
