@@ -44,6 +44,13 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   if (!compra) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
+  // Only reverse stock when the compra was already received (borrador never touched stock)
+  if (compra.estado !== 'recibida') {
+    const { error } = await supabase.from('compras').delete().eq('id', params.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   // Reverse stock for all items in parallel
   await Promise.all((compra.items ?? []).map(async (item: any) => {
     const { data: pres } = await supabase

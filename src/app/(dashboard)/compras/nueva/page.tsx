@@ -28,7 +28,7 @@ export default async function NuevaCompraPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Registrar compra</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          El stock se actualizará automáticamente al guardar
+          La compra se guarda en borrador. El inventario se actualiza al marcarla como recibida.
         </p>
       </div>
       <NuevaCompraClient

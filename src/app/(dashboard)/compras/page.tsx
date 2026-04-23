@@ -1,11 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ShoppingBag, Plus, Trash2, CalendarDays, Truck } from 'lucide-react'
+import { ShoppingBag, Plus, CalendarDays, Truck, Eye, AlertCircle } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import EliminarCompraButton from './EliminarCompraButton'
 
 export const dynamic = 'force-dynamic'
+
+const ESTADO_COLORS: Record<string, string> = {
+  borrador: 'bg-amber-100 text-amber-700',
+  recibida: 'bg-green-100 text-green-700',
+}
+
+const ESTADO_LABELS: Record<string, string> = {
+  borrador: 'Borrador',
+  recibida: 'Recibida',
+}
 
 export default async function ComprasPage() {
   const supabase = createClient()
@@ -15,20 +25,21 @@ export default async function ComprasPage() {
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') redirect('/dashboard')
 
-  const { data: compras } = await supabase
+  const { data: compras, error } = await supabase
     .from('compras')
     .select(`
       id, fecha, total, estado, notas, created_at,
       proveedor:proveedores(id, nombre, empresa),
-      items:compra_items(id, cantidad, precio_costo,
-        presentacion:presentaciones(id, nombre, productos(nombre))
-      )
+      compra_items(id)
     `)
     .order('fecha', { ascending: false })
     .limit(100)
 
-  const totalComprado = (compras ?? []).reduce((s, c) => s + (c.total ?? 0), 0)
-  const totalItems = (compras ?? []).reduce((s, c) => s + (c.items?.length ?? 0), 0)
+  const totalComprado = (compras ?? [])
+    .filter((c: any) => c.estado === 'recibida')
+    .reduce((s: number, c: any) => s + (c.total ?? 0), 0)
+
+  const pendientes = (compras ?? []).filter((c: any) => c.estado === 'borrador').length
 
   return (
     <div className="p-4 lg:p-8 space-y-6">
@@ -53,19 +64,29 @@ export default async function ComprasPage() {
         </Link>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          Error al cargar compras: {error.message}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-xs text-slate-500 font-medium">Total invertido</p>
+          <p className="text-xs text-slate-500 font-medium">Total recibido</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(totalComprado)}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-xs text-slate-500 font-medium">Compras realizadas</p>
+          <p className="text-xs text-slate-500 font-medium">Compras totales</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{(compras ?? []).length}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-xs text-slate-500 font-medium">Líneas de productos</p>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{totalItems}</p>
+          <p className="text-xs text-slate-500 font-medium">Pendientes de recibir</p>
+          <p className={`text-2xl font-bold mt-1 ${pendientes > 0 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
+            {pendientes}
+          </p>
         </div>
       </div>
 
@@ -86,51 +107,73 @@ export default async function ComprasPage() {
                 <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Fecha</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Proveedor</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Productos</th>
+                  <th className="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Estado</th>
+                  <th className="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Items</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>
-                  <th className="px-5 py-3 w-12" />
+                  <th className="px-5 py-3 w-28" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                {compras.map((c: any) => (
+                {(compras as any[]).map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+                    {/* Fecha */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                         <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
                         {formatDate(c.fecha)}
                       </div>
                     </td>
+
+                    {/* Proveedor */}
                     <td className="px-5 py-4">
                       {c.proveedor ? (
-                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
-                          <Truck className="w-3.5 h-3.5 text-slate-400" />
+                        <div className="flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                           <div>
-                            <p className="font-medium text-sm">{c.proveedor.nombre}</p>
-                            {c.proveedor.empresa && <p className="text-xs text-slate-400">{c.proveedor.empresa}</p>}
+                            <p className="font-medium text-slate-700 dark:text-slate-200">{c.proveedor.nombre}</p>
+                            {c.proveedor.empresa && (
+                              <p className="text-xs text-slate-400">{c.proveedor.empresa}</p>
+                            )}
                           </div>
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs">Sin proveedor</span>
                       )}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {(c.items ?? []).slice(0, 3).map((item: any) => (
-                          <span key={item.id} className="text-xs bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-2 py-0.5 rounded-full">
-                            {item.presentacion?.productos?.nombre ?? '?'} ×{item.cantidad}
-                          </span>
-                        ))}
-                        {(c.items ?? []).length > 3 && (
-                          <span className="text-xs text-slate-400">+{(c.items ?? []).length - 3} más</span>
-                        )}
-                      </div>
-                      {c.notas && <p className="text-xs text-slate-400 mt-1 truncate max-w-xs">{c.notas}</p>}
+
+                    {/* Estado */}
+                    <td className="px-5 py-4 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          ESTADO_COLORS[c.estado] ?? 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {ESTADO_LABELS[c.estado] ?? c.estado}
+                      </span>
                     </td>
+
+                    {/* Items count */}
+                    <td className="px-5 py-4 text-center text-slate-600 dark:text-slate-300">
+                      {(c.compra_items ?? []).length}
+                    </td>
+
+                    {/* Total */}
                     <td className="px-5 py-4 text-right font-bold text-slate-900 dark:text-white">
                       {formatCurrency(c.total)}
                     </td>
+
+                    {/* Actions */}
                     <td className="px-5 py-4">
-                      <EliminarCompraButton compraId={c.id} />
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href={`/compras/${c.id}`}
+                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-700 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Ver detalle
+                        </Link>
+                        <EliminarCompraButton compraId={c.id} />
+                      </div>
                     </td>
                   </tr>
                 ))}

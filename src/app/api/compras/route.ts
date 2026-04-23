@@ -6,7 +6,6 @@ export async function GET(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Purchase history contains cost data — admin only
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
 
@@ -51,9 +50,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Debes agregar al menos un producto' }, { status: 400 })
   }
 
-  // Validate items
   for (const item of items) {
-    if (!item.presentacion_id || !item.cantidad || !item.precio_costo) {
+    if (!item.presentacion_id || !item.cantidad || item.precio_costo == null) {
       return NextResponse.json({ error: 'Todos los items deben tener presentación, cantidad y costo' }, { status: 400 })
     }
   }
@@ -62,14 +60,14 @@ export async function POST(req: Request) {
     (sum: number, i: any) => sum + Number(i.cantidad) * Number(i.precio_costo), 0
   )
 
-  // Create compra
+  // Create compra in borrador state — inventory is NOT updated yet
   const { data: compra, error: compraError } = await supabase
     .from('compras')
     .insert({
       proveedor_id: proveedor_id || null,
       fecha: fecha || new Date().toISOString().split('T')[0],
       total,
-      estado: 'recibida',
+      estado: 'borrador',
       notas: notas?.trim() || null,
     })
     .select()
@@ -79,54 +77,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: compraError?.message ?? 'Error al crear compra' }, { status: 500 })
   }
 
-  // Create items
+  // Insert items with subtotal
   const itemsToInsert = items.map((i: any) => ({
     compra_id: compra.id,
     presentacion_id: i.presentacion_id,
     cantidad: Number(i.cantidad),
     precio_costo: Number(i.precio_costo),
+    subtotal: Number(i.cantidad) * Number(i.precio_costo),
   }))
 
   const { error: itemsError } = await supabase.from('compra_items').insert(itemsToInsert)
   if (itemsError) {
-    // Rollback compra
     await supabase.from('compras').delete().eq('id', compra.id)
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
-
-  // Update stock + costo for all items in parallel (replaces two sequential loops)
-  await Promise.all(items.map(async (item: any) => {
-    const { error: rpcError } = await supabase.rpc('increment_stock', {
-      p_id: item.presentacion_id,
-      p_amount: Number(item.cantidad),
-    })
-
-    if (rpcError) {
-      // Fallback: read current stock and update inline with costo
-      const { data: pres } = await supabase
-        .from('presentaciones')
-        .select('stock')
-        .eq('id', item.presentacion_id)
-        .single()
-      if (pres) {
-        await supabase
-          .from('presentaciones')
-          .update({
-            stock: (pres.stock ?? 0) + Number(item.cantidad),
-            costo: Number(item.precio_costo),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', item.presentacion_id)
-        return
-      }
-    }
-
-    // RPC succeeded — update costo separately
-    await supabase
-      .from('presentaciones')
-      .update({ costo: Number(item.precio_costo), updated_at: new Date().toISOString() })
-      .eq('id', item.presentacion_id)
-  }))
 
   return NextResponse.json(compra, { status: 201 })
 }
