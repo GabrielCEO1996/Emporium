@@ -18,21 +18,42 @@ export default async function MisPedidosPage() {
 
   const clienteId = clienteData?.id ?? null
 
-  const pedidos = clienteId
-    ? (await supabase
-        .from('pedidos')
-        .select(`
-          id, numero, estado, fecha_pedido, total, notas,
-          pedido_items(
-            id, cantidad, precio_unitario, subtotal, presentacion_id,
-            presentaciones(nombre, precio, stock, productos(nombre))
-          )
-        `)
-        .eq('cliente_id', clienteId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      ).data ?? []
-    : []
+  const [pedidosRes, ordenesRes] = await Promise.all([
+    clienteId
+      ? supabase
+          .from('pedidos')
+          .select(`
+            id, numero, estado, fecha_pedido, total, notas,
+            pedido_items(
+              id, cantidad, precio_unitario, subtotal, presentacion_id,
+              presentaciones(nombre, precio, stock, productos(nombre))
+            )
+          `)
+          .eq('cliente_id', clienteId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase
+      .from('ordenes')
+      .select(`
+        id, numero, estado, total, notas, motivo_rechazo, created_at,
+        orden_items(
+          id, cantidad, precio_unitario, subtotal,
+          presentaciones(nombre, productos(nombre))
+        ),
+        pedido:pedidos!pedidos_orden_id_fkey(id, numero, estado)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
 
-  return <MisPedidosClient pedidos={pedidos as any[]} clienteId={clienteId} />
+  return (
+    <MisPedidosClient
+      pedidos={(pedidosRes.data ?? []) as any[]}
+      ordenes={(ordenesRes.data ?? []) as any[]}
+      clienteId={clienteId}
+      userId={user.id}
+    />
+  )
 }

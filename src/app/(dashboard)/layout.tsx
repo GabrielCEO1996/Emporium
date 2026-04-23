@@ -21,7 +21,7 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  const [{ data: profile }, { data: stockBajo }] = await Promise.all([
+  const [{ data: profile }, { data: stockBajo }, { count: pendingOrdenes }] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('presentaciones')
@@ -30,6 +30,10 @@ export default async function DashboardLayout({
       .eq('activo', true)
       .order('stock', { ascending: true })
       .limit(20),
+    supabase
+      .from('ordenes')
+      .select('id', { count: 'exact', head: true })
+      .eq('estado', 'pendiente'),
   ])
 
   const stockAlertas = stockBajo?.length || 0
@@ -46,7 +50,11 @@ export default async function DashboardLayout({
     <div className="flex h-screen gradient-mesh overflow-hidden">
       <KeyboardShortcutsInit />
       <CommandPalette />
-      <Sidebar profile={profile as Profile | null} stockAlertas={stockAlertas} />
+      <Sidebar
+        profile={profile as Profile | null}
+        stockAlertas={stockAlertas}
+        pendingOrdenes={pendingOrdenes ?? 0}
+      />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar with search */}
         <header className="hidden lg:flex h-14 glass-card items-center justify-between px-6 flex-shrink-0 z-10">

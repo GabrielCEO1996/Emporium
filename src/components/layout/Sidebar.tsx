@@ -26,8 +26,9 @@ import {
   DollarSign,
   ShoppingBag,
   Warehouse,
+  Inbox,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Profile } from '@/lib/types'
@@ -45,6 +46,7 @@ const allNavItems: NavItem[] = [
   { href: '/inventario', label: 'Inventario', icon: Warehouse },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+  { href: '/ordenes', label: 'Órdenes', shortLabel: 'Órdenes', icon: Inbox },
   { href: '/facturas', label: 'Facturas', icon: ReceiptText },
   { href: '/notas-credito', label: 'Notas de Crédito', shortLabel: 'N. Crédito', icon: FileMinus },
   { href: '/historial', label: 'Historial', icon: History },
@@ -63,9 +65,10 @@ const adminOnlyHrefs = new Set(['/historial', '/configuracion', '/reportes', '/e
 interface SidebarProps {
   profile: Profile | null
   stockAlertas?: number
+  pendingOrdenes?: number
 }
 
-export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
+export default function Sidebar({ profile, stockAlertas = 0, pendingOrdenes = 0 }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -73,8 +76,30 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
   const supabase = createClient()
 
   const isAdmin = profile?.rol === 'admin'
+  const isStaff = isAdmin || profile?.rol === 'vendedor'
   const navItems = isAdmin ? allNavItems : allNavItems.filter(i => !adminOnlyHrefs.has(i.href))
   const bottomNavItems = navItems.slice(0, 5)
+
+  // ── Realtime pending-orden count ──────────────────────────────────────────
+  // Kickstarts from the server-rendered prop, then listens for inserts /
+  // updates on `ordenes` and re-fetches the pendiente count.
+  const [pendingCount, setPendingCount] = useState(pendingOrdenes)
+  useEffect(() => { setPendingCount(pendingOrdenes) }, [pendingOrdenes])
+  useEffect(() => {
+    if (!isStaff) return
+    const refresh = async () => {
+      const { count } = await supabase
+        .from('ordenes')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'pendiente')
+      if (typeof count === 'number') setPendingCount(count)
+    }
+    const channel = supabase
+      .channel('ordenes-pending-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes' }, refresh)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [isStaff, supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -106,6 +131,15 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
             collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'
           )}>
             {stockAlertas > 9 ? '9+' : stockAlertas}
+          </span>
+        )}
+        {item.href === '/ordenes' && pendingCount > 0 && (
+          <span className={cn(
+            'flex-shrink-0 text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center',
+            isActive ? 'bg-white text-teal-600' : 'bg-amber-500 text-white',
+            collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'
+          )}>
+            {pendingCount > 9 ? '9+' : pendingCount}
           </span>
         )}
       </Link>
@@ -244,6 +278,11 @@ export default function Sidebar({ profile, stockAlertas = 0 }: SidebarProps) {
                 {item.href === '/productos' && stockAlertas > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                     {stockAlertas > 9 ? '9+' : stockAlertas}
+                  </span>
+                )}
+                {item.href === '/ordenes' && pendingCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center leading-none">
+                    {pendingCount > 9 ? '9+' : pendingCount}
                   </span>
                 )}
               </div>

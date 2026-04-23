@@ -65,8 +65,8 @@ function SuccessContent() {
         <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">¡Pago exitoso!</h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs">
           {orderNum
-            ? <>Tu pedido <span className="font-bold text-teal-600">{orderNum}</span> fue creado y está siendo procesado.</>
-            : 'Tu pago fue procesado correctamente. Tu pedido está siendo preparado.'
+            ? <>Tu orden <span className="font-bold text-teal-600">{orderNum}</span> fue recibida. Te notificaremos cuando sea aprobada.</>
+            : 'Tu pago fue procesado correctamente. Te notificaremos cuando tu orden sea aprobada.'
           }
         </p>
       </motion.div>

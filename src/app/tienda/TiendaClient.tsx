@@ -520,12 +520,12 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
         <CheckCircle2 className="w-14 h-14 text-emerald-500" />
       </motion.div>
       <div>
-        <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">¡Pedido enviado!</h1>
+        <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">¡Orden recibida!</h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Tu pedido <span className="font-bold text-teal-600">{numeroPedido}</span> fue recibido.<br />
-          Te avisaremos cuando sea confirmado.
+          Tu orden <span className="font-bold text-teal-600">{numeroPedido}</span> fue recibida.<br />
+          Te notificaremos cuando sea aprobada.
         </p>
-        <p className="text-xs text-slate-400 mt-1">Redirigiendo a tus pedidos en 4s…</p>
+        <p className="text-xs text-slate-400 mt-1">Redirigiendo a tus solicitudes en 4s…</p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <Link
@@ -533,7 +533,7 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
           className="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition"
         >
           <ClipboardList className="w-4 h-4" />
-          Ver mis pedidos
+          Ver mis solicitudes
         </Link>
         <button
           onClick={onContinue}
@@ -831,7 +831,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
     const data = await res.json()
     setOrdering(false)
     if (!res.ok) {
-      toast.error(data.error ?? 'Error al crear pedido')
+      toast.error(data.error ?? 'Error al crear la orden')
       return
     }
     // Update local credit balance if used

@@ -26,9 +26,23 @@ interface Pedido {
   id: string; numero: string; estado: string; fecha_pedido: string
   total: number; notas?: string; pedido_items?: PedidoItem[]
 }
+interface OrdenItem {
+  id: string; cantidad: number; precio_unitario: number; subtotal: number
+  presentaciones?: { nombre: string; productos?: { nombre: string } }
+}
+interface Orden {
+  id: string; numero: string
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
+  total: number; notas?: string | null; motivo_rechazo?: string | null
+  created_at: string
+  orden_items?: OrdenItem[]
+  pedido?: { id: string; numero: string; estado: string } | null
+}
 interface Props {
   pedidos: Pedido[]
+  ordenes: Orden[]
   clienteId: string | null
+  userId: string
 }
 
 // ── Progress steps (5-step) ───────────────────────────────────────────────────
@@ -260,13 +274,83 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
   )
 }
 
+// ── Orden (client request) card ──────────────────────────────────────────────
+function OrdenCard({ orden }: { orden: Orden }) {
+  const map = {
+    pendiente: {
+      icon: '⏳',
+      label: 'Pendiente de aprobación',
+      cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+    },
+    aprobada: {
+      icon: '✅',
+      label: 'Aprobada',
+      cls: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+    },
+    rechazada: {
+      icon: '❌',
+      label: 'Rechazada',
+      cls: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+    },
+    cancelada: {
+      icon: '⛔',
+      label: 'Cancelada',
+      cls: 'bg-slate-50 dark:bg-slate-900/20 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+    },
+  }[orden.estado]
+
+  return (
+    <motion.div
+      layout
+      className={`rounded-2xl border shadow-sm px-5 py-4 ${map.cls}`}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-semibold opacity-80">
+            <span>{map.icon}</span>
+            <span>{map.label}</span>
+            <span className="opacity-60">·</span>
+            <span>
+              {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <p className="font-bold text-sm mt-1">{orden.numero}</p>
+          {orden.orden_items && (
+            <p className="text-xs opacity-70">
+              {orden.orden_items.length} producto{orden.orden_items.length === 1 ? '' : 's'}
+            </p>
+          )}
+        </div>
+        <p className="font-black tabular-nums text-base">{formatCurrency(Number(orden.total))}</p>
+      </div>
+
+      {orden.estado === 'rechazada' && orden.motivo_rechazo && (
+        <div className="mt-3 text-sm bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2">
+          <p className="font-semibold">Motivo:</p>
+          <p className="opacity-90">{orden.motivo_rechazo}</p>
+        </div>
+      )}
+
+      {orden.estado === 'aprobada' && orden.pedido && (
+        <div className="mt-3 text-sm bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2">
+          Tu orden se convirtió en el pedido{' '}
+          <span className="font-bold">{orden.pedido.numero}</span>. Míralo abajo 👇
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MisPedidosClient({ pedidos: initialPedidos, clienteId }: Props) {
+export default function MisPedidosClient({
+  pedidos: initialPedidos, ordenes: initialOrdenes, clienteId, userId,
+}: Props) {
   const [pedidos, setPedidos] = useState<Pedido[]>(initialPedidos)
+  const [ordenes, setOrdenes] = useState<Orden[]>(initialOrdenes)
   const router = useRouter()
   const supabase = createClient()
 
-  // ── Supabase Realtime subscription ────────────────────────────────────────
+  // ── Supabase Realtime: pedidos ────────────────────────────────────────────
   useEffect(() => {
     if (!clienteId) return
 
@@ -290,6 +374,38 @@ export default function MisPedidosClient({ pedidos: initialPedidos, clienteId }:
 
     return () => { supabase.removeChannel(channel) }
   }, [clienteId])
+
+  // ── Supabase Realtime: ordenes (own submissions) ──────────────────────────
+  useEffect(() => {
+    if (!userId) return
+
+    const channel = supabase
+      .channel(`ordenes-user-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'ordenes', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const nueva = payload.new as any
+          setOrdenes(prev =>
+            prev.map(o =>
+              o.id === nueva.id
+                ? { ...o, estado: nueva.estado, motivo_rechazo: nueva.motivo_rechazo }
+                : o
+            )
+          )
+          if (nueva.estado === 'aprobada') {
+            toast.success(`Orden ${nueva.numero} aprobada ✅`)
+            // Refresh so the newly-created pedido shows up below
+            router.refresh()
+          } else if (nueva.estado === 'rechazada') {
+            toast.error(`Orden ${nueva.numero} rechazada`)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [userId, router, supabase])
 
   // ── Reorder handler ────────────────────────────────────────────────────────
   const handleReorder = (items: PedidoItem[]) => {
@@ -325,28 +441,71 @@ export default function MisPedidosClient({ pedidos: initialPedidos, clienteId }:
         )}
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-24">
-        {pedidos.length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
-            <ShoppingBag className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
-            <p className="font-semibold text-slate-500 dark:text-slate-400">Sin pedidos aún</p>
-            <p className="text-sm text-slate-400 mt-1">Haz tu primer pedido en la tienda</p>
-            <Link href="/tienda" className="inline-block mt-4 text-sm text-teal-600 font-semibold hover:underline">
-              Ir a la tienda →
-            </Link>
-          </motion.div>
-        ) : (
-          pedidos.map((p, i) => (
-            <motion.div
-              key={p.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <PedidoCard pedido={p} onReorder={handleReorder} />
-            </motion.div>
-          ))
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6 pb-24">
+        {/* ── Mis Solicitudes (ordenes) ────────────────────────────────── */}
+        {ordenes.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <ClipboardList className="w-4 h-4 text-amber-500" />
+              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Mis Solicitudes
+              </h2>
+              <span className="text-xs text-slate-400">
+                ({ordenes.filter(o => o.estado === 'pendiente').length} pendientes)
+              </span>
+            </div>
+            <div className="space-y-3">
+              {ordenes.map((o, i) => (
+                <motion.div
+                  key={o.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                >
+                  <OrdenCard orden={o} />
+                </motion.div>
+              ))}
+            </div>
+          </section>
         )}
+
+        {/* ── Mis Pedidos (aprobados + en proceso) ─────────────────────── */}
+        <section className="space-y-3">
+          {ordenes.length > 0 && (
+            <div className="flex items-center gap-2 px-1">
+              <Truck className="w-4 h-4 text-teal-500" />
+              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Mis Pedidos
+              </h2>
+            </div>
+          )}
+
+          {pedidos.length === 0 && ordenes.length === 0 ? (
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
+              <ShoppingBag className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+              <p className="font-semibold text-slate-500 dark:text-slate-400">Sin pedidos aún</p>
+              <p className="text-sm text-slate-400 mt-1">Haz tu primer pedido en la tienda</p>
+              <Link href="/tienda" className="inline-block mt-4 text-sm text-teal-600 font-semibold hover:underline">
+                Ir a la tienda →
+              </Link>
+            </motion.div>
+          ) : pedidos.length === 0 ? (
+            <p className="text-xs text-slate-400 px-1">
+              Aún no tienes pedidos aprobados. Tus solicitudes aparecen arriba.
+            </p>
+          ) : (
+            pedidos.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <PedidoCard pedido={p} onReorder={handleReorder} />
+              </motion.div>
+            ))
+          )}
+        </section>
       </main>
 
       {/* Bottom nav */}
