@@ -84,9 +84,16 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: 'No se puede eliminar una factura pagada. Anúlela primero.' }, { status: 409 })
   }
 
-  await supabase.from('factura_items').delete().eq('factura_id', params.id)
-  const { error } = await supabase.from('facturas').delete().eq('id', params.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Cascade delete: pagos → transacciones → factura_items → factura
+  try {
+    await supabase.from('pagos').delete().eq('factura_id', params.id)
+    await supabase.from('transacciones').delete().eq('referencia_id', params.id)
+    await supabase.from('factura_items').delete().eq('factura_id', params.id)
+    const { error } = await supabase.from('facturas').delete().eq('id', params.id)
+    if (error) return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 })
+  } catch (error) {
+    return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 })
+  }
 
   return NextResponse.json({ message: `Factura ${existing.numero} eliminada` })
 }

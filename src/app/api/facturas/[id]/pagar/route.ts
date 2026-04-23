@@ -56,16 +56,23 @@ export async function POST(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    // Ledger: insert ingreso in transacciones
-    await supabase.from('transacciones').insert({
-      tipo: 'ingreso',
-      monto: factura.total,
-      fecha: new Date().toISOString().split('T')[0],
-      concepto: `Factura ${factura.numero} pagada`,
-      referencia_tipo: 'factura',
-      referencia_id: params.id,
-      usuario_id: user.id,
-    })
+    // Ledger: insert ingreso in transacciones (isolated — never blocks payment)
+    try {
+      const { error: ledgerError } = await supabase.from('transacciones').insert({
+        tipo: 'ingreso',
+        monto: factura.total,
+        fecha: new Date().toISOString().split('T')[0],
+        concepto: `Factura ${factura.numero} pagada`,
+        referencia_tipo: 'factura',
+        referencia_id: params.id,
+        usuario_id: user.id,
+      })
+      if (ledgerError) {
+        console.error('[pagar] ledger insert failed (non-fatal):', ledgerError)
+      }
+    } catch (ledgerErr) {
+      console.error('[pagar] ledger insert threw (non-fatal):', ledgerErr)
+    }
 
     return NextResponse.json({
       message: `Factura ${factura.numero} marcada como pagada`,

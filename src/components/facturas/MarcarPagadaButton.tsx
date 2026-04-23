@@ -19,14 +19,12 @@ export default function MarcarPagadaButton({ facturaId }: MarcarPagadaButtonProp
     setLoading(true)
     try {
       const res = await fetch(`/api/facturas/${facturaId}/pagar`, { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? 'Error al marcar como pagada')
-      }
+      if (!res.ok) throw new Error('Error al marcar como pagada')
       toast.success('Factura marcada como pagada')
       router.refresh()
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (error) {
+      toast.error('Error al procesar el pago')
+      console.error(error)
     } finally {
       setLoading(false)
     }
