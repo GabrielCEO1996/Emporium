@@ -12,55 +12,46 @@ import Link from 'next/link'
 type PageState = 'loading' | 'ready' | 'success' | 'expired'
 
 export default function AuthResetPasswordPage() {
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [showPw, setShowPw]     = useState(false)
+  const [password,   setPassword]   = useState('')
+  const [confirm,    setConfirm]    = useState('')
+  const [showPw,     setShowPw]     = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError]       = useState('')
-  const [pageState, setPageState] = useState<PageState>('loading')
-  const router = useRouter()
+  const [error,      setError]      = useState('')
+  const [pageState,  setPageState]  = useState<PageState>('loading')
+  const router  = useRouter()
   const supabase = createClient()
 
-  // ── On mount: verify we have a valid recovery session ────────────────────────
+  // ── Verify a recovery session is present ───────────────────────────────────
   useEffect(() => {
-    const checkSession = async () => {
-      // supabase-js automatically parses #access_token from the URL hash
-      // and fires onAuthStateChange with PASSWORD_RECOVERY if applicable.
-      // Give it a moment to settle, then check the session.
+    let expired = false
 
+    const check = async () => {
+      // 1. Immediate check — callback page already set the session before redirecting
       const { data: { session } } = await supabase.auth.getSession()
+      if (session) { setPageState('ready'); return }
 
-      if (session) {
-        setPageState('ready')
-        return
-      }
-
-      // Listen for PASSWORD_RECOVERY event (hash-based flow fires this)
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (event) => {
-          if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
-            setPageState('ready')
-            subscription.unsubscribe()
-          }
+      // 2. Listen for PASSWORD_RECOVERY / SIGNED_IN (hash flow fires this async)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
+        if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && sess) {
+          if (!expired) setPageState('ready')
+          subscription.unsubscribe()
         }
-      )
+      })
 
-      // If nothing happens in 4 s, the link is expired / missing
+      // 3. Give up after 6 s if nothing arrives
       const timer = setTimeout(() => {
+        expired = true
         subscription.unsubscribe()
         setPageState('expired')
-      }, 4000)
+      }, 6000)
 
-      return () => {
-        clearTimeout(timer)
-        subscription.unsubscribe()
-      }
+      return () => { clearTimeout(timer); subscription.unsubscribe() }
     }
 
-    checkSession()
+    check()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Submit handler ────────────────────────────────────────────────────────────
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -89,27 +80,23 @@ export default function AuthResetPasswordPage() {
 
     setPageState('success')
 
-    // Redirect by role after 2.5 s
+    // Redirect by role after 2 s
     setTimeout(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('rol')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      const rol = profile?.rol ?? 'cliente'
-      if (['admin', 'vendedor', 'conductor'].includes(rol)) {
-        router.push('/dashboard')
-      } else {
-        router.push('/tienda')
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push('/login'); return }
+        const { data: profile } = await supabase
+          .from('profiles').select('rol').eq('id', user.id).maybeSingle()
+        const rol = profile?.rol ?? 'cliente'
+        if (['admin', 'vendedor', 'conductor'].includes(rol)) router.push('/dashboard')
+        else                                                    router.push('/tienda')
+      } catch {
+        router.push('/login')
       }
-    }, 2500)
+    }, 2000)
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -195,7 +182,8 @@ export default function AuthResetPasswordPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* New password */}
+
+                {/* Nueva contraseña */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Nueva contraseña
@@ -238,7 +226,7 @@ export default function AuthResetPasswordPage() {
                   )}
                 </div>
 
-                {/* Confirm password */}
+                {/* Confirmar contraseña */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Confirmar contraseña
@@ -275,7 +263,7 @@ export default function AuthResetPasswordPage() {
                   </div>
                 )}
 
-                {/* Submit */}
+                {/* Guardar */}
                 <button
                   type="submit"
                   disabled={submitting || !password || !confirm}
@@ -283,7 +271,7 @@ export default function AuthResetPasswordPage() {
                 >
                   {submitting
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</>
-                    : <><CheckCircle2 className="w-4 h-4" /> Cambiar contraseña</>
+                    : <><CheckCircle2 className="w-4 h-4" /> Guardar</>
                   }
                 </button>
 
