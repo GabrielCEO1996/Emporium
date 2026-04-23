@@ -19,6 +19,11 @@ import {
   AlertCircle,
   Loader2,
   ShoppingCart,
+  Zap,
+  Banknote,
+  CreditCard,
+  Send,
+  X,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -39,6 +44,8 @@ interface FormState {
   direccion_entrega: string
   fecha_entrega_estimada: string
 }
+
+type MetodoPago = 'efectivo' | 'zelle' | 'transferencia' | 'tarjeta'
 
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
@@ -205,6 +212,14 @@ function StepCliente({
   )
 }
 
+// ─── Stock badge helper ──────────────────────────────────────────────────────
+
+function stockBadgeClass(stock: number): string {
+  if (stock <= 0)  return 'bg-red-100 text-red-700'
+  if (stock <= 10) return 'bg-amber-100 text-amber-700'
+  return 'bg-green-100 text-green-700'
+}
+
 // ─── Step 2: Add Products ─────────────────────────────────────────────────────
 
 function StepProductos({
@@ -212,12 +227,14 @@ function StepProductos({
   onAdd,
   onRemove,
   onChangeQty,
+  onChangePrice,
   showCosto,
 }: {
   items: CartItem[]
   onAdd: (p: Presentacion & { producto?: { nombre: string; categoria?: string } }) => void
   onRemove: (id: string) => void
   onChangeQty: (id: string, qty: number) => void
+  onChangePrice: (id: string, precio: number) => void
   showCosto: boolean
 }) {
   const [query, setQuery] = useState('')
@@ -248,7 +265,6 @@ function StepProductos({
       }
 
       const { data } = await dbQuery
-      // Flatten inventario so downstream UI keeps reading pres.stock / pres.precio.
       const mapped = ((data as any[]) ?? []).map((pres: any) => {
         const inv = Array.isArray(pres.inventario) ? pres.inventario[0] : pres.inventario
         const stock = inv?.stock_disponible ?? pres.stock ?? 0
@@ -267,7 +283,6 @@ function StepProductos({
     return () => clearTimeout(timer)
   }, [query, search])
 
-  // load initial results
   useEffect(() => {
     search('')
   }, [search])
@@ -329,21 +344,11 @@ function StepProductos({
                       )}
                       <span
                         className={cn(
-                          'text-xs font-medium',
-                          sinStock
-                            ? 'text-red-600'
-                            : pres.stock <= 5
-                            ? 'text-orange-600'
-                            : pres.stock <= pres.stock_minimo
-                            ? 'text-yellow-600'
-                            : 'text-green-600'
+                          'text-xs font-semibold rounded-full px-1.5 py-0.5',
+                          stockBadgeClass(pres.stock)
                         )}
                       >
-                        {sinStock
-                          ? 'Agotado'
-                          : pres.stock <= 5
-                          ? `Últimas ${pres.stock} ${pres.unidad}`
-                          : `Stock: ${pres.stock} ${pres.unidad}`}
+                        {sinStock ? 'Agotado' : `Stock: ${pres.stock} ${pres.unidad}`}
                       </span>
                     </div>
                   </div>
@@ -373,7 +378,7 @@ function StepProductos({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Carrito ({items.length} ítem{items.length !== 1 ? 's' : ''})
           </p>
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
             {items.length === 0 && (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <ShoppingCart className="h-8 w-8 text-slate-300" />
@@ -387,9 +392,6 @@ function StepProductos({
                     <p className="text-xs font-medium text-slate-900 truncate">
                       {item.presentacion.producto?.nombre ?? ''} — {item.presentacion.nombre}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {formatCurrency(item.precio_unitario)} c/u
-                    </p>
                   </div>
                   <button
                     type="button"
@@ -399,6 +401,26 @@ function StepProductos({
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
+
+                {/* Editable price per line */}
+                <div className="mt-2 grid grid-cols-3 gap-2 items-center">
+                  <label className="col-span-1 text-xs text-slate-500">Precio u.</label>
+                  <div className="col-span-2 relative">
+                    <span className="absolute left-2 top-1 text-xs text-slate-400">$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={item.precio_unitario}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value)
+                        if (!isNaN(v) && v >= 0) onChangePrice(item.presentacion.id, v)
+                      }}
+                      className="w-full pl-5 pr-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+
                 <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <button
@@ -453,6 +475,18 @@ function StepProductos({
               </div>
             ))}
           </div>
+
+          {/* Running total */}
+          {items.length > 0 && (
+            <div className="rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 flex justify-between items-center">
+              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">
+                Total parcial
+              </span>
+              <span className="text-lg font-bold text-teal-700">
+                {formatCurrency(items.reduce((s, i) => s + i.subtotal, 0))}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -596,7 +630,6 @@ function StepResumen({
             </div>
           </div>
 
-          {/* Client summary */}
           {form.cliente && (
             <div className="border-t border-slate-200 pt-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
@@ -614,6 +647,128 @@ function StepResumen({
   )
 }
 
+// ─── Venta Directa Modal ──────────────────────────────────────────────────────
+
+function VentaDirectaModal({
+  open,
+  total,
+  onClose,
+  onConfirm,
+  submitting,
+}: {
+  open: boolean
+  total: number
+  onClose: () => void
+  onConfirm: (metodo: MetodoPago, referencia: string) => void
+  submitting: boolean
+}) {
+  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [referencia, setReferencia] = useState('')
+
+  if (!open) return null
+
+  const METODOS: { key: MetodoPago; label: string; icon: any; color: string; requireRef: boolean }[] = [
+    { key: 'efectivo',      label: 'Efectivo',      icon: Banknote,    color: 'emerald', requireRef: false },
+    { key: 'zelle',         label: 'Zelle',         icon: Send,        color: 'blue',    requireRef: true  },
+    { key: 'transferencia', label: 'Transferencia', icon: Send,        color: 'indigo',  requireRef: true  },
+    { key: 'tarjeta',       label: 'Tarjeta',       icon: CreditCard,  color: 'purple',  requireRef: false },
+  ]
+
+  const needsRef = METODOS.find((m) => m.key === metodo)?.requireRef ?? false
+  const canConfirm = !submitting && (!needsRef || referencia.trim().length > 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <Zap className="h-4 w-4 text-green-600" />
+            Venta Directa
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="text-slate-400 hover:text-slate-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-center">
+            <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Total a cobrar</p>
+            <p className="text-2xl font-bold text-green-700 mt-0.5">{formatCurrency(total)}</p>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+              Método de pago
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {METODOS.map((m) => {
+                const Icon = m.icon
+                const selected = m.key === metodo
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setMetodo(m.key)}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-colors',
+                      selected
+                        ? 'border-teal-600 bg-teal-50 text-teal-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {needsRef && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+                Número de referencia <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={referencia}
+                onChange={(e) => setReferencia(e.target.value)}
+                placeholder="Últimos 6 dígitos..."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(metodo, referencia.trim() || '')}
+            disabled={!canConfirm}
+            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            {submitting ? 'Procesando...' : 'Confirmar cobro'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Form ────────────────────────────────────────────────────────────────
 
 export default function NuevoPedidoForm() {
@@ -623,8 +778,10 @@ export default function NuevoPedidoForm() {
 
   const [step, setStep] = useState(1)
   const [submitting, setSubmitting] = useState(false)
+  const [ventaDirectaOpen, setVentaDirectaOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showCosto, setShowCosto] = useState(false)
+  // Admin only — costo price visibility.
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const [form, setForm] = useState<FormState>({
     cliente: null,
@@ -649,13 +806,13 @@ export default function NuevoPedidoForm() {
       })
   }, [preClienteId])
 
-  // Check if current user can see cost prices
+  // Current user role: costo only visible to admin
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       supabase.from('profiles').select('rol').eq('id', user.id).single().then(({ data }) => {
-        if (data?.rol === 'admin' || data?.rol === 'vendedor') setShowCosto(true)
+        if (data?.rol === 'admin') setIsAdmin(true)
       })
     })
   }, [])
@@ -694,6 +851,16 @@ export default function NuevoPedidoForm() {
       ),
     }))
 
+  const changePrice = (id: string, precio: number) =>
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((i) =>
+        i.presentacion.id === id
+          ? { ...i, precio_unitario: precio, subtotal: precio * i.cantidad - i.descuento }
+          : i
+      ),
+    }))
+
   // Computed totals
   const subtotalItems = form.items.reduce((s, i) => s + i.subtotal, 0)
   const total = Math.max(0, subtotalItems - form.descuento_global)
@@ -705,6 +872,9 @@ export default function NuevoPedidoForm() {
     return true
   }
 
+  const canVentaDirecta = !!form.cliente && form.items.length > 0
+
+  // Standard "Guardar Borrador" flow
   const handleSubmit = async () => {
     if (!form.cliente) return
     setSubmitting(true)
@@ -743,6 +913,48 @@ export default function NuevoPedidoForm() {
     }
   }
 
+  // Venta Directa flow
+  const handleVentaDirecta = async (metodo_pago: MetodoPago, numero_referencia: string) => {
+    if (!form.cliente || form.items.length === 0) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const payload = {
+        cliente_id: form.cliente.id,
+        items: form.items.map((i) => ({
+          presentacion_id: i.presentacion.id,
+          cantidad: i.cantidad,
+          precio_unitario: i.precio_unitario,
+          descuento: i.descuento,
+          subtotal: i.subtotal,
+        })),
+        subtotal: subtotalItems,
+        descuento: form.descuento_global,
+        impuesto: 0,
+        total,
+        notas: form.notas || null,
+        direccion_entrega: form.direccion_entrega || form.cliente.direccion || null,
+        metodo_pago,
+        numero_referencia: numero_referencia || null,
+      }
+
+      const res = await fetch('/api/pedidos/venta-directa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error en venta directa')
+
+      setVentaDirectaOpen(false)
+      router.push(`/facturas/${data.factura_id}`)
+    } catch (err: any) {
+      setError(err.message ?? 'Error desconocido')
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Step indicator */}
@@ -764,7 +976,8 @@ export default function NuevoPedidoForm() {
             onAdd={addItem}
             onRemove={removeItem}
             onChangeQty={changeQty}
-            showCosto={showCosto}
+            onChangePrice={changePrice}
+            showCosto={isAdmin}
           />
         )}
         {step === 3 && (
@@ -781,7 +994,7 @@ export default function NuevoPedidoForm() {
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
           onClick={() => setStep((s) => s - 1)}
@@ -792,7 +1005,22 @@ export default function NuevoPedidoForm() {
           Anterior
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Venta Directa — always visible once client + items chosen */}
+          {canVentaDirecta && (
+            <button
+              type="button"
+              onClick={() => setVentaDirectaOpen(true)}
+              disabled={submitting}
+              className="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-bold text-white shadow-md hover:bg-green-700 transition-colors disabled:opacity-50 ring-2 ring-green-200"
+              title="Cobrar y facturar ya"
+            >
+              <Zap className="h-4 w-4" />
+              Venta Directa
+              <span className="text-green-100 text-xs">⚡</span>
+            </button>
+          )}
+
           {step < 3 && (
             <button
               type="button"
@@ -816,11 +1044,20 @@ export default function NuevoPedidoForm() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              {submitting ? 'Guardando...' : 'Crear Pedido'}
+              {submitting ? 'Guardando...' : 'Guardar Borrador'}
             </button>
           )}
         </div>
       </div>
+
+      {/* Venta Directa modal */}
+      <VentaDirectaModal
+        open={ventaDirectaOpen}
+        total={total}
+        onClose={() => !submitting && setVentaDirectaOpen(false)}
+        onConfirm={handleVentaDirecta}
+        submitting={submitting}
+      />
     </div>
   )
 }

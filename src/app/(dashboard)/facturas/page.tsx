@@ -30,16 +30,35 @@ interface PageProps {
 export const dynamic = 'force-dynamic'
 
 function isOverdue(factura: Factura): boolean {
-  if (!factura.fecha_vencimiento) return false
-  if (factura.estado === 'pagada' || factura.estado === 'anulada') return false
-  return new Date(factura.fecha_vencimiento) < new Date()
+  if (factura.estado === 'pagada' || factura.estado === 'anulada' || factura.estado === 'con_nota_credito') {
+    return false
+  }
+  // Primary rule: fecha_vencimiento is in the past
+  if (factura.fecha_vencimiento && new Date(factura.fecha_vencimiento) < new Date()) {
+    return true
+  }
+  // Fallback rule (spec): estado 'enviada' AND created_at older than 30 days
+  if (factura.estado === 'enviada' || factura.estado === 'emitida') {
+    const base = (factura as any).created_at ?? factura.fecha_emision
+    if (!base) return false
+    const thirty = new Date()
+    thirty.setDate(thirty.getDate() - 30)
+    return new Date(base) < thirty
+  }
+  return false
 }
 
 function daysOverdue(factura: Factura): number {
-  if (!isOverdue(factura) || !factura.fecha_vencimiento) return 0
-  const venc = new Date(factura.fecha_vencimiento)
+  if (!isOverdue(factura)) return 0
   const now = new Date()
-  return Math.floor((now.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24))
+  if (factura.fecha_vencimiento) {
+    const venc = new Date(factura.fecha_vencimiento)
+    return Math.floor((now.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24))
+  }
+  const base = (factura as any).created_at ?? factura.fecha_emision
+  if (!base) return 0
+  const d = new Date(base)
+  return Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)) - 30)
 }
 
 function overdueRowClass(days: number): string {

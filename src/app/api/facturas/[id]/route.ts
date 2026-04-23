@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 interface RouteContext { params: { id: string } }
 
@@ -77,7 +78,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores pueden eliminar facturas' }, { status: 403 })
 
-  const { data: existing } = await supabase.from('facturas').select('id, estado, numero').eq('id', params.id).single()
+  const { data: existing } = await supabase.from('facturas').select('id, estado, numero, total, cliente_id').eq('id', params.id).single()
   if (!existing) return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
 
   if (existing.estado === 'pagada') {
@@ -94,6 +95,31 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   } catch (error) {
     return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 })
   }
+
+  // Client debt tracking: deleted unpaid invoice → release deuda_total
+  if (existing.estado !== 'pagada') {
+    try {
+      const { data: c } = await supabase
+        .from('clientes').select('deuda_total').eq('id', existing.cliente_id).maybeSingle()
+      if (c) {
+        await supabase.from('clientes')
+          .update({ deuda_total: Math.max(0, Number(c.deuda_total ?? 0) - Number(existing.total ?? 0)) })
+          .eq('id', existing.cliente_id)
+      }
+    } catch (err) {
+      console.error('[facturas DELETE] deuda_total non-fatal:', err)
+    }
+  }
+
+  void logActivity(supabase, {
+    user_id: user.id,
+    action: 'eliminar_factura',
+    resource: 'facturas',
+    resource_id: params.id,
+    estado_anterior: existing.estado,
+    estado_nuevo: 'eliminada',
+    details: { numero: existing.numero, total: existing.total },
+  })
 
   return NextResponse.json({ message: `Factura ${existing.numero} eliminada` })
 }

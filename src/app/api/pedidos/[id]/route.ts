@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/pedidos/[id]
@@ -167,6 +168,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'cambio_estado_pedido',
+      resource: 'pedidos',
+      resource_id: params.id,
+      estado_anterior: estadoActual,
+      estado_nuevo: 'confirmada',
+    })
+
     return NextResponse.json(data)
   }
 
@@ -225,6 +236,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'aprobar_pedido',
+      resource: 'pedidos',
+      resource_id: params.id,
+      estado_anterior: estadoActual,
+      estado_nuevo: 'aprobada',
+      details: { items_count: items.length },
+    })
+
     return NextResponse.json(data)
   }
 
@@ -309,6 +331,30 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Client debt tracking: new factura adds to deuda_total
+    try {
+      const { data: c } = await supabase
+        .from('clientes').select('deuda_total').eq('id', pedido.cliente_id).maybeSingle()
+      if (c) {
+        await supabase.from('clientes')
+          .update({ deuda_total: Number(c.deuda_total ?? 0) + Number(pedido.total ?? 0) })
+          .eq('id', pedido.cliente_id)
+      }
+    } catch (err) {
+      console.error('[pedidos/despachada] deuda_total non-fatal:', err)
+    }
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'despachar_pedido',
+      resource: 'pedidos',
+      resource_id: params.id,
+      estado_anterior: estadoActual,
+      estado_nuevo: 'despachada',
+      details: { factura_id: facturaId, total: pedido.total },
+    })
+
     return NextResponse.json({ ...data, factura_id: facturaId })
   }
 
@@ -376,6 +422,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'entregar_pedido',
+      resource: 'pedidos',
+      resource_id: params.id,
+      estado_anterior: estadoActual,
+      estado_nuevo: 'entregada',
+      details: { items_count: items.length },
+    })
+
     return NextResponse.json(data)
   }
 
@@ -452,6 +509,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'cancelar_pedido',
+      resource: 'pedidos',
+      resource_id: params.id,
+      estado_anterior: estadoActual,
+      estado_nuevo: 'cancelada',
+    })
+
     return NextResponse.json(data)
   }
 

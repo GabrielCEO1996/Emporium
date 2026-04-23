@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 interface RouteContext { params: { id: string } }
 
@@ -106,6 +107,21 @@ export async function POST(_req: Request, { params }: RouteContext) {
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 })
   }
+
+  void logActivity(supabase, {
+    user_id: user.id,
+    action: 'aprobar_orden',
+    resource: 'ordenes',
+    resource_id: orden.id,
+    estado_anterior: 'pendiente',
+    estado_nuevo: 'aprobada',
+    details: {
+      orden_numero: orden.numero,
+      pedido_id: pedido.id,
+      pedido_numero: pedido.numero,
+      total: orden.total ?? subtotal,
+    },
+  })
 
   return NextResponse.json({
     message: `Orden ${orden.numero} aprobada. Pedido ${pedido.numero} creado.`,

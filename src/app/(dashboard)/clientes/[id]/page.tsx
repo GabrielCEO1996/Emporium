@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Package,
   ArrowRight,
+  AlertTriangle,
 } from 'lucide-react'
 
 interface PageProps {
@@ -72,7 +73,21 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     ['confirmado', 'en_ruta'].includes(p.estado)
   ).length ?? 0
 
-  const c = cliente as Cliente
+  // Unpaid facturas (debt tracking)
+  const { data: facturasUnpaid } = await supabase
+    .from('facturas')
+    .select('id, numero, total, monto_pagado, fecha_emision, fecha_vencimiento, estado')
+    .eq('cliente_id', params.id)
+    .in('estado', ['emitida', 'enviada'])
+    .order('fecha_emision', { ascending: false })
+
+  const deudaTotal = (cliente as any).deuda_total ??
+    (facturasUnpaid ?? []).reduce(
+      (s: number, f: any) => s + (Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)),
+      0
+    )
+
+  const c = cliente as Cliente & { deuda_total?: number }
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -104,6 +119,12 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/20">
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                     Inactivo
+                  </span>
+                )}
+                {deudaTotal > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/30">
+                    <AlertTriangle className="h-3 w-3" />
+                    Deuda: {formatCurrency(deudaTotal)}
                   </span>
                 )}
               </div>
@@ -225,8 +246,62 @@ export default async function ClienteDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Right: Purchase History */}
-          <div className="lg:col-span-2">
+          {/* Right: Debt + Purchase History */}
+          <div className="lg:col-span-2 space-y-5">
+            {/* Unpaid invoices */}
+            {(facturasUnpaid?.length ?? 0) > 0 && (
+              <div className="rounded-xl border border-red-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-red-100 bg-red-50 px-5 py-4">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-red-800">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    Facturas Pendientes
+                    <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                      {facturasUnpaid?.length}
+                    </span>
+                  </h2>
+                  <span className="text-sm font-bold text-red-700">
+                    {formatCurrency(deudaTotal)}
+                  </span>
+                </div>
+                <div className="divide-y divide-red-50">
+                  {(facturasUnpaid ?? []).map((f: any) => {
+                    const saldo = Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)
+                    const vencida = f.fecha_vencimiento && new Date(f.fecha_vencimiento) < new Date()
+                    return (
+                      <Link
+                        key={f.id}
+                        href={`/facturas/${f.id}`}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-red-50/40 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-semibold text-slate-900">
+                              {f.numero}
+                            </span>
+                            {vencida && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                                Vencida
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Emitida: {formatDate(f.fecha_emision)}
+                            {f.fecha_vencimiento && ` · Vence: ${formatDate(f.fecha_vencimiento)}`}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0 ml-3">
+                          <p className="text-sm font-semibold text-red-700">
+                            {formatCurrency(saldo)}
+                          </p>
+                          <p className="text-xs text-slate-400">saldo</p>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">

@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Package,
   AlertCircle,
+  AlertTriangle,
   Clock,
   CheckCircle2,
   ArrowUpRight,
@@ -56,6 +57,12 @@ export default async function DashboardPage() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
   sevenDaysAgo.setHours(0, 0, 0, 0)
 
+  // Overdue cutoff: facturas still unpaid older than 30 days
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  thirtyDaysAgo.setHours(0, 0, 0, 0)
+  const thirtyDaysAgoISO = thirtyDaysAgo.toISOString()
+
   const [
     { count: totalPedidos },
     { count: totalClientes },
@@ -69,6 +76,7 @@ export default async function DashboardPage() {
     { count: empresaCount },
     { count: ventasCount },
     { data: configMeta },
+    { count: facturasVencidasCount },
   ] = await Promise.all([
     supabase.from('pedidos').select('*', { count: 'exact', head: true }),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
@@ -101,6 +109,11 @@ export default async function DashboardPage() {
     supabase.from('empresa_config').select('*', { count: 'exact', head: true }),
     supabase.from('facturas').select('*', { count: 'exact', head: true }),
     supabase.from('empresa_config').select('meta_mensual, moneda_secundaria, tasa_cambio, nombre').limit(1).maybeSingle(),
+    // Overdue: unpaid factura (emitida/enviada) older than 30d
+    supabase.from('facturas')
+      .select('*', { count: 'exact', head: true })
+      .in('estado', ['emitida', 'enviada'])
+      .lt('fecha_emision', thirtyDaysAgoISO),
   ])
 
   // ── Calculate period totals ───────────────────────────────────────────────
@@ -256,21 +269,26 @@ export default async function DashboardPage() {
       )}
 
       {/* ── Quick counters ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: 'Pedidos', value: totalPedidos || 0, icon: ShoppingCart, bg: 'bg-teal-50', text: 'text-teal-600', href: '/pedidos' },
-          { label: 'Clientes', value: totalClientes || 0, icon: Users, bg: 'bg-emerald-50', text: 'text-emerald-600', href: '/clientes' },
-          { label: 'Productos', value: totalProductos || 0, icon: Package, bg: 'bg-violet-50', text: 'text-violet-600', href: '/productos' },
-          { label: 'Clientes Nuevos (mes)', value: clientesNuevosMes || 0, icon: Star, bg: 'bg-amber-50', text: 'text-amber-600', href: '/clientes' },
+          { label: 'Pedidos', value: totalPedidos || 0, icon: ShoppingCart, bg: 'bg-teal-50', text: 'text-teal-600', href: '/pedidos', highlight: false },
+          { label: 'Clientes', value: totalClientes || 0, icon: Users, bg: 'bg-emerald-50', text: 'text-emerald-600', href: '/clientes', highlight: false },
+          { label: 'Productos', value: totalProductos || 0, icon: Package, bg: 'bg-violet-50', text: 'text-violet-600', href: '/productos', highlight: false },
+          { label: 'Clientes Nuevos (mes)', value: clientesNuevosMes || 0, icon: Star, bg: 'bg-amber-50', text: 'text-amber-600', href: '/clientes', highlight: false },
+          { label: 'Facturas Vencidas', value: facturasVencidasCount || 0, icon: AlertTriangle, bg: 'bg-red-50', text: 'text-red-600', href: '/facturas?estado=enviada', highlight: (facturasVencidasCount || 0) > 0 },
         ].map(s => {
           const Icon = s.icon
           return (
             <Link key={s.label} href={s.href}>
-              <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
+              <div className={`bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border ${
+                s.highlight ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200 dark:border-slate-700'
+              } hover:shadow-md transition-shadow`}>
                 <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-3`}>
                   <Icon className={`w-4 h-4 ${s.text}`} />
                 </div>
-                <p className="text-xl font-bold text-slate-800 dark:text-white"><CountUp value={s.value} /></p>
+                <p className={`text-xl font-bold ${s.highlight ? 'text-red-600' : 'text-slate-800 dark:text-white'}`}>
+                  <CountUp value={s.value} />
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
               </div>
             </Link>

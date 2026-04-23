@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 interface RouteContext {
   params: { id: string }
@@ -18,7 +19,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
     // Fetch current invoice
     const { data: factura, error: fetchError } = await supabase
       .from('facturas')
-      .select('id, numero, estado, total, monto_pagado')
+      .select('id, numero, estado, total, monto_pagado, cliente_id')
       .eq('id', params.id)
       .single()
 
@@ -73,6 +74,29 @@ export async function POST(_request: Request, { params }: RouteContext) {
     } catch (ledgerErr) {
       console.error('[pagar] ledger insert threw (non-fatal):', ledgerErr)
     }
+
+    // Client debt tracking: invoice paid → deuda_total -= total
+    try {
+      const { data: c } = await supabase
+        .from('clientes').select('deuda_total').eq('id', factura.cliente_id).maybeSingle()
+      if (c) {
+        await supabase.from('clientes')
+          .update({ deuda_total: Math.max(0, Number(c.deuda_total ?? 0) - Number(factura.total ?? 0)) })
+          .eq('id', factura.cliente_id)
+      }
+    } catch (err) {
+      console.error('[pagar] deuda_total non-fatal:', err)
+    }
+
+    void logActivity(supabase, {
+      user_id: user.id,
+      action: 'pagar_factura',
+      resource: 'facturas',
+      resource_id: params.id,
+      estado_anterior: factura.estado,
+      estado_nuevo: 'pagada',
+      details: { numero: factura.numero, monto: factura.total },
+    })
 
     return NextResponse.json({
       message: `Factura ${factura.numero} marcada como pagada`,
