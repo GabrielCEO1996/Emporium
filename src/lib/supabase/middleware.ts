@@ -140,8 +140,9 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   }
 
   // Staff (admin | vendedor | conductor):
-  // Redirect away from client-only paths
-  if (pathname.startsWith('/tienda') || pathname === '/pendiente') {
+  // /pendiente is a limbo page only for that role — redirect staff away from it.
+  // /tienda/* is intentionally accessible to staff so vendedores can place orders.
+  if (pathname === '/pendiente') {
     return redirect(request, '/dashboard')
   }
 

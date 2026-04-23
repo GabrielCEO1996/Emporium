@@ -6,13 +6,14 @@ import { rateLimit, rateLimitResponse } from '@/lib/security'
 // ─── POST /api/tienda/pedido ────────────────────────────────────────────────
 // Single entrypoint for the tienda cart.
 //
-// Always creates an ORDEN (estado='pendiente'), then branches on profiles.rol:
-//   • rol = 'cliente'    → orden stays pendiente, admin approves manually
+// Branches on profiles.rol:
+//   • cliente | vendedor | admin | conductor
+//       → orden stays pendiente, admin approves manually
 //       Response: { tipo: 'orden', numero, orden_id }
 //
-//   • rol = 'comprador'  → creates a Stripe checkout session with
-//       `orden_id` in the metadata. The Stripe webhook converts the orden
-//       into pedido + factura(pagada) + transaccion(ingreso) on payment.
+//   • comprador  → Stripe checkout session created with orden_id in metadata.
+//       The Stripe webhook converts the orden into pedido + factura(pagada) +
+//       transaccion(ingreso) on successful payment.
 //       Response: { tipo: 'pago', url, numero, orden_id }
 //
 // If the `ordenes` table is not yet present (migration pending), transparently
@@ -55,10 +56,16 @@ export async function POST(req: Request) {
     }
 
     // Resolve rol — drives the entire flow branch later.
-    const { data: profileRow } = await supabase
+    const { data: profileRow, error: profileErr } = await supabase
       .from('profiles').select('rol').eq('id', user.id).maybeSingle()
+    if (profileErr) console.error('[tienda/pedido] profile fetch error:', profileErr)
     const rol: string = profileRow?.rol ?? 'comprador'
-    const canCreateOrdenes = rol === 'cliente'
+
+    // Only comprador is required to pay via Stripe upfront.
+    // Every other authenticated role (cliente, vendedor, admin, conductor)
+    // goes through the admin-approval flow (orden → pendiente).
+    const canCreateOrdenes = rol !== 'comprador'
+    console.log(`[tienda/pedido] user=${user.id} rol=${rol} canCreateOrdenes=${canCreateOrdenes}`)
 
     // Parse body safely
     let body: any
@@ -204,7 +211,8 @@ export async function POST(req: Request) {
       } else {
         // ── Branch on rol ─────────────────────────────────────────────
         if (canCreateOrdenes) {
-          // TYPE A — rol='cliente': admin approval flow, no payment upfront
+          // TYPE A — all roles except comprador: admin approval, no payment upfront
+          console.log(`[tienda/pedido] orden ${orden.numero} created for rol=${rol} — pending approval`)
           return NextResponse.json(
             {
               success: true,
@@ -216,9 +224,9 @@ export async function POST(req: Request) {
           )
         }
 
-        // TYPE B — rol='comprador': Stripe checkout (required)
+        // TYPE B — rol='comprador' only: Stripe checkout required
         if (!process.env.STRIPE_SECRET_KEY) {
-          console.error('[tienda/pedido] STRIPE_SECRET_KEY missing')
+          console.error('[tienda/pedido] STRIPE_SECRET_KEY missing — cannot start Stripe checkout for comprador')
           // Roll back the orden so the client can retry later
           await supabase.from('orden_items').delete().eq('orden_id', orden.id)
           await supabase.from('ordenes').delete().eq('id', orden.id)
