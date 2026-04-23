@@ -12,6 +12,7 @@ interface Presentacion {
   nombre: string
   costo: number
   stock: number
+  codigo?: string | null
   productos: { nombre: string } | null
 }
 
@@ -171,7 +172,7 @@ export default function NuevaCompraClient({ presentaciones, proveedores }: Props
                         <option value="">Seleccionar presentación...</option>
                         {presentaciones.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.productos?.nombre ?? '?'} · {p.nombre} (stock: {p.stock})
+                            {p.codigo ? `[${p.codigo}] ` : ''}{p.productos?.nombre ?? '?'} · {p.nombre} (stock: {p.stock})
                           </option>
                         ))}
                       </select>

@@ -232,7 +232,11 @@ function StepProductos({
       setLoading(true)
       let dbQuery = supabase
         .from('presentaciones')
-        .select('*, producto:productos(id, nombre, categoria)')
+        .select(`
+          *,
+          producto:productos(id, codigo, nombre, categoria),
+          inventario(stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo)
+        `)
         .eq('activo', true)
         .order('nombre')
         .limit(12)
@@ -244,7 +248,15 @@ function StepProductos({
       }
 
       const { data } = await dbQuery
-      setResults((data as any[]) ?? [])
+      // Flatten inventario so downstream UI keeps reading pres.stock / pres.precio.
+      const mapped = ((data as any[]) ?? []).map((pres: any) => {
+        const inv = Array.isArray(pres.inventario) ? pres.inventario[0] : pres.inventario
+        const stock = inv?.stock_disponible ?? pres.stock ?? 0
+        const precio = inv?.precio_venta && inv.precio_venta > 0 ? inv.precio_venta : (pres.precio ?? 0)
+        const costo = inv?.precio_costo && inv.precio_costo > 0 ? inv.precio_costo : (pres.costo ?? 0)
+        return { ...pres, stock, precio, costo }
+      })
+      setResults(mapped)
       setLoading(false)
     },
     [supabase]
@@ -320,12 +332,18 @@ function StepProductos({
                           'text-xs font-medium',
                           sinStock
                             ? 'text-red-600'
+                            : pres.stock <= 5
+                            ? 'text-orange-600'
                             : pres.stock <= pres.stock_minimo
                             ? 'text-yellow-600'
                             : 'text-green-600'
                         )}
                       >
-                        Stock: {pres.stock} {pres.unidad}
+                        {sinStock
+                          ? 'Agotado'
+                          : pres.stock <= 5
+                          ? `Últimas ${pres.stock} ${pres.unidad}`
+                          : `Stock: ${pres.stock} ${pres.unidad}`}
                       </span>
                     </div>
                   </div>

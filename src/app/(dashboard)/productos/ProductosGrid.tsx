@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { LayoutGrid, List, Package2 } from 'lucide-react'
-import { Producto, Presentacion } from '@/lib/types'
-import { formatCurrency, cn } from '@/lib/utils'
+import { Producto, Presentacion, Inventario } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import ProductosTable from './ProductosTable'
 
 type ProductoWithPresentaciones = Producto & { presentaciones: Presentacion[] }
@@ -13,26 +13,35 @@ interface Props {
   productos: ProductoWithPresentaciones[]
 }
 
+function getInv(pr: Presentacion): Inventario | null {
+  if (!pr.inventario) return null
+  return Array.isArray(pr.inventario) ? pr.inventario[0] ?? null : pr.inventario
+}
+
 function StockDot({ pres }: { pres: Presentacion[] }) {
-  const total = pres.reduce((s, p) => s + p.stock, 0)
+  const total = pres.reduce((s, p) => {
+    const inv = getInv(p)
+    return s + (inv?.stock_disponible ?? inv?.stock_total ?? 0)
+  }, 0)
   if (total === 0) return <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-  const low = pres.some(p => p.stock > 0 && p.stock <= p.stock_minimo)
+  const low = pres.some((p) => {
+    const inv = getInv(p)
+    const disp = inv?.stock_disponible ?? inv?.stock_total ?? 0
+    return disp > 0 && disp <= (p.stock_minimo ?? 0)
+  })
   if (low) return <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
   return <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
 }
 
 function ProductCard({ p }: { p: ProductoWithPresentaciones }) {
   const initials = p.nombre.slice(0, 2).toUpperCase()
-  const minPrice = p.presentaciones.length
-    ? Math.min(...p.presentaciones.map(pr => pr.precio))
-    : null
-  const totalStock = p.presentaciones.reduce((s, pr) => s + pr.stock, 0)
 
   return (
     <Link href={`/productos/${p.id}`}>
       <div className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 hover:shadow-md hover:border-teal-200 dark:hover:border-teal-700 transition-all cursor-pointer">
         <div className="aspect-square w-full rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 flex items-center justify-center mb-3 overflow-hidden">
           {p.imagen_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover" />
           ) : (
             <div className="w-12 h-12 bg-teal-100 dark:bg-teal-800 rounded-xl flex items-center justify-center">
@@ -42,6 +51,9 @@ function ProductCard({ p }: { p: ProductoWithPresentaciones }) {
         </div>
 
         <div className="space-y-1">
+          {p.codigo && (
+            <p className="font-mono text-[10px] uppercase tracking-wide text-slate-400">{p.codigo}</p>
+          )}
           <div className="flex items-start justify-between gap-1">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 leading-tight line-clamp-2">
               {p.nombre}
@@ -53,16 +65,7 @@ function ProductCard({ p }: { p: ProductoWithPresentaciones }) {
             <p className="text-xs text-slate-400 truncate">{p.categoria}</p>
           )}
 
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-slate-500 dark:text-slate-400">{totalStock} uds</p>
-            {minPrice !== null && (
-              <p className="text-sm font-bold text-teal-600 dark:text-teal-400">
-                {formatCurrency(minPrice)}
-              </p>
-            )}
-          </div>
-
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 pt-1">
             {p.presentaciones.length} presentación{p.presentaciones.length !== 1 ? 'es' : ''}
           </p>
         </div>
@@ -84,7 +87,7 @@ export default function ProductosGrid({ productos }: Props) {
               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
               view === 'list'
                 ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300',
             )}
           >
             <List className="w-3.5 h-3.5" />
@@ -96,7 +99,7 @@ export default function ProductosGrid({ productos }: Props) {
               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
               view === 'grid'
                 ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300',
             )}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
@@ -115,7 +118,7 @@ export default function ProductosGrid({ productos }: Props) {
               <p className="text-sm text-slate-400">Sin productos registrados</p>
             </div>
           ) : (
-            productos.map(p => <ProductCard key={p.id} p={p} />)
+            productos.map((p) => <ProductCard key={p.id} p={p} />)
           )}
         </div>
       )}

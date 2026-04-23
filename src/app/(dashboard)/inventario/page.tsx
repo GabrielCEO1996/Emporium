@@ -16,9 +16,9 @@ export default async function InventarioPage() {
   const { data: inventario, error } = await supabase
     .from('inventario')
     .select(`
-      id, stock_total, stock_reservado, stock_disponible, updated_at,
-      presentacion:presentaciones(id, nombre, unidad, precio, codigo_barras),
-      producto:productos(id, nombre, imagen_url, categoria)
+      id, stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, updated_at,
+      presentacion:presentaciones(id, nombre, unidad, codigo_barras),
+      producto:productos(id, codigo, nombre, imagen_url, categoria)
     `)
     .order('updated_at', { ascending: false })
 
@@ -41,5 +41,29 @@ export default async function InventarioPage() {
   const rows = (inventario ?? []) as any[]
   const categorias = [...new Set(rows.map((r) => r.producto?.categoria).filter(Boolean))] as string[]
 
-  return <InventarioTable inventario={rows} categorias={categorias} />
+  // Pull the last movement per presentacion so the table can show "Último movimiento".
+  const presentacionIds = rows
+    .map((r) => r.presentacion?.id)
+    .filter((id): id is string => !!id)
+
+  let lastMov: Record<string, string> = {}
+  if (presentacionIds.length > 0) {
+    const { data: movs } = await supabase
+      .from('inventario_movimientos')
+      .select('presentacion_id, created_at')
+      .in('presentacion_id', presentacionIds)
+      .order('created_at', { ascending: false })
+
+    for (const m of movs ?? []) {
+      const pid = (m as any).presentacion_id as string
+      if (!lastMov[pid]) lastMov[pid] = (m as any).created_at as string
+    }
+  }
+
+  const rowsWithLastMov = rows.map((r) => ({
+    ...r,
+    last_movimiento_at: r.presentacion?.id ? lastMov[r.presentacion.id] ?? null : null,
+  }))
+
+  return <InventarioTable inventario={rowsWithLastMov} categorias={categorias} />
 }

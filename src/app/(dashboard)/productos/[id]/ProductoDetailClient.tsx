@@ -1,14 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Pencil, Trash2, AlertTriangle, Package2 } from 'lucide-react'
-import { Producto, Presentacion } from '@/lib/types'
+import { Pencil, Trash2, AlertTriangle, Package2, BarChart3 } from 'lucide-react'
+import { Producto, Presentacion, Inventario } from '@/lib/types'
 import { formatCurrency, cn } from '@/lib/utils'
 import ProductoForm from '@/components/productos/ProductoForm'
 
 interface Props {
   producto: Producto & { presentaciones: Presentacion[] }
+}
+
+function pickInv(pr: Presentacion): Inventario | null {
+  if (!pr.inventario) return null
+  return Array.isArray(pr.inventario) ? pr.inventario[0] ?? null : pr.inventario
 }
 
 function getStockStatus(stock: number, stockMinimo: number): 'ok' | 'low' | 'empty' {
@@ -78,6 +84,13 @@ export default function ProductoDetailClient({ producto }: Props) {
     <div className="space-y-6">
       {/* Actions */}
       <div className="flex justify-end gap-3">
+        <Link
+          href={`/inventario?producto=${producto.id}`}
+          className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+        >
+          <BarChart3 className="h-4 w-4" />
+          Ver en Inventario
+        </Link>
         <button
           onClick={() => setMode('edit')}
           className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
@@ -143,6 +156,10 @@ export default function ProductoDetailClient({ producto }: Props) {
             )}
           </div>
           <div className="flex-1 grid grid-cols-2 gap-6 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">SKU</p>
+            <p className="mt-1 font-mono text-sm text-slate-700">{producto.codigo ?? '—'}</p>
+          </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Nombre</p>
             <p className="mt-1 font-medium text-slate-900">{producto.nombre}</p>
@@ -212,16 +229,21 @@ export default function ProductoDetailClient({ producto }: Props) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pres.map(p => {
-                  const status = getStockStatus(p.stock, p.stock_minimo)
-                  const margen = p.precio > 0
-                    ? (((p.precio - p.costo) / p.precio) * 100).toFixed(1)
+                  const inv = pickInv(p)
+                  const stockTotal     = inv?.stock_total ?? 0
+                  const stockDisp      = inv?.stock_disponible ?? stockTotal
+                  const precioVenta    = inv?.precio_venta ?? 0
+                  const precioCosto    = inv?.precio_costo ?? 0
+                  const status         = getStockStatus(stockDisp, p.stock_minimo ?? 0)
+                  const margen         = precioVenta > 0
+                    ? (((precioVenta - precioCosto) / precioVenta) * 100).toFixed(1)
                     : '0.0'
                   return (
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-slate-900">{p.nombre}</td>
                       <td className="px-4 py-3 text-slate-600">{p.unidad}</td>
-                      <td className="px-4 py-3 font-medium text-slate-900">{formatCurrency(p.precio)}</td>
-                      <td className="px-4 py-3 text-slate-600">{formatCurrency(p.costo)}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{formatCurrency(precioVenta)}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatCurrency(precioCosto)}</td>
                       <td className="px-4 py-3">
                         <span className={cn(
                           'text-xs font-semibold',
@@ -237,11 +259,11 @@ export default function ProductoDetailClient({ producto }: Props) {
                           status === 'empty' ? 'text-red-600' :
                           status === 'low' ? 'text-yellow-600' : 'text-slate-900'
                         )}>
-                          {p.stock.toLocaleString('es-VE')}
+                          {stockDisp.toLocaleString('es-VE')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-slate-500">
-                        {p.stock_minimo.toLocaleString('es-VE')}
+                        {(p.stock_minimo ?? 0).toLocaleString('es-VE')}
                       </td>
                       <td className="px-4 py-3 text-slate-500 font-mono text-xs">
                         {p.codigo_barras ?? '—'}
@@ -266,26 +288,27 @@ export default function ProductoDetailClient({ producto }: Props) {
       </div>
 
       {/* Summary stats */}
-      {pres.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <SummaryCard
-            label="Stock total"
-            value={pres.reduce((s, p) => s + p.stock, 0).toLocaleString('es-VE')}
-          />
-          <SummaryCard
-            label="Precio más bajo"
-            value={formatCurrency(Math.min(...pres.map(p => p.precio)))}
-          />
-          <SummaryCard
-            label="Precio más alto"
-            value={formatCurrency(Math.max(...pres.map(p => p.precio)))}
-          />
-          <SummaryCard
-            label="Presentaciones activas"
-            value={pres.filter(p => p.activo).length.toString()}
-          />
-        </div>
-      )}
+      {pres.length > 0 && (() => {
+        const precios = pres.map((p) => pickInv(p)?.precio_venta ?? 0).filter((v) => v > 0)
+        const stockTotal = pres.reduce((s, p) => s + (pickInv(p)?.stock_total ?? 0), 0)
+        return (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <SummaryCard label="Stock total" value={stockTotal.toLocaleString('es-VE')} />
+            <SummaryCard
+              label="Precio más bajo"
+              value={precios.length ? formatCurrency(Math.min(...precios)) : '—'}
+            />
+            <SummaryCard
+              label="Precio más alto"
+              value={precios.length ? formatCurrency(Math.max(...precios)) : '—'}
+            />
+            <SummaryCard
+              label="Presentaciones activas"
+              value={pres.filter((p) => p.activo).length.toString()}
+            />
+          </div>
+        )
+      })()}
     </div>
   )
 }

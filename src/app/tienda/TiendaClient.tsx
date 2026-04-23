@@ -60,8 +60,8 @@ interface ShippingFormValues {
 
 // ── Stock helpers ─────────────────────────────────────────────────────────────
 function stockBadge(stock: number) {
-  if (stock === 0) return { text: 'Agotado', cls: 'text-red-500 bg-red-50 dark:bg-red-900/20' }
-  if (stock <= 3) return { text: `Últimas ${stock}`, cls: 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' }
+  if (stock <= 0) return { text: 'Agotado', cls: 'text-red-500 bg-red-50 dark:bg-red-900/20' }
+  if (stock <= 5) return { text: `Últimas ${stock} unidades`, cls: 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' }
   return { text: `${stock} disponibles`, cls: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' }
 }
 

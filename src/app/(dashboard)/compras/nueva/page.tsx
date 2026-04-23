@@ -13,7 +13,11 @@ export default async function NuevaCompraPage() {
   const [{ data: presentaciones }, { data: proveedores }] = await Promise.all([
     supabase
       .from('presentaciones')
-      .select('id, nombre, costo, stock, productos(nombre)')
+      .select(`
+        id, nombre,
+        productos(id, codigo, nombre),
+        inventario(stock_total, stock_disponible, precio_costo)
+      `)
       .eq('activo', true)
       .order('nombre'),
     supabase
@@ -22,6 +26,19 @@ export default async function NuevaCompraPage() {
       .eq('activo', true)
       .order('nombre'),
   ])
+
+  // Flatten nested inventario so the client can use `costo`/`stock` directly.
+  const pres = (presentaciones ?? []).map((p: any) => {
+    const inv = Array.isArray(p.inventario) ? p.inventario[0] : p.inventario
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      codigo: p.productos?.codigo ?? null,
+      costo: inv?.precio_costo ?? 0,
+      stock: inv?.stock_disponible ?? inv?.stock_total ?? 0,
+      productos: p.productos ? { nombre: p.productos.nombre } : null,
+    }
+  })
 
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto">
@@ -32,7 +49,7 @@ export default async function NuevaCompraPage() {
         </p>
       </div>
       <NuevaCompraClient
-        presentaciones={(presentaciones ?? []) as any}
+        presentaciones={pres as any}
         proveedores={proveedores ?? []}
       />
     </div>

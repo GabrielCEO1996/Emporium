@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, requireRole, sanitize, clean, safeInt, safePositiveDecimal, validateUUID, logActivity } from '@/lib/security'
+import { getAuthContext, requireRole, sanitize, clean, safeInt, validateUUID, logActivity } from '@/lib/security'
 
 // ── GET /api/productos/[id] ───────────────────────────────────────────────────
 export async function GET(
@@ -15,14 +15,19 @@ export async function GET(
   if (error) return error
 
   const isAdmin = ctx.rol === 'admin'
-
-  const presFields = isAdmin
-    ? 'id, nombre, precio, costo, stock, stock_minimo, unidad, activo, updated_at'
-    : 'id, nombre, precio, stock, stock_minimo, unidad, activo'
+  const invFields = isAdmin
+    ? 'stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, updated_at'
+    : 'stock_total, stock_reservado, stock_disponible, precio_venta, updated_at'
 
   const { data, error: dbError } = await supabase
     .from('productos')
-    .select(`id, nombre, descripcion, categoria, imagen_url, activo, created_at, updated_at, presentaciones(${presFields})`)
+    .select(
+      `id, codigo, nombre, descripcion, categoria, imagen_url, activo, created_at, updated_at,
+       presentaciones(
+         id, nombre, unidad, codigo_barras, activo, stock_minimo,
+         inventario(${invFields})
+       )`,
+    )
     .eq('id', params.id)
     .single()
 
@@ -51,6 +56,7 @@ export async function PUT(
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
   if (body.nombre !== undefined)      updates.nombre      = sanitize(body.nombre, 200)
+  if (body.codigo !== undefined)      updates.codigo      = sanitize(body.codigo, 50) || null
   if (body.descripcion !== undefined) updates.descripcion = clean(body.descripcion, 2000) || null
   if (body.categoria !== undefined)   updates.categoria   = sanitize(body.categoria, 100) || null
   if (body.activo !== undefined)      updates.activo      = Boolean(body.activo)
@@ -69,28 +75,52 @@ export async function PUT(
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
-  // Bulk upsert presentations
+  // Upsert presentaciones (catalog fields only — precio/stock live on inventario).
   if (Array.isArray(body.presentaciones) && body.presentaciones.length > 0) {
     const toUpsert = body.presentaciones.map((p: any) => {
-      const { producto: _prod, created_at: _c, ...fields } = p
-      return {
-        ...fields,
+      const fields: Record<string, unknown> = {
         producto_id:  params.id,
-        nombre:       sanitize(fields.nombre ?? '', 200),
-        precio:       safePositiveDecimal(fields.precio),
-        costo:        safePositiveDecimal(fields.costo),
-        stock:        safeInt(fields.stock, 0),
-        stock_minimo: safeInt(fields.stock_minimo, 0),
-        unidad:       sanitize(fields.unidad ?? 'unidad', 50),
+        nombre:       sanitize(p.nombre ?? '', 200),
+        unidad:       sanitize(p.unidad ?? 'unidad', 50),
+        codigo_barras: clean(p.codigo_barras, 80) || null,
+        stock_minimo: safeInt(p.stock_minimo, 0),
+        activo:       typeof p.activo === 'boolean' ? p.activo : true,
         updated_at:   new Date().toISOString(),
       }
+      if (p.id) fields.id = p.id
+      return fields
     })
 
-    const { error: upsertError } = await supabase
+    const { data: upserted, error: upsertError } = await supabase
       .from('presentaciones')
       .upsert(toUpsert, { onConflict: 'id' })
+      .select('id')
 
     if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 500 })
+
+    // Ensure every presentacion has an inventario row (seed when missing).
+    const presIds = (upserted ?? []).map((r: { id: string }) => r.id)
+    if (presIds.length > 0) {
+      const { data: existingInv } = await supabase
+        .from('inventario')
+        .select('presentacion_id')
+        .in('presentacion_id', presIds)
+
+      const have = new Set((existingInv ?? []).map((r: any) => r.presentacion_id))
+      const missing = presIds.filter((id) => !have.has(id))
+      if (missing.length > 0) {
+        await supabase.from('inventario').insert(
+          missing.map((presentacion_id) => ({
+            producto_id: params.id,
+            presentacion_id,
+            stock_total: 0,
+            stock_reservado: 0,
+            precio_venta: 0,
+            precio_costo: 0,
+          })),
+        )
+      }
+    }
   }
 
   logActivity(supabase, {
@@ -103,7 +133,7 @@ export async function PUT(
 
   const { data: full } = await supabase
     .from('productos')
-    .select('*, presentaciones(*)')
+    .select('*, presentaciones(*, inventario(*))')
     .eq('id', params.id)
     .single()
 

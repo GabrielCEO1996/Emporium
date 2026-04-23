@@ -14,8 +14,11 @@ export default async function TiendaPage() {
     supabase
       .from('productos')
       .select(`
-        id, nombre, descripcion, categoria, imagen_url,
-        presentaciones(id, nombre, precio, stock, stock_minimo, unidad, activo)
+        id, codigo, nombre, descripcion, categoria, imagen_url,
+        presentaciones(
+          id, nombre, precio, stock, stock_minimo, unidad, activo,
+          inventario(stock_total, stock_reservado, stock_disponible, precio_venta)
+        )
       `)
       .eq('activo', true)
       .order('nombre'),
@@ -24,7 +27,24 @@ export default async function TiendaPage() {
   const profile = profileRes.data
   const productos = (productosRes.data ?? [])
     .filter((p: any) => p.presentaciones?.some((pr: any) => pr.activo))
-    .map((p: any) => ({ ...p, presentaciones: p.presentaciones.filter((pr: any) => pr.activo) }))
+    .map((p: any) => ({
+      ...p,
+      presentaciones: p.presentaciones
+        .filter((pr: any) => pr.activo)
+        .map((pr: any) => {
+          const inv = Array.isArray(pr.inventario) ? pr.inventario[0] : pr.inventario
+          const stockDisponible = inv?.stock_disponible ?? pr.stock ?? 0
+          const precioVenta = inv?.precio_venta && inv.precio_venta > 0 ? inv.precio_venta : (pr.precio ?? 0)
+          return {
+            ...pr,
+            precio: precioVenta,
+            stock: stockDisponible,
+            stock_disponible: stockDisponible,
+            agotado: stockDisponible <= 0,
+            ultimas_unidades: stockDisponible > 0 && stockDisponible <= 5,
+          }
+        }),
+    }))
 
   // Get cliente linked record (includes credit info + shipping profile).
   // Prefer user_id link; fall back to email for legacy rows.

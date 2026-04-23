@@ -7,13 +7,11 @@ import { cn } from '@/lib/utils'
 import { Producto, Presentacion } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 
+// Catalog-only draft. Stock + price now live on inventario and are
+// edited from /inventario — the product form no longer captures them.
 interface PresentacionDraft {
   id?: string
   nombre: string
-  precio: string
-  costo: string
-  stock: string
-  stock_minimo: string
   unidad: string
   codigo_barras: string
   activo: boolean
@@ -30,10 +28,6 @@ const CATEGORIAS = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Papelería',
 function emptyPresentacion(): PresentacionDraft {
   return {
     nombre: '',
-    precio: '',
-    costo: '',
-    stock: '0',
-    stock_minimo: '0',
     unidad: 'Unidad',
     codigo_barras: '',
     activo: true,
@@ -44,10 +38,6 @@ function toDraft(p: Presentacion): PresentacionDraft {
   return {
     id: p.id,
     nombre: p.nombre,
-    precio: p.precio.toString(),
-    costo: p.costo.toString(),
-    stock: p.stock.toString(),
-    stock_minimo: p.stock_minimo.toString(),
     unidad: p.unidad,
     codigo_barras: p.codigo_barras ?? '',
     activo: p.activo,
@@ -63,6 +53,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
   const [error, setError] = useState<string | null>(null)
 
   const [nombre, setNombre] = useState(initialData?.nombre ?? '')
+  const [codigo, setCodigo] = useState(initialData?.codigo ?? '')
   const [descripcion, setDescripcion] = useState(initialData?.descripcion ?? '')
   const [categoria, setCategoria] = useState(initialData?.categoria ?? '')
   const [activo, setActivo] = useState(initialData?.activo ?? true)
@@ -96,16 +87,10 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
   }
 
   const addPresentacion = () => setPresentaciones(prev => [...prev, emptyPresentacion()])
-
-  const removePresentacion = (index: number) => {
+  const removePresentacion = (index: number) =>
     setPresentaciones(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const updatePresentacion = (index: number, field: keyof PresentacionDraft, value: string | boolean) => {
-    setPresentaciones(prev =>
-      prev.map((p, i) => i === index ? { ...p, [field]: value } : p)
-    )
-  }
+  const updatePresentacion = (index: number, field: keyof PresentacionDraft, value: string | boolean) =>
+    setPresentaciones(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p))
 
   const validate = (): string | null => {
     if (!nombre.trim()) return 'El nombre del producto es requerido.'
@@ -113,10 +98,6 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
     for (let i = 0; i < presentaciones.length; i++) {
       const p = presentaciones[i]
       if (!p.nombre.trim()) return `La presentación ${i + 1} requiere un nombre.`
-      if (!p.precio || isNaN(Number(p.precio)) || Number(p.precio) < 0)
-        return `La presentación "${p.nombre || i + 1}" tiene un precio inválido.`
-      if (!p.costo || isNaN(Number(p.costo)) || Number(p.costo) < 0)
-        return `La presentación "${p.nombre || i + 1}" tiene un costo inválido.`
     }
     return null
   }
@@ -132,8 +113,11 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
     setLoading(true)
     setError(null)
 
+    // Catalog-only payload. The API seeds inventario rows for each presentacion
+    // (stock_total = 0, precio_venta = 0) — admin sets real values in /inventario.
     const payload = {
       nombre: nombre.trim(),
+      codigo: codigo.trim() || null, // server auto-generates PRD-XXXX if null
       descripcion: descripcion.trim() || null,
       categoria: categoria || null,
       activo,
@@ -141,10 +125,6 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
       presentaciones: presentaciones.map(p => ({
         ...(p.id ? { id: p.id } : {}),
         nombre: p.nombre.trim(),
-        precio: parseFloat(p.precio),
-        costo: parseFloat(p.costo),
-        stock: parseInt(p.stock) || 0,
-        stock_minimo: parseInt(p.stock_minimo) || 0,
         unidad: p.unidad,
         codigo_barras: p.codigo_barras.trim() || null,
         activo: p.activo,
@@ -164,8 +144,8 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? 'Error al guardar el producto')
+        const data = await res.json().catch(() => ({} as any))
+        throw new Error(data?.error ?? 'Error al guardar el producto')
       }
 
       router.push('/productos')
@@ -207,6 +187,20 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
           </div>
 
           <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Código (SKU)
+            </label>
+            <input
+              type="text"
+              value={codigo}
+              onChange={e => setCodigo(e.target.value)}
+              placeholder="Automático (PRD-0001) si se deja vacío"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono uppercase"
+            />
+            <p className="mt-1 text-xs text-slate-400">Único en todo el catálogo.</p>
+          </div>
+
+          <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Categoría</label>
             <select
               value={categoria}
@@ -220,7 +214,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
             </select>
           </div>
 
-          <div className="flex items-center gap-3 pt-6">
+          <div className="flex items-center gap-3 sm:col-span-2">
             <button
               type="button"
               role="switch"
@@ -260,6 +254,7 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
             <div className="flex items-start gap-4">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 overflow-hidden">
                 {imagenUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={imagenUrl} alt="Producto" className="h-full w-full object-cover" />
                 ) : (
                   <ImageIcon className="h-8 w-8 text-slate-300" />
@@ -298,7 +293,9 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Presentaciones</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Tamaños o variantes del producto con su precio, costo y stock.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tamaños o variantes del producto. El precio y el stock se editan desde <strong>Inventario</strong>.
+            </p>
           </div>
           <button
             type="button"
@@ -347,8 +344,8 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                <div className="col-span-2 sm:col-span-1 lg:col-span-1">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">
                     Nombre <span className="text-red-500">*</span>
                   </label>
@@ -357,36 +354,6 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                     value={p.nombre}
                     onChange={e => updatePresentacion(idx, 'nombre', e.target.value)}
                     placeholder="Ej: 500ml, Caja x12"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Precio (USD) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={p.precio}
-                    onChange={e => updatePresentacion(idx, 'precio', e.target.value)}
-                    placeholder="0.00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Costo (USD) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={p.costo}
-                    onChange={e => updatePresentacion(idx, 'costo', e.target.value)}
-                    placeholder="0.00"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
                   />
                 </div>
@@ -405,28 +372,6 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Stock actual</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.stock}
-                    onChange={e => updatePresentacion(idx, 'stock', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Stock mínimo</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.stock_minimo}
-                    onChange={e => updatePresentacion(idx, 'stock_minimo', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div className="col-span-2 sm:col-span-1">
                   <label className="mb-1 block text-xs font-medium text-slate-600">Código de barras</label>
                   <input
                     type="text"

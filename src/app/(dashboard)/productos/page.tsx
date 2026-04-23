@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Producto } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
 import ProductosGrid from './ProductosGrid'
 
 export const dynamic = 'force-dynamic'
@@ -10,9 +9,16 @@ export const dynamic = 'force-dynamic'
 export default async function ProductosPage() {
   const supabase = createClient()
 
+  // Catalog + presentaciones + inventario (stock + pricing).
   const { data: productos, error } = await supabase
     .from('productos')
-    .select('*, presentaciones(*)')
+    .select(`
+      id, codigo, nombre, descripcion, categoria, imagen_url, activo, created_at, updated_at,
+      presentaciones(
+        id, nombre, unidad, codigo_barras, stock_minimo, activo,
+        inventario(stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo)
+      )
+    `)
     .order('nombre')
 
   if (error) {
@@ -25,6 +31,23 @@ export default async function ProductosPage() {
 
   const typedProductos = (productos ?? []) as (Producto & { presentaciones: NonNullable<Producto['presentaciones']> })[]
 
+  // Stock aggregates pulled from inventario joined under each presentacion.
+  const totalStock = (p: Producto) =>
+    (p.presentaciones ?? []).reduce((sum, pr) => {
+      const inv = Array.isArray(pr.inventario) ? pr.inventario[0] : pr.inventario
+      return sum + (inv?.stock_disponible ?? inv?.stock_total ?? 0)
+    }, 0)
+
+  const stockBajo = (p: Producto) =>
+    (p.presentaciones ?? []).some((pr) => {
+      const inv = Array.isArray(pr.inventario) ? pr.inventario[0] : pr.inventario
+      const disp = inv?.stock_disponible ?? inv?.stock_total ?? 0
+      return disp > 0 && disp <= (pr.stock_minimo ?? 0)
+    })
+
+  const sinStock = typedProductos.filter((p) => totalStock(p) === 0).length
+  const bajoStock = typedProductos.filter(stockBajo).length
+
   return (
     <div className="min-h-full bg-slate-50">
       {/* Header */}
@@ -33,7 +56,8 @@ export default async function ProductosPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Productos</h1>
             <p className="mt-0.5 text-sm text-slate-500">
-              {typedProductos.length} producto{typedProductos.length !== 1 ? 's' : ''} registrado{typedProductos.length !== 1 ? 's' : ''}
+              Catálogo de productos — el stock y los precios se gestionan desde{' '}
+              <Link href="/inventario" className="text-teal-600 hover:underline">Inventario</Link>.
             </p>
           </div>
           <Link
@@ -48,34 +72,10 @@ export default async function ProductosPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 p-6 sm:grid-cols-4">
-        <StatCard
-          label="Total Productos"
-          value={typedProductos.length.toString()}
-          color="blue"
-        />
-        <StatCard
-          label="Activos"
-          value={typedProductos.filter(p => p.activo).length.toString()}
-          color="green"
-        />
-        <StatCard
-          label="Sin Stock"
-          value={typedProductos
-            .filter(p => p.presentaciones?.every(pr => pr.stock === 0))
-            .length.toString()}
-          color="red"
-        />
-        <StatCard
-          label="Stock Bajo"
-          value={typedProductos
-            .filter(p =>
-              p.presentaciones?.some(
-                pr => pr.stock > 0 && pr.stock <= pr.stock_minimo
-              )
-            )
-            .length.toString()}
-          color="yellow"
-        />
+        <StatCard label="Total Productos" value={typedProductos.length.toString()} color="blue" />
+        <StatCard label="Activos"         value={typedProductos.filter(p => p.activo).length.toString()} color="green" />
+        <StatCard label="Sin Stock"       value={sinStock.toString()} color="red" />
+        <StatCard label="Stock Bajo"      value={bajoStock.toString()} color="yellow" />
       </div>
 
       {/* Table / Grid */}

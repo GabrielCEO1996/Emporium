@@ -12,22 +12,34 @@ export interface Profile {
 
 export interface Producto {
   id: string
+  /** SKU — unique across productos. Auto-generated as PRD-0001 when omitted. */
+  codigo?: string | null
   nombre: string
   descripcion?: string
   categoria?: string
   activo: boolean
   imagen_url?: string
+  proveedor_id?: string | null
   created_at: string
   updated_at: string
   presentaciones?: Presentacion[]
+  inventario?: Inventario | Inventario[]
 }
 
+/**
+ * Presentacion describes a variant of a product (size, packaging, etc).
+ * Pricing and stock now live on `inventario` (keyed by presentacion_id);
+ * the precio/costo/stock columns here are kept for backward compat only.
+ */
 export interface Presentacion {
   id: string
   producto_id: string
   nombre: string
+  /** @deprecated read from inventario.precio_venta */
   precio: number
+  /** @deprecated read from inventario.precio_costo */
   costo: number
+  /** @deprecated read from inventario.stock_total */
   stock: number
   stock_minimo: number
   unidad: string
@@ -36,6 +48,23 @@ export interface Presentacion {
   created_at: string
   updated_at: string
   producto?: Producto
+  inventario?: Inventario | Inventario[]
+}
+
+/**
+ * Inventario = one row per presentacion. Owns stock + pricing.
+ * `stock_disponible` is a generated column (= stock_total - stock_reservado).
+ */
+export interface Inventario {
+  id: string
+  producto_id: string
+  presentacion_id: string
+  stock_total: number
+  stock_reservado: number
+  stock_disponible: number
+  precio_venta: number
+  precio_costo: number
+  updated_at: string
 }
 
 export type TipoCliente =

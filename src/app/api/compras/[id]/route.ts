@@ -132,11 +132,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         .maybeSingle()
 
       if (inv) {
-        // YES → UPDATE stock_total += cantidad
+        // YES → UPDATE stock_total += cantidad, refresh precio_costo with latest
         const nuevoTotal = (inv.stock_total ?? 0) + cantidad
+        const invUpdate: Record<string, any> = {
+          stock_total: nuevoTotal,
+          updated_at: new Date().toISOString(),
+        }
+        if (typeof item.precio_costo === 'number' && item.precio_costo >= 0) {
+          invUpdate.precio_costo = item.precio_costo
+        }
         await supabase
           .from('inventario')
-          .update({ stock_total: nuevoTotal, updated_at: new Date().toISOString() })
+          .update(invUpdate)
           .eq('id', inv.id)
 
         // INSERT inventario_movimientos
@@ -159,6 +166,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           presentacion_id: presentacionId,
           stock_total:    cantidad,
           stock_reservado: 0,
+          precio_costo:   typeof item.precio_costo === 'number' && item.precio_costo >= 0 ? item.precio_costo : 0,
+          precio_venta:   0,
         })
 
         // INSERT inventario_movimientos (first entry ever)
