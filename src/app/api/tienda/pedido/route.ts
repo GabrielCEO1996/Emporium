@@ -8,19 +8,16 @@ import { rateLimit, rateLimitResponse } from '@/lib/security'
 //
 // Branches on profiles.rol:
 //   • cliente | vendedor | admin | conductor
-//       → orden stays pendiente, admin approves manually
-//       Response: { tipo: 'orden', numero, orden_id }
+//       → ORDEN estado='pendiente', admin approves manually
+//       Response: { success: true, tipo: 'orden', numero, orden_id }
 //
-//   • comprador  → Stripe checkout session created with orden_id in metadata.
-//       The Stripe webhook converts the orden into pedido + factura(pagada) +
-//       transaccion(ingreso) on successful payment.
-//       Response: { tipo: 'pago', url, numero, orden_id }
+//   • comprador → Stripe checkout session, orden_id in metadata.
+//       Webhook converts it to pedido+factura+transaccion on payment.
+//       Response: { success: true, tipo: 'pago', url, numero, orden_id }
 //
-// If the `ordenes` table is not yet present (migration pending), transparently
-// falls back to creating a PEDIDO directly so checkout never breaks.
+// If the ordenes table is missing, falls back to creating a PEDIDO directly.
 //
-// ALWAYS returns a JSON response within the request; the outer try/catch
-// guarantees no hanging requests.
+// GUARANTEES: every code path returns a JSON response — never hangs, never {}.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
@@ -44,38 +41,35 @@ export async function POST(req: Request) {
   try {
     const supabase = createClient()
 
+    // ── Auth ───────────────────────────────────────────────────────────────
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError) console.error('[tienda/pedido] auth error:', authError)
     if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // Rate limit: 20 submissions per hour per user
+    // ── Rate limit: 20 orders/hour per user ────────────────────────────────
     if (!rateLimit(`tienda_orden:${user.id}`, 20, 60 * 60 * 1000)) {
       return rateLimitResponse(60 * 60 * 1000)
     }
 
-    // Resolve rol — drives the entire flow branch later.
+    // ── Rol — drives TYPE A vs TYPE B flow ─────────────────────────────────
     const { data: profileRow, error: profileErr } = await supabase
       .from('profiles').select('rol').eq('id', user.id).maybeSingle()
     if (profileErr) console.error('[tienda/pedido] profile fetch error:', profileErr)
     const rol: string = profileRow?.rol ?? 'comprador'
-
-    // Only comprador is required to pay via Stripe upfront.
-    // Every other authenticated role (cliente, vendedor, admin, conductor)
-    // goes through the admin-approval flow (orden → pendiente).
+    // Only comprador must pay via Stripe upfront.
+    // Every other role (cliente, vendedor, admin, conductor) uses admin-approval.
     const canCreateOrdenes = rol !== 'comprador'
     console.log(`[tienda/pedido] user=${user.id} rol=${rol} canCreateOrdenes=${canCreateOrdenes}`)
 
-    // Parse body safely
+    // ── Parse body ─────────────────────────────────────────────────────────
     let body: any
     try {
       body = await req.json()
-    } catch (parseErr) {
-      console.error('[tienda/pedido] invalid JSON body:', parseErr)
-      return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 })
+    } catch {
+      return NextResponse.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 })
     }
-
     const { items, notas, direccion_entrega } = body ?? {}
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -85,42 +79,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Máximo 100 productos por orden' }, { status: 400 })
     }
 
-    // ── Resolve cliente (includes credito_autorizado for branching) ───────
-    let clienteData:
-      | { id: string; credito_autorizado: boolean | null }
-      | null = null
+    // ── Resolve cliente record ─────────────────────────────────────────────
+    let clienteData: { id: string } | null = null
 
     {
       const { data, error } = await supabase
-        .from('clientes')
-        .select('id, credito_autorizado')
-        .eq('user_id', user.id)
-        .maybeSingle()
+        .from('clientes').select('id').eq('user_id', user.id).maybeSingle()
       if (error) console.error('[tienda/pedido] cliente by user_id:', error)
       if (data) clienteData = data as any
     }
 
     if (!clienteData && user.email) {
       const { data, error } = await supabase
-        .from('clientes')
-        .select('id, credito_autorizado')
-        .eq('email', user.email)
-        .maybeSingle()
+        .from('clientes').select('id').eq('email', user.email).maybeSingle()
       if (error) console.error('[tienda/pedido] cliente by email:', error)
       if (data) {
         clienteData = data as any
-        await supabase
-          .from('clientes')
-          .update({ user_id: user.id })
-          .eq('id', data.id)
-          .is('user_id', null)
-          .then(() => null, err =>
-            console.error('[tienda/pedido] backfill user_id:', err)
-          )
+        // Backfill user_id for future lookups (fire-and-forget)
+        supabase.from('clientes')
+          .update({ user_id: user.id }).eq('id', data.id).is('user_id', null)
+          .then(() => null, err => console.error('[tienda/pedido] backfill user_id:', err))
       }
     }
 
     if (!clienteData) {
+      // Auto-create a cliente row for this user
       const { data: perfil } = await supabase
         .from('profiles').select('nombre').eq('id', user.id).maybeSingle()
       const nombre =
@@ -131,20 +114,14 @@ export async function POST(req: Request) {
 
       const { data: newCliente, error: createError } = await supabase
         .from('clientes')
-        .insert({
-          nombre,
-          email: user.email!,
-          user_id: user.id,
-          activo: true,
-          // credito_autorizado defaults to false — direct-pay client
-        })
-        .select('id, credito_autorizado')
+        .insert({ nombre, email: user.email!, user_id: user.id, activo: true })
+        .select('id')
         .single()
 
       if (createError || !newCliente) {
         console.error('[tienda/pedido] cliente insert failed:', createError)
         return NextResponse.json(
-          { error: 'No se pudo crear el registro de cliente: ' + (createError?.message ?? '') },
+          { error: 'No se pudo registrar el cliente: ' + (createError?.message ?? 'error desconocido') },
           { status: 500 }
         )
       }
@@ -152,13 +129,12 @@ export async function POST(req: Request) {
     }
 
     const cliente_id = clienteData!.id
-
     const total = items.reduce(
       (acc: number, item: any) => acc + Number(item.precio_unitario) * Number(item.cantidad),
       0
     )
 
-    // ── Sequence helper ───────────────────────────────────────────────────
+    // ── Sequence number helper ─────────────────────────────────────────────
     const nextNumero = async (seqName: string, prefix: string): Promise<string> => {
       const { data, error } = await supabase.rpc('get_next_sequence', { seq_name: seqName })
       if (error || !data) {
@@ -168,12 +144,12 @@ export async function POST(req: Request) {
       return data as string
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Path A: create an ORDEN (preferred path)
-    // ════════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════
+    // PATH A — create ORDEN (preferred)
+    // ══════════════════════════════════════════════════════════════════════
     const ordenNumero = await nextNumero('ordenes', 'ORD')
 
-    const { data: orden, error: ordenError } = await supabase
+    const { data: orden, error: ordenInsertErr } = await supabase
       .from('ordenes')
       .insert({
         numero: ordenNumero,
@@ -187,7 +163,18 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (!ordenError && orden) {
+    if (ordenInsertErr) {
+      if (!isMissingRelation(ordenInsertErr)) {
+        console.error('[tienda/pedido] ordenes insert error:', ordenInsertErr)
+        return NextResponse.json(
+          { error: 'Error al crear la orden: ' + (ordenInsertErr.message ?? 'error desconocido') },
+          { status: 500 }
+        )
+      }
+      // ordenes table doesn't exist yet — fall through to PATH B
+      console.warn('[tienda/pedido] ordenes table missing — falling back to pedidos')
+    } else {
+      // Orden created — now insert items
       const ordenItems = items.map((item: any) => ({
         orden_id: orden.id,
         presentacion_id: item.presentacion_id,
@@ -196,38 +183,35 @@ export async function POST(req: Request) {
         subtotal: Number(item.precio_unitario) * Number(item.cantidad),
       }))
 
-      const { error: itemsError } = await supabase.from('orden_items').insert(ordenItems)
-      if (itemsError) {
-        console.error('[tienda/pedido] orden_items insert failed:', itemsError)
+      const { error: itemsInsertErr } = await supabase.from('orden_items').insert(ordenItems)
+
+      if (itemsInsertErr) {
+        // Roll back the orphaned orden
         await supabase.from('ordenes').delete().eq('id', orden.id)
 
-        if (!isMissingRelation(itemsError)) {
+        if (!isMissingRelation(itemsInsertErr)) {
+          console.error('[tienda/pedido] orden_items insert error:', itemsInsertErr)
           return NextResponse.json(
-            { error: itemsError.message ?? 'Error al guardar los productos' },
+            { error: 'Error al guardar los productos: ' + (itemsInsertErr.message ?? 'error desconocido') },
             { status: 500 }
           )
         }
-        console.warn('[tienda/pedido] orden_items missing — fallback to pedidos')
+        // orden_items table doesn't exist yet — fall through to PATH B
+        console.warn('[tienda/pedido] orden_items table missing — falling back to pedidos')
       } else {
-        // ── Branch on rol ─────────────────────────────────────────────
+        // ── Items saved. Branch on rol. ─────────────────────────────────
         if (canCreateOrdenes) {
-          // TYPE A — all roles except comprador: admin approval, no payment upfront
-          console.log(`[tienda/pedido] orden ${orden.numero} created for rol=${rol} — pending approval`)
+          // TYPE A — admin-approval flow (cliente, vendedor, admin, conductor)
+          console.log(`[tienda/pedido] orden ${orden.numero} created (rol=${rol}) — pending admin approval`)
           return NextResponse.json(
-            {
-              success: true,
-              tipo: 'orden',
-              numero: orden.numero,
-              orden_id: orden.id,
-            },
+            { success: true, tipo: 'orden', numero: orden.numero, orden_id: orden.id },
             { status: 201 }
           )
         }
 
-        // TYPE B — rol='comprador' only: Stripe checkout required
+        // TYPE B — comprador: Stripe checkout required
         if (!process.env.STRIPE_SECRET_KEY) {
-          console.error('[tienda/pedido] STRIPE_SECRET_KEY missing — cannot start Stripe checkout for comprador')
-          // Roll back the orden so the client can retry later
+          console.error('[tienda/pedido] STRIPE_SECRET_KEY missing')
           await supabase.from('orden_items').delete().eq('orden_id', orden.id)
           await supabase.from('ordenes').delete().eq('id', orden.id)
           return NextResponse.json(
@@ -237,6 +221,9 @@ export async function POST(req: Request) {
         }
 
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+        let stripeSession: Stripe.Checkout.Session | null = null
+        let stripeError: string | null = null
+
         try {
           const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((it: any) => ({
             price_data: {
@@ -252,7 +239,7 @@ export async function POST(req: Request) {
             quantity: Number(it.cantidad),
           }))
 
-          const session = await stripe.checkout.sessions.create({
+          stripeSession = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items,
             mode: 'payment',
@@ -267,47 +254,41 @@ export async function POST(req: Request) {
               user_email: user.email ?? '',
             },
           })
+        } catch (stripeErr: any) {
+          stripeError = stripeErr?.message ?? 'Error al crear sesión de pago'
+          console.error('[tienda/pedido] stripe session create failed:', stripeErr)
+        }
 
+        if (stripeSession?.url) {
+          console.log(`[tienda/pedido] stripe session created for orden ${orden.numero}`)
           return NextResponse.json(
-            {
-              success: true,
-              tipo: 'pago',
-              url: session.url,
-              numero: orden.numero,
-              orden_id: orden.id,
-            },
+            { success: true, tipo: 'pago', url: stripeSession.url, numero: orden.numero, orden_id: orden.id },
             { status: 201 }
           )
-        } catch (stripeErr: any) {
-          console.error('[tienda/pedido] stripe session create failed:', stripeErr)
-          // Leave the orden in place — admin can still approve it manually
-          // and the user can be told it went through as a manual-approval orden.
-          return NextResponse.json(
-            {
-              error: 'No se pudo iniciar el pago. Intenta de nuevo.',
-              stripe_error: stripeErr?.message,
-            },
-            { status: 502 }
-          )
         }
+
+        // Stripe failed or returned no URL — leave the orden in place so admin
+        // can approve it manually, and tell the user what happened.
+        console.error(`[tienda/pedido] stripe session has no URL. error=${stripeError}`)
+        return NextResponse.json(
+          {
+            error: stripeError
+              ? `No se pudo iniciar el pago: ${stripeError}`
+              : 'No se pudo iniciar el pago. Intenta de nuevo.',
+          },
+          { status: 502 }
+        )
       }
-    } else if (ordenError && !isMissingRelation(ordenError)) {
-      console.error('[tienda/pedido] ordenes insert failed:', ordenError)
-      return NextResponse.json(
-        { error: ordenError.message ?? 'Error al crear la orden' },
-        { status: 500 }
-      )
-    } else if (ordenError) {
-      console.warn('[tienda/pedido] ordenes table missing — fallback to pedidos')
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Path B: legacy fallback — create a PEDIDO directly
-    // (only reached when the ordenes migration has not been applied)
-    // ════════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════
+    // PATH B — legacy fallback: create PEDIDO directly
+    // Reached only when ordenes or orden_items table is missing.
+    // ══════════════════════════════════════════════════════════════════════
+    console.log('[tienda/pedido] PATH B: creating pedido directly')
     const pedidoNumero = await nextNumero('pedidos', 'PED')
 
-    const { data: pedido, error: pedidoError } = await supabase
+    const { data: pedido, error: pedidoInsertErr } = await supabase
       .from('pedidos')
       .insert({
         numero: pedidoNumero,
@@ -325,10 +306,10 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (pedidoError || !pedido) {
-      console.error('[tienda/pedido] pedido insert failed:', pedidoError)
+    if (pedidoInsertErr || !pedido) {
+      console.error('[tienda/pedido] pedido insert failed:', pedidoInsertErr)
       return NextResponse.json(
-        { error: pedidoError?.message ?? 'Error al crear el pedido' },
+        { error: 'Error al crear el pedido: ' + (pedidoInsertErr?.message ?? 'error desconocido') },
         { status: 500 }
       )
     }
@@ -342,29 +323,27 @@ export async function POST(req: Request) {
       subtotal: Number(item.precio_unitario) * Number(item.cantidad),
     }))
 
-    const { error: pedidoItemsError } = await supabase.from('pedido_items').insert(pedidoItems)
-    if (pedidoItemsError) {
-      console.error('[tienda/pedido] pedido_items insert failed:', pedidoItemsError)
+    const { error: pedidoItemsErr } = await supabase.from('pedido_items').insert(pedidoItems)
+    if (pedidoItemsErr) {
+      console.error('[tienda/pedido] pedido_items insert failed:', pedidoItemsErr)
       await supabase.from('pedidos').delete().eq('id', pedido.id)
       return NextResponse.json(
-        { error: pedidoItemsError.message ?? 'Error al guardar los productos' },
+        { error: 'Error al guardar los productos: ' + (pedidoItemsErr.message ?? 'error desconocido') },
         { status: 500 }
       )
     }
 
+    console.log(`[tienda/pedido] PATH B pedido ${pedido.numero} created`)
     return NextResponse.json(
-      {
-        success: true,
-        tipo: 'orden',       // UI treats it the same as an orden for messaging
-        numero: pedido.numero,
-        pedido_id: pedido.id,
-      },
+      { success: true, tipo: 'orden', numero: pedido.numero, orden_id: pedido.id },
       { status: 201 }
     )
+
   } catch (err: any) {
+    // Safety net — catches any unexpected throw inside the handler
     console.error('[tienda/pedido] unhandled exception:', err)
     return NextResponse.json(
-      { error: err?.message ?? 'Error interno del servidor' },
+      { error: 'Error interno del servidor: ' + (err?.message ?? String(err)) },
       { status: 500 }
     )
   }
