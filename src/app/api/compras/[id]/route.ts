@@ -23,14 +23,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         id, cantidad, precio_costo, subtotal,
         presentacion:presentaciones(
           id, nombre, stock,
-          productos(nombre)
+          productos(id, codigo, nombre)
         )
       )
     `)
     .eq('id', params.id)
-    .single()
+    .maybeSingle()
 
-  if (error || !data) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  // Distinguish an actual error from "no row found".
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data)  return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
   return NextResponse.json(data)
 }
 

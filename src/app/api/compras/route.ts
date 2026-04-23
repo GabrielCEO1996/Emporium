@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores' }, { status: 403 })
 
   const body = await req.json()
-  const { proveedor_id, fecha, notas, items } = body
+  const { proveedor_id, fecha, fecha_compra, notas, items } = body
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'Debes agregar al menos un producto' }, { status: 400 })
@@ -60,20 +60,26 @@ export async function POST(req: Request) {
     (sum: number, i: any) => sum + Number(i.cantidad) * Number(i.precio_costo), 0
   )
 
-  // Create compra in borrador state — inventory is NOT updated yet
+  // User-picked date of the actual purchase (defaults to today).
+  // Accept `fecha_compra` (new name) and fall back to `fecha` (legacy alias from older clients).
+  const fechaCompra = fecha_compra || fecha || new Date().toISOString().split('T')[0]
+
+  // Create compra in borrador state — inventory is NOT updated yet.
+  // created_at is set automatically by the DB; fecha_compra is the real purchase date.
   const { data: compra, error: compraError } = await supabase
     .from('compras')
     .insert({
       proveedor_id: proveedor_id || null,
-      fecha: fecha || new Date().toISOString().split('T')[0],
+      fecha: fechaCompra,           // legacy column (kept in sync)
+      fecha_compra: fechaCompra,    // new column
       total,
       estado: 'borrador',
       notas: notas?.trim() || null,
     })
-    .select('*')
+    .select()
     .single()
 
-  if (compraError || !compra?.id) {
+  if (compraError || !compra) {
     return NextResponse.json(
       { error: compraError?.message ?? 'Error al crear compra' },
       { status: 500 },
@@ -95,9 +101,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 })
   }
 
-  // Return { success, id, compra } so the client can redirect to /compras/[id]
-  return NextResponse.json(
-    { success: true, id: compra.id, compra },
-    { status: 201 },
-  )
+  // Return the full compra object (id, numero, fecha_compra, created_at, ...)
+  return NextResponse.json(compra, { status: 201 })
 }

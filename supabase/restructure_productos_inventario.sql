@@ -77,7 +77,25 @@ ON CONFLICT (presentacion_id) DO UPDATE
   SET precio_venta = COALESCE(NULLIF(EXCLUDED.precio_venta, 0), public.inventario.precio_venta),
       precio_costo = COALESCE(NULLIF(EXCLUDED.precio_costo, 0), public.inventario.precio_costo);
 
--- 4. Sanity check -------------------------------------------------------------
+-- 4. compras.fecha_compra -----------------------------------------------------
+-- We need two separate dates:
+--   • fecha_compra : day the purchase was physically made (user-entered, editable)
+--   • created_at   : day the record was entered in the system (automatic)
+-- The legacy `fecha` column is kept as an alias of fecha_compra for back-compat.
+
+ALTER TABLE public.compras
+  ADD COLUMN IF NOT EXISTS fecha_compra date DEFAULT CURRENT_DATE;
+
+-- Backfill from legacy `fecha` so existing records have the same value in both columns.
+UPDATE public.compras
+SET    fecha_compra = fecha
+WHERE  fecha_compra IS NULL
+  AND  fecha IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS compras_fecha_compra_idx ON public.compras (fecha_compra DESC);
+
+-- 5. Sanity check -------------------------------------------------------------
 -- Uncomment to verify:
 -- SELECT COUNT(*) productos_total, COUNT(codigo) con_codigo FROM public.productos;
 -- SELECT COUNT(*) inventario_rows, COUNT(*) FILTER (WHERE precio_venta > 0) con_precio FROM public.inventario;
+-- SELECT COUNT(*) compras_total, COUNT(fecha_compra) con_fecha FROM public.compras;

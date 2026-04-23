@@ -39,7 +39,7 @@ export default function NuevaCompraClient({ presentaciones, proveedores }: Props
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [proveedorId, setProveedorId] = useState('')
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [fechaCompra, setFechaCompra] = useState(new Date().toISOString().split('T')[0])
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<LineItem[]>([
     { presentacion_id: '', cantidad: 1, precio_costo: 0 }
@@ -74,22 +74,24 @@ export default function NuevaCompraClient({ presentaciones, proveedores }: Props
       const res = await fetch('/api/compras', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proveedor_id: proveedorId || null, fecha, notas, items: validItems }),
+        body: JSON.stringify({
+          proveedor_id: proveedorId || null,
+          fecha_compra: fechaCompra,
+          notas,
+          items: validItems,
+        }),
       })
-      const d = await res.json().catch(() => ({} as any))
+      const data = await res.json().catch(() => ({} as any))
       if (!res.ok) {
-        toast.error(d?.error ?? 'Error al registrar compra')
+        toast.error(data?.error ?? 'Error al registrar compra')
         return
       }
-      // API returns { success, id, compra } — fall back to d.id or d.compra.id for safety.
-      const newId: string | undefined = d?.id ?? d?.compra?.id
-      if (!newId) {
-        toast.error('La compra se creó pero no se recibió el ID. Revisa la lista de compras.')
-        router.push('/compras')
-        return
+      if (data?.id) {
+        toast.success('Compra registrada en borrador. Márcala como recibida para actualizar el inventario.')
+        router.push(`/compras/${data.id}`)
+      } else {
+        toast.error('Error al crear la compra: ' + (data?.error || 'sin id'))
       }
-      toast.success('Compra registrada en borrador. Márcala como recibida para actualizar el inventario.')
-      router.push(`/compras/${newId}`)
     } catch {
       toast.error('Error de conexión')
     } finally {
@@ -119,8 +121,16 @@ export default function NuevaCompraClient({ presentaciones, proveedores }: Props
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Fecha *</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required className={inputCls} />
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Fecha de compra *</label>
+            <input
+              type="date"
+              value={fechaCompra}
+              onChange={e => setFechaCompra(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              required
+              className={inputCls}
+            />
+            <p className="mt-1 text-[10px] text-slate-400">Día en que se realizó la compra (puede ser pasado).</p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Notas</label>

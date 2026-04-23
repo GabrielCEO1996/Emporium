@@ -156,7 +156,7 @@ export default function CompraDetailPage() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
                 <ShoppingBag className="h-4 w-4 text-white" />
               </div>
-              <span className="font-semibold text-slate-900">{formatDate(compra.fecha)}</span>
+              <span className="font-semibold text-slate-900">{formatDate(compra.fecha_compra ?? compra.fecha)}</span>
             </div>
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -287,10 +287,17 @@ export default function CompraDetailPage() {
               </h2>
               <dl className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <dt className="text-slate-500">Fecha</dt>
+                  <dt className="text-slate-500">Fecha de compra</dt>
                   <dd className="flex items-center gap-1 text-slate-900">
                     <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                    {formatDate(compra.fecha)}
+                    {formatDate(compra.fecha_compra ?? compra.fecha)}
+                  </dd>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <dt className="text-slate-500">Registrado</dt>
+                  <dd className="flex items-center gap-1 text-slate-500">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    {compra.created_at ? formatDate(compra.created_at) : '—'}
                   </dd>
                 </div>
                 <div className="flex justify-between text-sm">
