@@ -26,12 +26,25 @@ export default async function TiendaPage() {
     .filter((p: any) => p.presentaciones?.some((pr: any) => pr.activo))
     .map((p: any) => ({ ...p, presentaciones: p.presentaciones.filter((pr: any) => pr.activo) }))
 
-  // Get cliente linked record (includes credit info)
-  const { data: clienteData } = await supabase
-    .from('clientes')
-    .select('id, direccion, telefono, whatsapp, credito_autorizado, limite_credito, credito_usado')
-    .eq('email', user.email ?? '')
-    .maybeSingle()
+  // Get cliente linked record (includes credit info + shipping profile).
+  // Prefer user_id link; fall back to email for legacy rows.
+  let clienteData: any = null
+  {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre, direccion, telefono, whatsapp, ciudad, tipo_cliente, credito_autorizado, limite_credito, credito_usado')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    clienteData = data
+  }
+  if (!clienteData && user.email) {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre, direccion, telefono, whatsapp, ciudad, tipo_cliente, credito_autorizado, limite_credito, credito_usado')
+      .eq('email', user.email)
+      .maybeSingle()
+    clienteData = data
+  }
 
   return (
     <TiendaClient

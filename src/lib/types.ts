@@ -38,6 +38,13 @@ export interface Presentacion {
   producto?: Producto
 }
 
+export type TipoCliente =
+  | 'tienda'
+  | 'supermercado'
+  | 'restaurante'
+  | 'persona_natural'
+  | 'otro'
+
 export interface Cliente {
   id: string
   nombre: string
@@ -52,6 +59,10 @@ export interface Cliente {
   dias_credito: number
   activo: boolean
   notas?: string
+  /** Links this cliente to an auth user (app-user-registered clients). */
+  user_id?: string | null
+  /** Kind of business — used for reporting + default credit policies. */
+  tipo_cliente?: TipoCliente | string
   created_at: string
   updated_at: string
 }

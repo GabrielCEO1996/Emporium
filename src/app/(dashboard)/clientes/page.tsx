@@ -218,7 +218,17 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                       >
                         <td className="px-5 py-4">
                           <div>
-                            <p className="font-medium text-slate-900">{cliente.nombre}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-slate-900">{cliente.nombre}</p>
+                              {(cliente as any).user_id && (
+                                <span
+                                  title="Este cliente se registró desde la app"
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                                >
+                                  App User 📱
+                                </span>
+                              )}
+                            </div>
                             {cliente.email && (
                               <p className="text-xs text-slate-500">{cliente.email}</p>
                             )}
@@ -296,6 +306,11 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-slate-900 truncate">{cliente.nombre}</p>
+                        {(cliente as any).user_id && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                            App User 📱
+                          </span>
+                        )}
                         {cliente.activo ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
   User, ChevronLeft, ShoppingBag, ClipboardList,
   CheckCircle2, Loader2, LogOut, Briefcase, Phone, MapPin, MessageCircle,
-  CreditCard,
+  CreditCard, Building2, Store,
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -20,9 +20,17 @@ interface Props {
   clienteInfo?: {
     id?: string; nombre?: string; telefono?: string
     whatsapp?: string; direccion?: string; ciudad?: string
+    tipo_cliente?: string
     credito_autorizado?: boolean; limite_credito?: number; credito_usado?: number
   } | null
 }
+
+const TIPO_CLIENTE_OPTIONS: { value: string; label: string; emoji: string }[] = [
+  { value: 'tienda',          label: 'Tienda',          emoji: '🏪' },
+  { value: 'supermercado',    label: 'Supermercado',    emoji: '🛒' },
+  { value: 'restaurante',     label: 'Restaurante',     emoji: '🍽️' },
+  { value: 'persona_natural', label: 'Persona natural', emoji: '👤' },
+]
 
 function Field({
   label, value, onChange, icon, placeholder, type = 'text', disabled = false,
@@ -57,6 +65,8 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
   const [telefono, setTelefono] = useState(clienteInfo?.telefono ?? '')
   const [whatsapp, setWhatsapp] = useState(clienteInfo?.whatsapp ?? '')
   const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
+  const [ciudad, setCiudad] = useState(clienteInfo?.ciudad ?? '')
+  const [tipoCliente, setTipoCliente] = useState(clienteInfo?.tipo_cliente ?? 'persona_natural')
   const [saving, setSaving] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [requested, setRequested] = useState(profile.solicita_vendedor ?? false)
@@ -68,13 +78,16 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
     const res = await fetch('/api/tienda/perfil', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, telefono, whatsapp, direccion }),
+      body: JSON.stringify({
+        nombre, telefono, whatsapp, direccion,
+        ciudad, tipo_cliente: tipoCliente,
+      }),
     })
     setSaving(false)
     if (res.ok) {
       toast.success('Perfil actualizado')
     } else {
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Error al guardar')
     }
   }
@@ -137,12 +150,17 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4"
         >
-          <h2 className="font-semibold text-slate-700 dark:text-white text-sm">Editar información</h2>
+          <div>
+            <h2 className="font-semibold text-slate-700 dark:text-white text-sm">Tu información de envío</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Esta información se usa para procesar tus órdenes.
+            </p>
+          </div>
 
           <Field
-            label="Nombre" value={nombre} onChange={setNombre}
+            label="Nombre / Empresa" value={nombre} onChange={setNombre}
             icon={<User className="w-3 h-3" />}
-            placeholder="Tu nombre completo"
+            placeholder="Tu nombre completo o negocio"
           />
           <Field
             label="Email" value={profile.email}
@@ -166,6 +184,38 @@ export default function PerfilClient({ profile, clienteInfo }: Props) {
             icon={<MapPin className="w-3 h-3" />}
             placeholder="Av. Principal, Casa 5, Urb. X"
           />
+          <Field
+            label="Ciudad" value={ciudad} onChange={setCiudad}
+            icon={<Building2 className="w-3 h-3" />}
+            placeholder="Caracas"
+          />
+
+          {/* Tipo de cliente */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+              <Store className="w-3 h-3" /> Tipo de cliente
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {TIPO_CLIENTE_OPTIONS.map(opt => {
+                const active = tipoCliente === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setTipoCliente(opt.value)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold border transition ${
+                      active
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                    }`}
+                  >
+                    <span>{opt.emoji}</span>
+                    <span className="truncate">{opt.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <button
             onClick={handleSave}

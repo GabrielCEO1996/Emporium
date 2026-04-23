@@ -33,9 +33,29 @@ interface Props {
   profile: { id: string; nombre: string; email: string; rol: string }
   productos: Producto[]
   clienteInfo?: {
-    id?: string; direccion?: string; telefono?: string; whatsapp?: string
+    id?: string
+    nombre?: string
+    direccion?: string; telefono?: string; whatsapp?: string
+    ciudad?: string; tipo_cliente?: string
     credito_autorizado?: boolean; limite_credito?: number; credito_usado?: number
   } | null
+}
+
+// Types shared with the shipping form
+type TipoClienteForm =
+  | 'tienda'
+  | 'supermercado'
+  | 'restaurante'
+  | 'persona_natural'
+  | 'otro'
+
+interface ShippingFormValues {
+  nombre: string
+  telefono: string
+  direccion: string
+  ciudad: string
+  whatsapp: string
+  tipo_cliente: TipoClienteForm
 }
 
 // ── Stock helpers ─────────────────────────────────────────────────────────────
@@ -537,6 +557,179 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
   )
 }
 
+// ── Shipping Registration Form ────────────────────────────────────────────────
+// Shown BEFORE the ConfirmModal when cliente.telefono or cliente.direccion is
+// missing. Captures business profile fields which the pedido API upserts into
+// the clientes table so admin can manage app users alongside B2B clients.
+function ShippingForm({
+  open, onClose, onSubmit, initial, submitting,
+}: {
+  open: boolean
+  onClose: () => void
+  onSubmit: (values: ShippingFormValues) => void
+  initial: ShippingFormValues
+  submitting: boolean
+}) {
+  const [values, setValues] = useState<ShippingFormValues>(initial)
+
+  useEffect(() => {
+    if (open) setValues(initial)
+  }, [open, initial])
+
+  if (!open) return null
+
+  const set = <K extends keyof ShippingFormValues>(k: K, v: ShippingFormValues[K]) =>
+    setValues(prev => ({ ...prev, [k]: v }))
+
+  const valid =
+    values.nombre.trim() &&
+    values.telefono.trim() &&
+    values.direccion.trim() &&
+    values.ciudad.trim()
+
+  const TIPO_OPTIONS: { value: TipoClienteForm; label: string; emoji: string }[] = [
+    { value: 'tienda',          label: 'Tienda',          emoji: '🏪' },
+    { value: 'supermercado',    label: 'Supermercado',    emoji: '🛒' },
+    { value: 'restaurante',     label: 'Restaurante',     emoji: '🍽️' },
+    { value: 'persona_natural', label: 'Persona natural', emoji: '👤' },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div
+        className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md flex flex-col shadow-2xl"
+        style={{ maxHeight: '90vh' }}
+      >
+        <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+
+        {/* Header */}
+        <div className="shrink-0 flex items-start justify-between px-5 pt-6 pb-4 sm:pt-4 border-b border-slate-200 dark:border-slate-700 bg-teal-50 dark:bg-teal-900/20">
+          <div>
+            <h2 className="font-bold text-slate-800 dark:text-white text-lg">📦 Datos de envío</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+              Para procesar tu orden necesitamos algunos datos
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white/60 dark:hover:bg-slate-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Fields */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Nombre completo / Empresa <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={values.nombre}
+              onChange={e => set('nombre', e.target.value)}
+              placeholder="Ej. Bodega Los Olivos"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Teléfono <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="tel"
+              value={values.telefono}
+              onChange={e => set('telefono', e.target.value)}
+              placeholder="0414-0000000"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Dirección de entrega <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={2}
+              value={values.direccion}
+              onChange={e => set('direccion', e.target.value)}
+              placeholder="Av. Principal, Casa 5, Urb. X"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Ciudad <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={values.ciudad}
+              onChange={e => set('ciudad', e.target.value)}
+              placeholder="Caracas"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              WhatsApp <span className="text-slate-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="tel"
+              value={values.whatsapp}
+              onChange={e => set('whatsapp', e.target.value)}
+              placeholder="0414-0000000"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+              Tipo de cliente
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {TIPO_OPTIONS.map(opt => {
+                const active = values.tipo_cliente === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => set('tipo_cliente', opt.value)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold border transition ${
+                      active
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                    }`}
+                  >
+                    <span>{opt.emoji}</span>
+                    <span className="truncate">{opt.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <button
+            onClick={() => onSubmit(values)}
+            disabled={!valid || submitting}
+            className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Guardar y continuar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Chat Panel ────────────────────────────────────────────────────────────────
 function ChatPanel({
   open, onClose, productos,
@@ -695,6 +888,7 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const [cartOpen, setCartOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [shippingOpen, setShippingOpen] = useState(false)
   const [successOrder, setSuccessOrder] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoria, setCategoria] = useState<string | null>(null)
@@ -702,6 +896,22 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
   const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
   const [ordering, setOrdering] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Shipping profile: seeded from clienteInfo, updated via ShippingForm.
+  // Passed to the API as `cliente_data` on order creation so the server can
+  // upsert the clientes row.
+  const [shipping, setShipping] = useState<ShippingFormValues>({
+    nombre:       clienteInfo?.nombre       ?? profile.nombre ?? '',
+    telefono:     clienteInfo?.telefono     ?? '',
+    direccion:    clienteInfo?.direccion    ?? '',
+    ciudad:       clienteInfo?.ciudad       ?? '',
+    whatsapp:     clienteInfo?.whatsapp     ?? '',
+    tipo_cliente: (clienteInfo?.tipo_cliente as TipoClienteForm) ?? 'persona_natural',
+  })
+  const isShippingComplete = !!(
+    shipping.nombre.trim() && shipping.telefono.trim() &&
+    shipping.direccion.trim() && shipping.ciudad.trim()
+  )
 
   // Categories
   const categorias = useMemo(() => {
@@ -821,10 +1031,27 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         precio_unitario: i.precio,
       }))
 
+      // Include cliente_data so the server auto-upserts the clientes record.
+      const cliente_data = isShippingComplete
+        ? {
+            nombre:       shipping.nombre.trim(),
+            telefono:     shipping.telefono.trim(),
+            direccion:    shipping.direccion.trim(),
+            ciudad:       shipping.ciudad.trim(),
+            whatsapp:     shipping.whatsapp.trim(),
+            tipo_cliente: shipping.tipo_cliente,
+          }
+        : undefined
+
       const res = await fetch('/api/tienda/pedido', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, notas, direccion_entrega: direccion }),
+        body: JSON.stringify({
+          items,
+          notas,
+          direccion_entrega: direccion || shipping.direccion,
+          cliente_data,
+        }),
       })
 
       const data = await res.json().catch(() => ({} as any))
@@ -1092,11 +1319,34 @@ export default function TiendaClient({ profile, productos, clienteInfo }: Props)
         onClose={() => setCartOpen(false)}
         onUpdate={updateCart}
         onRemove={removeFromCart}
-        onCheckout={() => { setCartOpen(false); setConfirmOpen(true) }}
+        onCheckout={() => {
+          setCartOpen(false)
+          // First-order gate: if we don't yet have a complete business profile
+          // on file for this user, collect it before showing the confirm modal.
+          if (!isShippingComplete) {
+            setShippingOpen(true)
+          } else {
+            setConfirmOpen(true)
+          }
+        }}
         canCreateOrdenes={canCreateOrdenes}
         creditoAutorizado={creditoAutorizado}
         limiteCredito={limiteCredito}
         creditoUsado={creditoUsado}
+      />
+
+      <ShippingForm
+        open={shippingOpen}
+        onClose={() => setShippingOpen(false)}
+        initial={shipping}
+        submitting={ordering}
+        onSubmit={(values) => {
+          setShipping(values)
+          // Prime the direccion used in the confirm modal.
+          if (!direccion) setDireccion(values.direccion)
+          setShippingOpen(false)
+          setConfirmOpen(true)
+        }}
       />
 
       <ConfirmModal

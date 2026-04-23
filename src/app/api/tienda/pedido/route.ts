@@ -84,13 +84,26 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 })
     }
-    const { items, notas, direccion_entrega } = body ?? {}
+    const { items, notas, direccion_entrega, cliente_data } = body ?? {}
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
     }
     if (items.length > 100) {
       return NextResponse.json({ error: 'Máximo 100 productos por orden' }, { status: 400 })
+    }
+
+    // ── Normalize optional cliente_data from shipping form ─────────────────
+    // Shape: { nombre, telefono, direccion, ciudad, whatsapp, tipo_cliente }
+    const cd = (cliente_data && typeof cliente_data === 'object') ? cliente_data : null
+    const clienteProfilePatch: Record<string, any> = {}
+    if (cd) {
+      if (typeof cd.nombre === 'string'        && cd.nombre.trim())        clienteProfilePatch.nombre        = cd.nombre.trim()
+      if (typeof cd.telefono === 'string'      && cd.telefono.trim())      clienteProfilePatch.telefono      = cd.telefono.trim()
+      if (typeof cd.whatsapp === 'string'      && cd.whatsapp.trim())      clienteProfilePatch.whatsapp      = cd.whatsapp.trim()
+      if (typeof cd.direccion === 'string'     && cd.direccion.trim())     clienteProfilePatch.direccion     = cd.direccion.trim()
+      if (typeof cd.ciudad === 'string'        && cd.ciudad.trim())        clienteProfilePatch.ciudad        = cd.ciudad.trim()
+      if (typeof cd.tipo_cliente === 'string'  && cd.tipo_cliente.trim())  clienteProfilePatch.tipo_cliente  = cd.tipo_cliente.trim()
     }
 
     // ── Resolve cliente record ─────────────────────────────────────────────
@@ -117,18 +130,29 @@ export async function POST(req: Request) {
     }
 
     if (!clienteData) {
-      // Auto-create a cliente row for this user
+      // Auto-create a cliente row for this user, enriched with form data.
       const { data: perfil } = await supabase
         .from('profiles').select('nombre').eq('id', user.id).maybeSingle()
       const nombre =
+        clienteProfilePatch.nombre ??
         perfil?.nombre ??
         user.user_metadata?.full_name ??
         user.email?.split('@')[0] ??
         'Cliente'
 
+      const insertPayload: Record<string, any> = {
+        nombre,
+        email: user.email!,
+        user_id: user.id,
+        activo: true,
+        // tipo_cliente defaults to 'persona_natural' per DB default; form data overrides.
+        ...clienteProfilePatch,
+      }
+      insertPayload.nombre = nombre  // guarantee trimmed nombre wins
+
       const { data: newCliente, error: createError } = await supabase
         .from('clientes')
-        .insert({ nombre, email: user.email!, user_id: user.id, activo: true })
+        .insert(insertPayload)
         .select('id')
         .single()
 
@@ -140,6 +164,14 @@ export async function POST(req: Request) {
         )
       }
       clienteData = newCliente as any
+    } else if (Object.keys(clienteProfilePatch).length > 0) {
+      // Existing cliente: merge in any new profile fields from the form.
+      // Fire-and-forget so a failure here does not block order creation.
+      supabase
+        .from('clientes')
+        .update({ ...clienteProfilePatch, updated_at: new Date().toISOString() })
+        .eq('id', clienteData.id)
+        .then(() => null, err => console.error('[tienda/pedido] cliente profile update:', err))
     }
 
     const cliente_id = clienteData!.id

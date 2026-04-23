@@ -15,11 +15,24 @@ export default async function PerfilPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: clienteData } = await supabase
-    .from('clientes')
-    .select('id, nombre, telefono, whatsapp, direccion, ciudad, credito_autorizado, limite_credito, credito_usado')
-    .eq('email', user.email ?? '')
-    .maybeSingle()
+  // Prefer user_id; fall back to email for legacy rows
+  let clienteData: any = null
+  {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre, telefono, whatsapp, direccion, ciudad, tipo_cliente, credito_autorizado, limite_credito, credito_usado')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    clienteData = data
+  }
+  if (!clienteData && user.email) {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre, telefono, whatsapp, direccion, ciudad, tipo_cliente, credito_autorizado, limite_credito, credito_usado')
+      .eq('email', user.email)
+      .maybeSingle()
+    clienteData = data
+  }
 
   return <PerfilClient profile={profile as any} clienteInfo={clienteData as any} />
 }
