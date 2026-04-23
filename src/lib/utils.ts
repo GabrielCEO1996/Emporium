@@ -60,7 +60,7 @@ export const ESTADO_FACTURA_LABELS: Record<string, string> = {
 }
 
 export const ESTADO_FACTURA_COLORS: Record<string, string> = {
-  emitida: 'bg-teal-100 text-teal-700',
+  emitida: 'bg-blue-100 text-blue-700',
   enviada: 'bg-purple-100 text-purple-700',
   pagada: 'bg-green-100 text-green-700',
   anulada: 'bg-red-100 text-red-700',

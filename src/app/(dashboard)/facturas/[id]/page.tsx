@@ -102,6 +102,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Always-visible utility buttons */}
             <WhatsAppButton tipo="factura" factura={f} empresa={empresaConfig ?? undefined} />
             <EnviarEmailButton
               facturaId={f.id}
@@ -110,33 +111,58 @@ export default async function FacturaDetailPage({ params }: PageProps) {
             />
             <FacturaPrintButton factura={f} empresaConfig={empresaConfig ?? undefined} />
 
+            {/* ── State-transition buttons (exclusive per state) ── */}
+
+            {/* emitida → can only advance to "enviada" */}
             {f.estado === 'emitida' && (
               <MarcarEnviadaButton facturaId={f.id} />
             )}
 
-            {(f.estado === 'enviada' || f.estado === 'emitida') && (
+            {/* enviada → can only advance to "pagada" */}
+            {f.estado === 'enviada' && (
               <MarcarPagadaButton facturaId={f.id} />
             )}
 
-            <Link
-              href={`/notas-credito/nueva?factura_id=${f.id}`}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <FileMinus className="h-4 w-4" />
-              Nota de Crédito
-            </Link>
-            <AnularFacturaButton
-              facturaId={f.id}
-              facturaNumero={f.numero}
-              estadoActual={f.estado}
-              isAdmin={isAdmin}
-            />
-            <EliminarFacturaButton
-              facturaId={f.id}
-              facturaNumero={f.numero}
-              estadoActual={f.estado}
-              isAdmin={isAdmin}
-            />
+            {/* pagada → can only be anulada */}
+            {f.estado === 'pagada' && (
+              <AnularFacturaButton
+                facturaId={f.id}
+                facturaNumero={f.numero}
+                estadoActual={f.estado}
+                isAdmin={isAdmin}
+              />
+            )}
+
+            {/* ── Nota de crédito — available while not yet anulada ── */}
+            {f.estado !== 'anulada' && (
+              <Link
+                href={`/notas-credito/nueva?factura_id=${f.id}`}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <FileMinus className="h-4 w-4" />
+                Nota de Crédito
+              </Link>
+            )}
+
+            {/* ── Anular — available for emitida/enviada (not pagada — handled above, not anulada) ── */}
+            {(f.estado === 'emitida' || f.estado === 'enviada') && (
+              <AnularFacturaButton
+                facturaId={f.id}
+                facturaNumero={f.numero}
+                estadoActual={f.estado}
+                isAdmin={isAdmin}
+              />
+            )}
+
+            {/* ── Delete — admin only, never when pagada ── */}
+            {isAdmin && f.estado !== 'pagada' && (
+              <EliminarFacturaButton
+                facturaId={f.id}
+                facturaNumero={f.numero}
+                estadoActual={f.estado}
+                isAdmin={isAdmin}
+              />
+            )}
           </div>
         </div>
       </div>

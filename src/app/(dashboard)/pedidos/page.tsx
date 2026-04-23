@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Truck,
   FileText,
+  Lock,
 } from 'lucide-react'
 import GenerarFacturaButton from '@/components/pedidos/GenerarFacturaButton'
 import EliminarPedidoButton from '@/components/pedidos/EliminarPedidoButton'
@@ -341,10 +342,13 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                         </td>
                         <td className="px-5 py-4">
                           <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                               ESTADO_PEDIDO_COLORS[pedido.estado] ?? 'bg-slate-100 text-slate-600'
                             }`}
                           >
+                            {pedido.estado === 'confirmado' && (
+                              <Lock className="h-3 w-3" />
+                            )}
                             {ESTADO_PEDIDO_LABELS[pedido.estado] ?? pedido.estado}
                           </span>
                         </td>
@@ -374,10 +378,10 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                             ) : pedido.estado === 'facturado' && pedido.facturas?.[0]?.id ? (
                               <Link
                                 href={`/facturas/${pedido.facturas[0].id}`}
-                                className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 hover:text-teal-800 transition-colors"
+                                className="flex items-center justify-end gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
                               >
                                 <FileText className="h-3.5 w-3.5" />
-                                {pedido.facturas[0].numero ?? 'Ver Factura'}
+                                Ver {pedido.facturas[0].numero ?? 'Factura'}
                               </Link>
                             ) : (
                               <Link
