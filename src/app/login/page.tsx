@@ -1,18 +1,10 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ShieldCheck, Truck, Star, ArrowRight } from 'lucide-react'
-
-// Map URL ?error= codes → human-readable Spanish messages
-const URL_ERROR_MESSAGES: Record<string, string> = {
-  auth_error:   'Error al autenticar con Google. Por favor intenta de nuevo.',
-  auth_failed:  'No se pudo completar la autenticación. Intenta de nuevo.',
-  link_expired: 'El enlace ha expirado. Solicita uno nuevo desde ¿Olvidaste tu contraseña?',
-  acceso_denegado: 'No tienes permisos para acceder a esa sección.',
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LOGO_URL =
@@ -50,16 +42,6 @@ export default function LoginPage() {
   const [googleLoading,setGoogleLoading]= useState(false)
   const [error,        setError]        = useState('')
 
-  // Read ?error= from URL on mount and show a friendly message
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    const code   = params.get('error')
-    if (code && URL_ERROR_MESSAGES[code]) {
-      setError(URL_ERROR_MESSAGES[code])
-    }
-  }, [])
-
   const busy = loading || googleLoading
 
   // ── Email / password ──────────────────────────────────────────────────────
@@ -75,30 +57,13 @@ export default function LoginPage() {
       setError(
         authError?.message?.includes('Email not confirmed')
           ? 'Debes confirmar tu correo antes de ingresar. Revisa tu bandeja de entrada.'
-          : authError?.message?.includes('Invalid login credentials')
-          ? 'Correo o contraseña incorrectos.'
-          : authError?.message?.includes('Email link is invalid or has expired')
-          ? 'El enlace ha expirado. Solicita uno nuevo.'
           : 'Correo o contraseña incorrectos.'
       )
       setLoading(false)
       return
     }
 
-    // Role-based redirect after email/password login
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('rol')
-        .eq('id', data.session.user.id)
-        .maybeSingle()
-      const rol = profile?.rol ?? 'cliente'
-      if (rol === 'pendiente')                                    window.location.href = '/pendiente'
-      else if (['admin', 'vendedor', 'conductor'].includes(rol))  window.location.href = '/dashboard'
-      else                                                         window.location.href = '/tienda'
-    } catch {
-      window.location.href = '/dashboard'
-    }
+    window.location.href = '/dashboard'
   }
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
@@ -107,19 +72,9 @@ export default function LoginPage() {
     setGoogleLoading(true)
     setError('')
 
-    // Use env variable when set (production), fall back to current origin (dev)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
-    const redirectTo = `${appUrl}/auth/callback`
-
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: {
-          // Force account chooser every time so users can switch accounts
-          prompt: 'select_account',
-        },
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
 
     if (oauthError) {
