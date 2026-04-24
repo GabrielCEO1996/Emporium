@@ -14,8 +14,10 @@ interface RouteContext { params: { id: string } }
 //   pago_confirmado       = true
 //   pago_confirmado_at    = now()
 //   pago_confirmado_por   = auth.uid
-// Only valid for tipo_pago ∈ ('zelle','transferencia'). Stripe orders are
-// confirmed automatically by the webhook; credito orders skip this flow.
+// Only valid for tipo_pago ∈ ('zelle','cheque','efectivo','transferencia').
+// ('transferencia' kept only for legacy orders; new tienda orders can't
+// create it anymore.) Stripe orders are confirmed automatically by the
+// webhook; credito orders skip this flow.
 // ───────────────────────────────────────────────────────────────────────────
 
 export async function POST(_req: Request, { params }: RouteContext) {
@@ -25,7 +27,7 @@ export async function POST(_req: Request, { params }: RouteContext) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { data: profile } = await supabase
-    .from('profiles').select('rol').eq('id', user.id).single()
+    .from('profiles').select('rol').eq('id', user.id).maybeSingle()
   if (profile?.rol !== 'admin') {
     return NextResponse.json({ error: 'Solo administradores pueden confirmar pagos' }, { status: 403 })
   }
@@ -50,7 +52,7 @@ export async function POST(_req: Request, { params }: RouteContext) {
       { status: 409 }
     )
   }
-  if (!['zelle', 'transferencia'].includes(orden.tipo_pago)) {
+  if (!['zelle', 'cheque', 'efectivo', 'transferencia'].includes(orden.tipo_pago)) {
     return NextResponse.json(
       { error: `El tipo de pago "${orden.tipo_pago}" no requiere confirmación manual` },
       { status: 400 }

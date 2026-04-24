@@ -96,7 +96,9 @@ export async function POST(req: Request) {
     // Validate tipo_pago. If missing, infer from rol for backward-compat:
     //   • comprador → stripe (upfront card)
     //   • other roles → credito (admin approves manually)
-    const ALLOWED_PAGOS = ['zelle', 'transferencia', 'stripe', 'credito'] as const
+    // NOTE: 'transferencia' is intentionally NOT allowed — the tienda only
+    // accepts: zelle, stripe, cheque, efectivo, credito.
+    const ALLOWED_PAGOS = ['zelle', 'stripe', 'credito', 'cheque', 'efectivo'] as const
     type TipoPago = typeof ALLOWED_PAGOS[number]
     let tipoPago: TipoPago
     if (typeof tipo_pago === 'string' && (ALLOWED_PAGOS as readonly string[]).includes(tipo_pago)) {
@@ -106,9 +108,15 @@ export async function POST(req: Request) {
       tipoPago = (rol === 'comprador') ? 'stripe' : 'credito'
     }
     const referencia = typeof numero_referencia === 'string' ? numero_referencia.trim() : ''
-    if (tipoPago === 'transferencia' && !referencia) {
+    if (tipoPago === 'zelle' && !referencia) {
       return NextResponse.json(
-        { error: 'Debes proporcionar el número de referencia de la transferencia' },
+        { error: 'Debes proporcionar el número de confirmación del Zelle' },
+        { status: 400 }
+      )
+    }
+    if (tipoPago === 'cheque' && !referencia) {
+      return NextResponse.json(
+        { error: 'Debes proporcionar el número de cheque' },
         { status: 400 }
       )
     }
@@ -271,7 +279,10 @@ export async function POST(req: Request) {
         direccion_entrega: direccion_entrega?.trim() || null,
         total,
         tipo_pago: tipoPago,
-        numero_referencia: tipoPago === 'transferencia' ? referencia : null,
+        numero_referencia:
+          (tipoPago === 'zelle' || tipoPago === 'cheque') && referencia
+            ? referencia
+            : null,
       })
       .select()
       .single()
@@ -340,8 +351,8 @@ export async function POST(req: Request) {
           )
         }
 
-        // zelle / transferencia: admin confirms payment manually later.
-        if (tipoPago === 'zelle' || tipoPago === 'transferencia') {
+        // zelle / cheque / efectivo: admin confirms payment manually later.
+        if (tipoPago === 'zelle' || tipoPago === 'cheque' || tipoPago === 'efectivo') {
           console.log(`[tienda/pedido] orden ${orden.numero} created — ${tipoPago} (pending manual confirmation)`)
           return NextResponse.json(
             {
@@ -350,7 +361,10 @@ export async function POST(req: Request) {
               numero: orden.numero,
               orden_id: orden.id,
               tipo_pago: tipoPago,
-              numero_referencia: tipoPago === 'transferencia' ? referencia : null,
+              numero_referencia:
+                (tipoPago === 'zelle' || tipoPago === 'cheque') && referencia
+                  ? referencia
+                  : null,
             },
             { status: 201 }
           )

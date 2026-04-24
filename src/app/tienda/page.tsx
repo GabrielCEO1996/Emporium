@@ -10,7 +10,9 @@ export default async function TiendaPage() {
   if (!user) redirect('/login')
 
   const [profileRes, productosRes] = await Promise.all([
-    supabase.from('profiles').select('id, nombre, email, rol').eq('id', user.id).single(),
+    // maybeSingle() so a missing profile row doesn't crash the page
+    // for a freshly signed-up user whose trigger hasn't run yet.
+    supabase.from('profiles').select('id, nombre, email, rol').eq('id', user.id).maybeSingle(),
     supabase
       .from('productos')
       .select(`

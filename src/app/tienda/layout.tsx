@@ -23,14 +23,19 @@ export default async function TiendaLayout({ children }: { children: React.React
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // NOTE: We intentionally use `.maybeSingle()` here. A newly signed-up
+  // user may briefly lack a profile row while the `handle_new_user`
+  // trigger runs — `.single()` would throw and surface as a client
+  // exception page. With `.maybeSingle()` we gracefully fall through
+  // to the default `comprador` role and let them into /tienda.
   const { data: profile } = await supabase
     .from('profiles')
     .select('rol')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
-  // Only cliente role (and admin for testing) can access the store
-  const rol = profile?.rol ?? 'cliente'
+  // Only cliente/comprador roles (and admin for testing) can access the store
+  const rol = profile?.rol ?? 'comprador'
   if (['admin', 'vendedor', 'conductor'].includes(rol)) redirect('/dashboard')
   if (rol === 'pendiente') redirect('/pendiente')
 

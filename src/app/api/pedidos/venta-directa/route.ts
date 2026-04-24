@@ -18,7 +18,7 @@ export const revalidate = 0
 //     cliente_id, items:[{presentacion_id, cantidad, precio_unitario, descuento, subtotal}],
 //     subtotal, descuento, impuesto, total,
 //     notas?, direccion_entrega?,
-//     metodo_pago: 'efectivo' | 'zelle' | 'transferencia' | 'tarjeta',
+//     metodo_pago: 'efectivo' | 'zelle' | 'cheque' | 'tarjeta',
 //     numero_referencia?: string|null,
 //   }
 //
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   if (typeof total !== 'number' || total < 0)
     return NextResponse.json({ error: 'total inválido' }, { status: 400 })
 
-  const VALID_METODOS = ['efectivo', 'zelle', 'transferencia', 'tarjeta'] as const
+  const VALID_METODOS = ['efectivo', 'zelle', 'cheque', 'tarjeta'] as const
   if (!VALID_METODOS.includes(metodo_pago)) {
     return NextResponse.json(
       { error: `metodo_pago inválido. Valores: ${VALID_METODOS.join(', ')}` },
@@ -131,13 +131,11 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 5. Create factura already 'pagada' ────────────────────────────────
-  // Map frontend metodo_pago → DB tipo_pago (schema expects: zelle|transferencia|stripe|credito|pendiente).
-  // 'efectivo' and 'tarjeta' both map to 'stripe'-adjacent; keep as-is if column accepts it,
-  // otherwise store metodo_pago in notas.
+  // Map frontend metodo_pago → DB tipo_pago. USA business accepts only:
+  // zelle | cheque | stripe | credito | efectivo. 'transferencia' is legacy.
+  // 'tarjeta' maps to 'stripe'. Everything else passes through unchanged.
   const dbTipoPago: string =
-    metodo_pago === 'tarjeta'       ? 'stripe' :
-    metodo_pago === 'efectivo'      ? 'transferencia' :
-    metodo_pago
+    metodo_pago === 'tarjeta' ? 'stripe' : metodo_pago
 
   const { data: factura, error: facturaErr } = await supabase
     .from('facturas')

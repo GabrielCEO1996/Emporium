@@ -45,7 +45,7 @@ interface FormState {
   fecha_entrega_estimada: string
 }
 
-type MetodoPago = 'efectivo' | 'zelle' | 'transferencia' | 'tarjeta'
+type MetodoPago = 'efectivo' | 'zelle' | 'cheque' | 'tarjeta'
 
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
@@ -699,10 +699,10 @@ function VentaDirectaModal({
   if (!open) return null
 
   const METODOS: { key: MetodoPago; label: string; icon: any; color: string; requireRef: boolean }[] = [
-    { key: 'efectivo',      label: 'Efectivo',      icon: Banknote,    color: 'emerald', requireRef: false },
-    { key: 'zelle',         label: 'Zelle',         icon: Send,        color: 'blue',    requireRef: true  },
-    { key: 'transferencia', label: 'Transferencia', icon: Send,        color: 'indigo',  requireRef: true  },
-    { key: 'tarjeta',       label: 'Tarjeta',       icon: CreditCard,  color: 'purple',  requireRef: false },
+    { key: 'efectivo', label: 'Efectivo', icon: Banknote,   color: 'emerald', requireRef: false },
+    { key: 'zelle',    label: 'Zelle',    icon: Send,       color: 'blue',    requireRef: true  },
+    { key: 'cheque',   label: 'Cheque',   icon: Send,       color: 'amber',   requireRef: true  },
+    { key: 'tarjeta',  label: 'Tarjeta',  icon: CreditCard, color: 'purple',  requireRef: false },
   ]
 
   const needsRef = METODOS.find((m) => m.key === metodo)?.requireRef ?? false

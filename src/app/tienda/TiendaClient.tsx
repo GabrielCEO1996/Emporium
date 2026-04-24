@@ -7,8 +7,9 @@ import { toast } from 'sonner'
 import {
   ShoppingBag, Search, X, Plus, Minus, Trash2, MessageCircle,
   Send, CheckCircle2, ClipboardList, User, LogOut,
-  ChevronRight, Loader2, Sparkles, CreditCard,
-  Wallet, Landmark, FileText, Copy, Menu, ArrowUpRight,
+  ChevronRight, ChevronLeft, Loader2, Sparkles, CreditCard,
+  Wallet, FileText, Copy, Menu, ArrowUpRight,
+  Banknote, FileCheck, MapPin, Info, Package, PackageOpen, AlertCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -50,11 +51,75 @@ interface Props {
   } | null
 }
 
-type TipoPago = 'zelle' | 'transferencia' | 'stripe' | 'credito'
+// Valid tienda payment methods. 'transferencia' was removed — USA
+// clients use Zelle, not wire transfers. Cheque + efectivo added.
+type TipoPago = 'zelle' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
 type TipoClienteForm = 'tienda' | 'supermercado' | 'restaurante' | 'persona_natural' | 'otro'
 interface ShippingFormValues {
   nombre: string; telefono: string; direccion: string
   ciudad: string; whatsapp: string; tipo_cliente: TipoClienteForm
+}
+
+// ── Category normalization (BUG 2) ─────────────────────────────────────────
+// Maps synonyms/casing/punctuation variants to a single canonical key so the
+// filter bar doesn't show "Salud" + "Salud." + "Health" as three options.
+//
+// Flow:
+//   1. Trim, lowercase, strip diacritics, drop trailing punctuation.
+//   2. If the raw form matches a known English → Spanish synonym, map it.
+//   3. The result is both the internal key AND the source of the pretty label
+//      (title-cased on display).
+const CATEGORIA_SYNONYMS: Record<string, string> = {
+  // Health
+  health: 'salud', salud: 'salud',
+  // Beauty
+  beauty: 'belleza', belleza: 'belleza',
+  // Cleaning
+  cleaning: 'limpieza', limpieza: 'limpieza',
+  'household-cleaning': 'limpieza',
+  // Food
+  food: 'alimentos', alimentos: 'alimentos', comida: 'alimentos', groceries: 'alimentos',
+  // Beverages
+  beverages: 'bebidas', bebidas: 'bebidas', drinks: 'bebidas',
+  // Personal care
+  'personal-care': 'cuidado_personal',
+  personal: 'cuidado_personal',
+  'cuidado-personal': 'cuidado_personal',
+  cuidado_personal: 'cuidado_personal',
+  // Others
+  others: 'otros', other: 'otros', otros: 'otros', otro: 'otros', misc: 'otros',
+}
+
+function normalizeCategoriaKey(raw: string | null | undefined): string {
+  if (!raw) return ''
+  let s = String(raw).trim().toLowerCase()
+  // Strip diacritics (á → a, ñ → n, etc.)
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  // Drop trailing punctuation + whitespace
+  s = s.replace(/[\s.,;:!?\-_/\\]+$/g, '')
+  // Collapse inner whitespace → single dash for synonym lookup
+  const compact = s.replace(/\s+/g, '-')
+  if (CATEGORIA_SYNONYMS[compact]) return CATEGORIA_SYNONYMS[compact]
+  if (CATEGORIA_SYNONYMS[s]) return CATEGORIA_SYNONYMS[s]
+  // No synonym match — use the cleaned slug (spaces → underscores) as the key
+  return s.replace(/\s+/g, '_')
+}
+
+const CATEGORIA_LABELS: Record<string, string> = {
+  salud: 'Salud',
+  belleza: 'Belleza',
+  limpieza: 'Limpieza',
+  alimentos: 'Alimentos',
+  bebidas: 'Bebidas',
+  cuidado_personal: 'Cuidado personal',
+  otros: 'Otros',
+}
+
+function displayCategoria(key: string): string {
+  if (CATEGORIA_LABELS[key]) return CATEGORIA_LABELS[key]
+  // Fallback: replace underscores with spaces and title-case first letter.
+  const pretty = key.replace(/_/g, ' ').replace(/-/g, ' ')
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1)
 }
 
 // ── Luxury gradient palette for product placeholders ──────────────────────────
@@ -94,10 +159,12 @@ function GradientPlaceholder({ nombre, className = '' }: { nombre: string; class
 
 // ── Product Card — editorial, generous whitespace ─────────────────────────────
 function ProductCard({
-  producto, onAdd,
+  producto, onAdd, onOpenDetail,
 }: {
   producto: Producto
   onAdd: (item: CartItem) => void
+  /** Click on image or name opens the detail modal (BUG 4). */
+  onOpenDetail: (p: Producto) => void
 }) {
   const [selPres, setSelPres] = useState<Presentacion>(producto.presentaciones[0])
   const [qty, setQty] = useState(1)
@@ -132,8 +199,13 @@ function ProductCard({
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       className={`group relative bg-white rounded-[20px] border border-stone-200/70 overflow-hidden flex flex-col ${agotado ? 'opacity-70 grayscale' : 'hover:border-brand-gold/60 hover:shadow-[0_20px_45px_-20px_rgba(15,23,42,0.18)]'} transition-all duration-300`}
     >
-      {/* Image */}
-      <div className="relative aspect-square flex-shrink-0 overflow-hidden bg-brand-stone">
+      {/* Image — click opens detail */}
+      <button
+        type="button"
+        onClick={() => onOpenDetail(producto)}
+        className="relative aspect-square flex-shrink-0 overflow-hidden bg-brand-stone text-left"
+        aria-label={`Ver detalles de ${producto.nombre}`}
+      >
         {producto.imagen_url ? (
           <img
             src={producto.imagen_url}
@@ -145,22 +217,31 @@ function ProductCard({
         )}
         {producto.categoria && (
           <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] uppercase tracking-luxe font-medium px-2.5 py-1 rounded-full text-brand-charcoal">
-            {producto.categoria}
+            {displayCategoria(normalizeCategoriaKey(producto.categoria))}
           </span>
         )}
+        <span className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-[10px] uppercase tracking-luxe px-2 py-1 rounded-full text-brand-navy flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+          <PackageOpen className="w-3 h-3" /> Ver
+        </span>
         {agotado && (
           <div className="absolute inset-0 bg-brand-cream/80 backdrop-blur-[2px] flex items-center justify-center">
             <span className="font-serif italic text-brand-navy/70 text-lg">Agotado</span>
           </div>
         )}
-      </div>
+      </button>
 
       {/* Body */}
       <div className="p-5 flex flex-col gap-3 flex-1">
         <div className="space-y-1.5">
-          <h3 className="font-serif text-[17px] leading-snug text-brand-navy line-clamp-2 min-h-[2.6rem]">
-            {producto.nombre}
-          </h3>
+          <button
+            type="button"
+            onClick={() => onOpenDetail(producto)}
+            className="block text-left w-full"
+          >
+            <h3 className="font-serif text-[17px] leading-snug text-brand-navy line-clamp-2 min-h-[2.6rem] hover:text-brand-gold transition-colors">
+              {producto.nombre}
+            </h3>
+          </button>
           <div className="flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
             <span className={`text-[11px] font-medium ${st.tone}`}>{st.text}</span>
@@ -394,14 +475,6 @@ const PAGO_METHODS: Record<TipoPago, {
     text: 'text-emerald-800',
     Icon: Wallet,
   },
-  transferencia: {
-    label: 'Transferencia',
-    tagline: 'Transferencia bancaria con número de referencia',
-    accent: 'bg-sky-50',
-    ring: 'ring-sky-600',
-    text: 'text-sky-800',
-    Icon: Landmark,
-  },
   stripe: {
     label: 'Tarjeta',
     tagline: 'Pago seguro con tarjeta crédito o débito vía Stripe',
@@ -409,6 +482,22 @@ const PAGO_METHODS: Record<TipoPago, {
     ring: 'ring-violet-600',
     text: 'text-violet-800',
     Icon: CreditCard,
+  },
+  cheque: {
+    label: 'Cheque',
+    tagline: 'Paga con cheque — indica el número al confirmar',
+    accent: 'bg-amber-50',
+    ring: 'ring-amber-600',
+    text: 'text-amber-800',
+    Icon: FileCheck,
+  },
+  efectivo: {
+    label: 'Efectivo',
+    tagline: 'Paga en efectivo al recibir tu pedido',
+    accent: 'bg-teal-50',
+    ring: 'ring-teal-600',
+    text: 'text-teal-800',
+    Icon: Banknote,
   },
   credito: {
     label: 'Crédito',
@@ -453,6 +542,8 @@ function ConfirmModal({
   tipoPago, setTipoPago, numeroRef, setNumeroRef,
   creditoAutorizado, creditoDisponible,
   empresaPayment,
+  onBack, onClearCart,
+  savedShippingInfo,
 }: {
   items: CartItem[]; open: boolean; onClose: () => void; onConfirm: () => void
   loading: boolean; notas: string; setNotas: (v: string) => void
@@ -461,22 +552,32 @@ function ConfirmModal({
   numeroRef: string; setNumeroRef: (v: string) => void
   creditoAutorizado: boolean; creditoDisponible: number
   empresaPayment?: Props['empresaPayment']
+  /** Called when the user clicks "← Editar datos de envío" to go back. */
+  onBack: () => void
+  /** Called when the user confirms clearing the cart. */
+  onClearCart: () => void
+  /** If provided, we show a "usar datos guardados" banner with these. */
+  savedShippingInfo?: { nombre?: string; direccion?: string; ciudad?: string; telefono?: string } | null
 }) {
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
-  const methods: TipoPago[] = ['zelle', 'transferencia', 'stripe']
+  const methods: TipoPago[] = ['zelle', 'stripe', 'cheque', 'efectivo']
   if (creditoAutorizado) methods.push('credito')
 
   const meta = PAGO_METHODS[tipoPago]
   const creditoInsuficiente = tipoPago === 'credito' && total > creditoDisponible
-  const refFaltante = tipoPago === 'transferencia' && !numeroRef.trim()
+  const zelleRefMissing = tipoPago === 'zelle' && !numeroRef.trim()
+  const chequeRefMissing = tipoPago === 'cheque' && !numeroRef.trim()
+  const refFaltante = zelleRefMissing || chequeRefMissing
   const ctaDisabled = loading || creditoInsuficiente || refFaltante
 
   const ctaLabel =
-    tipoPago === 'stripe'  ? 'Pagar con tarjeta' :
-    tipoPago === 'credito' ? 'Confirmar con crédito' :
-    tipoPago === 'zelle'   ? 'Confirmar — pago por Zelle' :
-                             'Confirmar — transferencia'
+    tipoPago === 'stripe'   ? 'Pagar con tarjeta' :
+    tipoPago === 'credito'  ? 'Confirmar con crédito' :
+    tipoPago === 'zelle'    ? 'Confirmar — pago por Zelle' :
+    tipoPago === 'cheque'   ? 'Confirmar — pago con cheque' :
+                              'Confirmar — pago en efectivo'
 
   return (
     <AnimatePresence>
@@ -497,23 +598,69 @@ function ConfirmModal({
           >
             <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-stone-300" />
 
-            {/* Header */}
-            <div className="shrink-0 flex items-start justify-between px-7 pt-7 pb-5 border-b border-stone-200/80">
-              <div>
-                <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">Revisa y confirma</p>
-                <h2 className="font-serif text-2xl text-brand-navy mt-1">Tu pedido</h2>
+            {/* Header with step indicator */}
+            <div className="shrink-0 px-7 pt-6 pb-4 border-b border-stone-200/80">
+              {/* Top row: title + close */}
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">Paso 3 de 3</p>
+                  <h2 className="font-serif text-2xl text-brand-navy mt-1">Revisar y confirmar</h2>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-full text-brand-charcoal hover:bg-stone-100 transition"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full text-brand-charcoal hover:bg-stone-100 transition"
-                aria-label="Cerrar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {/* Step dots */}
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-luxe text-brand-charcoal/60">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-brand-navy/40" /> Carrito
+                </span>
+                <ChevronRight className="w-3 h-3 text-brand-charcoal/30" />
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-brand-navy/40" /> Envío
+                </span>
+                <ChevronRight className="w-3 h-3 text-brand-charcoal/30" />
+                <span className="flex items-center gap-1.5 text-brand-navy font-medium">
+                  <span className="w-2 h-2 rounded-full bg-brand-navy" /> Confirmar
+                </span>
+              </div>
             </div>
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-7 py-6 space-y-7">
+
+              {/* Saved shipping summary — editable */}
+              {savedShippingInfo?.direccion && (
+                <div className="rounded-2xl border border-stone-200 bg-white p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> Enviar a
+                      </p>
+                      {savedShippingInfo.nombre && (
+                        <p className="font-serif text-sm text-brand-navy mt-1">{savedShippingInfo.nombre}</p>
+                      )}
+                      <p className="text-xs text-brand-charcoal/80 leading-snug mt-0.5">
+                        {savedShippingInfo.direccion}
+                        {savedShippingInfo.ciudad ? `, ${savedShippingInfo.ciudad}` : ''}
+                      </p>
+                      {savedShippingInfo.telefono && (
+                        <p className="text-[11px] text-brand-charcoal/60 mt-1">Tel: {savedShippingInfo.telefono}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={onBack}
+                      className="shrink-0 text-[10px] uppercase tracking-luxe text-brand-gold hover:text-brand-navy border-b border-brand-gold/40 hover:border-brand-navy pb-0.5 transition"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Items summary */}
               <ul className="space-y-3">
@@ -593,43 +740,59 @@ function ConfirmModal({
                       El administrador aún no ha configurado la cuenta de Zelle.
                     </p>
                   )}
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
+                      Número de confirmación Zelle <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      value={numeroRef}
+                      onChange={e => setNumeroRef(e.target.value)}
+                      placeholder="Ej. ABC123XYZ"
+                      className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
+                    />
+                    {zelleRefMissing && (
+                      <p className="text-[11px] text-rose-500 mt-1.5">Requerido para verificar tu pago.</p>
+                    )}
+                  </div>
                   <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
                     Al confirmar, tu orden queda pendiente. Verificaremos el pago y la aprobaremos.
                   </p>
                 </div>
               )}
 
-              {tipoPago === 'transferencia' && (
-                <div className="rounded-2xl border border-sky-200/60 bg-sky-50/50 p-5 space-y-3">
-                  <p className="text-[10px] uppercase tracking-luxe text-sky-700 flex items-center gap-1.5">
-                    <Landmark className="w-3.5 h-3.5" /> Datos bancarios
+              {tipoPago === 'cheque' && (
+                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/50 p-5 space-y-3">
+                  <p className="text-[10px] uppercase tracking-luxe text-amber-700 flex items-center gap-1.5">
+                    <FileCheck className="w-3.5 h-3.5" /> Pago con cheque
                   </p>
-                  {empresaPayment?.banco_nombre || empresaPayment?.banco_cuenta ? (
-                    <div className="space-y-2.5">
-                      {empresaPayment?.banco_nombre  && <CopyRow label="Banco"   value={empresaPayment.banco_nombre}  />}
-                      {empresaPayment?.banco_cuenta  && <CopyRow label="Cuenta"  value={empresaPayment.banco_cuenta}  />}
-                      {empresaPayment?.banco_routing && <CopyRow label="Routing" value={empresaPayment.banco_routing} />}
-                      {empresaPayment?.banco_titular && <CopyRow label="Titular" value={empresaPayment.banco_titular} />}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-brand-charcoal/60 italic">
-                      El administrador aún no ha configurado los datos bancarios.
-                    </p>
-                  )}
                   <div>
                     <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
-                      Número de referencia <span className="text-rose-500">*</span>
+                      Número de cheque <span className="text-rose-500">*</span>
                     </label>
                     <input
                       value={numeroRef}
                       onChange={e => setNumeroRef(e.target.value)}
-                      placeholder="Últimos 6-8 dígitos"
+                      placeholder="Ej. 1024"
                       className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
                     />
-                    {refFaltante && (
-                      <p className="text-[11px] text-rose-500 mt-1.5">Requerido para verificar tu transferencia.</p>
+                    {chequeRefMissing && (
+                      <p className="text-[11px] text-rose-500 mt-1.5">Requerido para registrar el pago.</p>
                     )}
                   </div>
+                  <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+                    Coordina la entrega del cheque con nuestro equipo. La orden queda pendiente hasta confirmación.
+                  </p>
+                </div>
+              )}
+
+              {tipoPago === 'efectivo' && (
+                <div className="rounded-2xl border border-teal-200/60 bg-teal-50/50 p-5 space-y-2">
+                  <p className="text-[10px] uppercase tracking-luxe text-teal-700 flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5" /> Pago en efectivo
+                  </p>
+                  <p className="text-[12px] text-brand-charcoal/80 leading-relaxed">
+                    Pagarás al recibir tu pedido. Nuestro conductor confirmará el cobro al momento de la entrega.
+                  </p>
                 </div>
               )}
 
@@ -712,8 +875,10 @@ function ConfirmModal({
                     ? 'bg-gradient-to-r from-violet-700 to-indigo-700 hover:from-violet-600 hover:to-indigo-600'
                     : tipoPago === 'credito'
                     ? 'bg-amber-700 hover:bg-amber-600'
-                    : tipoPago === 'transferencia'
-                    ? 'bg-sky-700 hover:bg-sky-600'
+                    : tipoPago === 'cheque'
+                    ? 'bg-amber-700 hover:bg-amber-600'
+                    : tipoPago === 'efectivo'
+                    ? 'bg-teal-700 hover:bg-teal-600'
                     : 'bg-brand-navy hover:bg-brand-navy/90'
                 }`}
               >
@@ -722,14 +887,59 @@ function ConfirmModal({
                   : <><meta.Icon className="w-4 h-4" /> {ctaLabel}</>
                 }
               </button>
-              <button
-                onClick={onClose}
-                disabled={loading}
-                className="w-full py-3 rounded-full text-[11px] uppercase tracking-wide text-brand-charcoal hover:text-brand-navy transition disabled:opacity-40"
-              >
-                Volver al carrito
-              </button>
+              {/* Back + clear cart row */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <button
+                  onClick={onBack}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-brand-charcoal hover:text-brand-navy transition disabled:opacity-40"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Volver a datos de envío
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-rose-500 hover:text-rose-600 transition disabled:opacity-40"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Vaciar carrito
+                </button>
+              </div>
             </div>
+
+            {/* Clear cart confirmation */}
+            {showClearConfirm && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-brand-navy/60 backdrop-blur-sm">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-white rounded-3xl shadow-2xl max-w-sm mx-6 p-6 text-center"
+                >
+                  <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="w-6 h-6 text-rose-500" />
+                  </div>
+                  <h3 className="font-serif text-xl text-brand-navy mb-2">¿Vaciar carrito?</h3>
+                  <p className="text-sm text-brand-charcoal/70 mb-5">
+                    Se eliminarán todos los productos y tu orden actual no se enviará.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowClearConfirm(false)}
+                      className="flex-1 py-2.5 rounded-full border border-stone-200 text-xs uppercase tracking-wide text-brand-charcoal hover:bg-stone-50 transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => { setShowClearConfirm(false); onClearCart() }}
+                      className="flex-1 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-xs uppercase tracking-wide text-white transition"
+                    >
+                      Vaciar
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}
@@ -794,15 +1004,115 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
   )
 }
 
+// ── Address Autocomplete (BUG 6) ────────────────────────────────────────────
+// Uses OpenStreetMap Nominatim as a free alternative to Google Places.
+// Per Nominatim's usage policy (1 req/sec, identify via User-Agent), we
+// debounce to 300ms between keystrokes and send minimal queries.
+//
+// NOTE: If Google Places is preferred, set NEXT_PUBLIC_GOOGLE_PLACES_KEY
+// and swap the fetcher — the rest of this component stays the same.
+type AddressSuggestion = { display_name: string; lat?: string; lon?: string }
+
+function AddressAutocomplete({
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onSelect?: (suggestion: AddressSuggestion) => void
+  placeholder?: string
+}) {
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
+  const [focused, setFocused] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    if (!focused || value.trim().length < 3) {
+      setSuggestions([])
+      return
+    }
+    const q = value.trim()
+    const t = setTimeout(async () => {
+      abortRef.current?.abort()
+      const ctrl = new AbortController()
+      abortRef.current = ctrl
+      setLoading(true)
+      try {
+        const url = new URL('https://nominatim.openstreetmap.org/search')
+        url.searchParams.set('q', q)
+        url.searchParams.set('format', 'json')
+        url.searchParams.set('addressdetails', '1')
+        url.searchParams.set('limit', '5')
+        const res = await fetch(url.toString(), {
+          signal: ctrl.signal,
+          headers: { 'Accept-Language': 'es' },
+        })
+        if (!res.ok) return
+        const data: AddressSuggestion[] = await res.json()
+        setSuggestions(Array.isArray(data) ? data : [])
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') console.warn('[AddressAutocomplete]', err)
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [value, focused])
+
+  return (
+    <div className="relative">
+      <textarea
+        rows={2}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy resize-none transition"
+      />
+      {focused && (suggestions.length > 0 || loading) && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-stone-200 rounded-xl shadow-xl z-20 overflow-hidden max-h-64 overflow-y-auto">
+          {loading && (
+            <div className="flex items-center gap-2 px-4 py-3 text-[11px] text-brand-charcoal/60">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando direcciones…
+            </div>
+          )}
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                onChange(s.display_name)
+                onSelect?.(s)
+                setSuggestions([])
+              }}
+              className="w-full text-left px-4 py-2.5 text-[12px] text-brand-navy hover:bg-brand-stone transition flex items-start gap-2 border-b border-stone-100 last:border-b-0"
+            >
+              <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-brand-gold" />
+              <span className="line-clamp-2">{s.display_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Shipping Form ─────────────────────────────────────────────────────────────
 function ShippingForm({
-  open, onClose, onSubmit, initial, submitting,
+  open, onClose, onSubmit, initial, submitting, showTipoCliente,
 }: {
   open: boolean
   onClose: () => void
   onSubmit: (values: ShippingFormValues) => void
   initial: ShippingFormValues
   submitting: boolean
+  /** Only true on first-ever order. Returning users don't re-pick type. */
+  showTipoCliente: boolean
 }) {
   const [values, setValues] = useState<ShippingFormValues>(initial)
 
@@ -847,10 +1157,12 @@ function ShippingForm({
 
             <div className="shrink-0 flex items-start justify-between px-7 pt-7 pb-4 border-b border-stone-200/80">
               <div>
-                <p className="text-[10px] uppercase tracking-luxe text-brand-gold">Primer pedido</p>
+                <p className="text-[10px] uppercase tracking-luxe text-brand-gold">Paso 2 de 3</p>
                 <h2 className="font-serif text-2xl text-brand-navy mt-1">Datos de envío</h2>
                 <p className="text-[12px] text-brand-charcoal/70 mt-1">
-                  Guardaremos esta información para futuros pedidos.
+                  {showTipoCliente
+                    ? 'Guardaremos esta información para futuros pedidos.'
+                    : 'Actualiza tus datos si lo necesitas.'}
                 </p>
               </div>
               <button
@@ -887,39 +1199,53 @@ function ShippingForm({
                 <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-1.5">
                   Dirección de entrega *
                 </label>
-                <textarea
-                  rows={2}
+                <AddressAutocomplete
                   value={values.direccion}
-                  onChange={e => set('direccion', e.target.value)}
-                  placeholder="Av. Principal, Casa 5, Urb. X"
-                  className="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy resize-none transition"
+                  onChange={(v) => set('direccion', v)}
+                  onSelect={(s) => {
+                    // If city is empty and the suggestion has address parts,
+                    // try to auto-fill ciudad from the display_name's trailing part.
+                    if (!values.ciudad.trim()) {
+                      const parts = s.display_name.split(',').map(p => p.trim()).filter(Boolean)
+                      // Heuristic: state/city is usually the last 2-4 components before country.
+                      if (parts.length >= 3) {
+                        set('ciudad', parts[Math.max(0, parts.length - 3)])
+                      }
+                    }
+                  }}
+                  placeholder="Empieza a escribir tu dirección…"
                 />
+                <p className="text-[10px] text-brand-charcoal/50 mt-1.5">
+                  Sugerencias vía OpenStreetMap. Escribe al menos 3 letras.
+                </p>
               </div>
 
-              <div>
-                <p className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
-                  Tipo de cliente
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {TIPO_OPTIONS.map(opt => {
-                    const active = values.tipo_cliente === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => set('tipo_cliente', opt.value)}
-                        className={`px-3 py-2.5 rounded-full text-[11px] uppercase tracking-wide border transition ${
-                          active
-                            ? 'bg-brand-navy text-brand-cream border-brand-navy'
-                            : 'bg-white text-brand-charcoal border-stone-200 hover:border-brand-navy/40'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
+              {showTipoCliente && (
+                <div>
+                  <p className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
+                    Tipo de cliente
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TIPO_OPTIONS.map(opt => {
+                      const active = values.tipo_cliente === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => set('tipo_cliente', opt.value)}
+                          className={`px-3 py-2.5 rounded-full text-[11px] uppercase tracking-wide border transition ${
+                            active
+                              ? 'bg-brand-navy text-brand-cream border-brand-navy'
+                              : 'bg-white text-brand-charcoal border-stone-200 hover:border-brand-navy/40'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="shrink-0 px-7 py-5 border-t border-stone-200/80 bg-white">
@@ -1076,6 +1402,267 @@ function ChatPanel({
   )
 }
 
+// ── Category scroller (BUG 3) ──────────────────────────────────────────────
+// Mobile-first horizontal scroller for category pills. Uses scroll-snap +
+// hidden scrollbar + auto-scroll-into-view so the selected pill is always
+// visible. Fades at the edges via a mask-image so the user knows there's
+// more to swipe.
+function CategoryScroller({
+  categorias,
+  selected,
+  onSelect,
+}: {
+  categorias: { key: string; label: string }[]
+  selected: string | null
+  onSelect: (v: string | null) => void
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const activeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    // When the filter changes (e.g. a category is selected), scroll the
+    // active pill into view. `inline: 'center'` keeps it centered on mobile.
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    }
+  }, [selected])
+
+  return (
+    <div
+      ref={scrollerRef}
+      className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none flex-1 md:justify-end snap-x snap-mandatory [scroll-padding-inline:1rem]"
+      style={{
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        maskImage:
+          'linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent)',
+      }}
+    >
+      <button
+        ref={selected === null ? activeRef : undefined}
+        onClick={() => onSelect(null)}
+        className={`snap-start flex-shrink-0 text-[11px] uppercase tracking-luxe px-4 py-2 rounded-full border transition-all ${
+          selected === null
+            ? 'bg-brand-navy text-brand-cream border-brand-navy'
+            : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
+        }`}
+      >
+        Todo
+      </button>
+      {categorias.map(cat => {
+        const isActive = selected === cat.key
+        return (
+          <button
+            key={cat.key}
+            ref={isActive ? activeRef : undefined}
+            onClick={() => onSelect(isActive ? null : cat.key)}
+            className={`snap-start flex-shrink-0 text-[11px] uppercase tracking-luxe px-4 py-2 rounded-full border transition-all ${
+              isActive
+                ? 'bg-brand-navy text-brand-cream border-brand-navy'
+                : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
+            }`}
+          >
+            {cat.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Product Detail Modal (BUG 4) ────────────────────────────────────────────
+// Opened when the user clicks the product image or name. Shows full info:
+// description, all presentations with stock, price selector, quantity, and
+// a prominent "Añadir al carrito" button. Cart icon on the card still
+// triggers the quick-add path.
+function ProductDetailModal({
+  producto,
+  onClose,
+  onAdd,
+}: {
+  producto: Producto | null
+  onClose: () => void
+  onAdd: (item: CartItem) => void
+}) {
+  const [selPres, setSelPres] = useState<Presentacion | null>(null)
+  const [qty, setQty] = useState(1)
+
+  useEffect(() => {
+    if (producto) {
+      setSelPres(producto.presentaciones[0] ?? null)
+      setQty(1)
+    }
+  }, [producto])
+
+  if (!producto || !selPres) return null
+
+  const agotado = selPres.stock <= 0
+  const st = stockLabel(selPres.stock)
+
+  const handleAdd = () => {
+    if (agotado) return
+    onAdd({
+      presentacionId: selPres.id,
+      productoNombre: producto.nombre,
+      presentacionNombre: selPres.nombre,
+      precio: selPres.precio,
+      cantidad: qty,
+      imagenUrl: producto.imagen_url,
+      stock: selPres.stock,
+    })
+    onClose()
+  }
+
+  return (
+    <AnimatePresence>
+      {producto && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-brand-navy/60 backdrop-blur-[3px]"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ y: 40, opacity: 0, scale: 0.98 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 260 }}
+            className="relative bg-brand-cream rounded-t-[28px] sm:rounded-[28px] w-full sm:max-w-2xl flex flex-col shadow-2xl overflow-hidden"
+            style={{ maxHeight: '92vh' }}
+          >
+            <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-stone-300 z-10" />
+
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/80 backdrop-blur text-brand-charcoal hover:bg-white transition"
+              aria-label="Cerrar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex-1 overflow-y-auto grid sm:grid-cols-2">
+              {/* Image */}
+              <div className="relative aspect-square sm:aspect-auto sm:min-h-[360px] bg-brand-stone overflow-hidden">
+                {producto.imagen_url ? (
+                  <img
+                    src={producto.imagen_url}
+                    alt={producto.nombre}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <GradientPlaceholder nombre={producto.nombre} />
+                )}
+                {producto.categoria && (
+                  <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[10px] uppercase tracking-luxe font-medium px-2.5 py-1 rounded-full text-brand-charcoal">
+                    {displayCategoria(normalizeCategoriaKey(producto.categoria))}
+                  </span>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="p-6 sm:p-8 space-y-5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-2">Detalle</p>
+                  <h2 className="font-serif text-2xl sm:text-3xl text-brand-navy leading-tight">
+                    {producto.nombre}
+                  </h2>
+                </div>
+
+                {producto.descripcion && (
+                  <p className="text-sm text-brand-charcoal/80 leading-relaxed">
+                    {producto.descripcion}
+                  </p>
+                )}
+
+                {/* Presentations */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
+                    Presentación
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {producto.presentaciones.map(pr => {
+                      const active = selPres.id === pr.id
+                      return (
+                        <button
+                          key={pr.id}
+                          onClick={() => { setSelPres(pr); setQty(1) }}
+                          className={`text-[11px] tracking-wide px-3 py-1.5 rounded-full border transition-all ${
+                            active
+                              ? 'bg-brand-navy text-brand-cream border-brand-navy'
+                              : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
+                          }`}
+                        >
+                          {pr.nombre}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Stock + price */}
+                <div className="flex items-end justify-between pt-3 border-t border-stone-200/80">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">Precio</p>
+                    <p className="font-serif text-3xl text-brand-navy leading-none mt-1 tabular-nums">
+                      {formatCurrency(selPres.precio)}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                      <span className={`text-[11px] font-medium ${st.tone}`}>{st.text}</span>
+                    </div>
+                  </div>
+
+                  {/* Quantity */}
+                  <div className="flex items-center border border-stone-200 rounded-full overflow-hidden bg-white">
+                    <button
+                      disabled={agotado || qty <= 1}
+                      onClick={() => setQty(q => Math.max(1, q - 1))}
+                      className="w-9 h-9 flex items-center justify-center text-brand-charcoal/70 hover:bg-stone-50 disabled:opacity-30 transition"
+                      aria-label="Disminuir"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-8 text-center text-sm font-semibold text-brand-navy tabular-nums">
+                      {qty}
+                    </span>
+                    <button
+                      disabled={agotado || qty >= selPres.stock}
+                      onClick={() => setQty(q => Math.min(selPres.stock, q + 1))}
+                      className="w-9 h-9 flex items-center justify-center text-brand-charcoal/70 hover:bg-stone-50 disabled:opacity-30 transition"
+                      aria-label="Aumentar"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Code, unit meta */}
+                <div className="text-[11px] text-brand-charcoal/60 space-y-1 pt-1">
+                  {selPres.unidad && (
+                    <p className="flex items-center gap-1.5"><Package className="w-3 h-3" /> Unidad: <span className="text-brand-charcoal">{selPres.unidad}</span></p>
+                  )}
+                  {(producto as any).codigo && (
+                    <p className="flex items-center gap-1.5"><Info className="w-3 h-3" /> Código: <span className="font-mono text-brand-charcoal">{(producto as any).codigo}</span></p>
+                  )}
+                </div>
+
+                <button
+                  disabled={agotado}
+                  onClick={handleAdd}
+                  className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-brand-navy/90 disabled:bg-stone-200 disabled:text-stone-400 text-brand-cream text-[11px] uppercase tracking-luxe font-medium py-4 rounded-full transition-colors"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  {agotado ? 'Agotado' : `Añadir ${qty} al carrito`}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}
+
 // ── Hero — editorial split layout ─────────────────────────────────────────────
 function Hero({ nombre }: { nombre: string }) {
   return (
@@ -1097,10 +1684,10 @@ function Hero({ nombre }: { nombre: string }) {
             transition={{ duration: 0.8, delay: 0.1 }}
             className="font-serif text-[42px] sm:text-[54px] lg:text-[72px] leading-[0.98] text-brand-navy tracking-tight"
           >
-            Hola, <span className="italic text-brand-gold">{nombre?.split(' ')[0] ?? 'bienvenido'}</span>.
+            Bienvenido,
             <br />
-            Tu catálogo,<br />
-            <span className="italic">curado.</span>
+            <span className="italic text-brand-gold">{nombre?.split(' ')[0] ?? 'bienvenido'}</span>,<br />
+            a <span className="italic">Emporium</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 10 }}
@@ -1187,6 +1774,9 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
   const [tipoPago, setTipoPago] = useState<TipoPago>(profile.rol === 'comprador' ? 'stripe' : 'zelle')
   const [numeroRef, setNumeroRef] = useState('')
 
+  // BUG 4 — product detail modal state
+  const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
+
   const [shipping, setShipping] = useState<ShippingFormValues>({
     nombre:       clienteInfo?.nombre       ?? profile.nombre ?? '',
     telefono:     clienteInfo?.telefono     ?? '',
@@ -1195,15 +1785,33 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     whatsapp:     clienteInfo?.whatsapp     ?? '',
     tipo_cliente: (clienteInfo?.tipo_cliente as TipoClienteForm) ?? 'persona_natural',
   })
-  const isShippingComplete = !!(
+  // BUG 5 — consider shipping "stored" when the DB already has the full
+  // cliente profile (nombre + direccion + telefono + ciudad). Subsequent
+  // checkouts skip the ShippingForm and pre-fill from the saved row.
+  const hasStoredShipping = !!(
+    clienteInfo?.nombre?.trim() &&
+    clienteInfo?.telefono?.trim() &&
+    clienteInfo?.direccion?.trim() &&
+    clienteInfo?.ciudad?.trim()
+  )
+  const isShippingComplete = hasStoredShipping || !!(
     shipping.nombre.trim() && shipping.telefono.trim() &&
     shipping.direccion.trim() && shipping.ciudad.trim()
   )
 
+  // BUG 2 — category normalization. Strips case, punctuation, diacritics,
+  // collapses en/es synonyms, and returns a canonical label for the UI.
   const categorias = useMemo(() => {
-    const cats = new Set<string>()
-    productos.forEach(p => { if (p.categoria) cats.add(p.categoria) })
-    return Array.from(cats).sort()
+    const byKey = new Map<string, string>() // key → display label
+    productos.forEach(p => {
+      if (!p.categoria) return
+      const key = normalizeCategoriaKey(p.categoria)
+      if (!key) return
+      if (!byKey.has(key)) byKey.set(key, displayCategoria(key))
+    })
+    return Array.from(byKey.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'))
   }, [productos])
 
   const filtered = useMemo(() => {
@@ -1216,7 +1824,11 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         p.categoria?.toLowerCase().includes(q)
       )
     }
-    if (categoria) list = list.filter(p => p.categoria === categoria)
+    if (categoria) {
+      // Compare using the normalized key, so "Salud", "salud.", "Health"
+      // all match the same filter button.
+      list = list.filter(p => normalizeCategoriaKey(p.categoria ?? '') === categoria)
+    }
     return list
   }, [productos, search, categoria])
 
@@ -1332,7 +1944,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
           direccion_entrega: direccion || shipping.direccion,
           cliente_data,
           tipo_pago: tipoPago,
-          numero_referencia: tipoPago === 'transferencia' ? numeroRef.trim() : undefined,
+          numero_referencia:
+            (tipoPago === 'zelle' || tipoPago === 'cheque')
+              ? numeroRef.trim()
+              : undefined,
         }),
       })
 
@@ -1357,10 +1972,11 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setNumeroRef('')
       router.push('/tienda/mis-pedidos')
       const msg =
-        tipoPago === 'credito'       ? `Orden ${data.numero ?? ''} creada con crédito` :
-        tipoPago === 'zelle'         ? `Orden ${data.numero ?? ''} enviada — confirma tu pago por Zelle` :
-        tipoPago === 'transferencia' ? `Orden ${data.numero ?? ''} enviada — verificaremos tu transferencia` :
-                                       `Orden ${data.numero ?? ''} enviada correctamente`
+        tipoPago === 'credito'  ? `Orden ${data.numero ?? ''} creada con crédito` :
+        tipoPago === 'zelle'    ? `Orden ${data.numero ?? ''} enviada — confirma tu pago por Zelle` :
+        tipoPago === 'cheque'   ? `Orden ${data.numero ?? ''} enviada — coordinaremos la entrega del cheque` :
+        tipoPago === 'efectivo' ? `Orden ${data.numero ?? ''} enviada — paga al recibir` :
+                                  `Orden ${data.numero ?? ''} enviada correctamente`
       toast.success(msg)
     } catch (err: any) {
       console.error('[tienda] handleConfirmOrder threw:', err)
@@ -1496,31 +2112,11 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
           </div>
 
           {categorias.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none flex-1 md:justify-end">
-              <button
-                onClick={() => setCategoria(null)}
-                className={`flex-shrink-0 text-[11px] uppercase tracking-luxe px-4 py-2 rounded-full border transition-all ${
-                  categoria === null
-                    ? 'bg-brand-navy text-brand-cream border-brand-navy'
-                    : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
-                }`}
-              >
-                Todo
-              </button>
-              {categorias.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoria(cat === categoria ? null : cat)}
-                  className={`flex-shrink-0 text-[11px] uppercase tracking-luxe px-4 py-2 rounded-full border transition-all ${
-                    categoria === cat
-                      ? 'bg-brand-navy text-brand-cream border-brand-navy'
-                      : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <CategoryScroller
+              categorias={categorias}
+              selected={categoria}
+              onSelect={setCategoria}
+            />
           )}
         </div>
       </section>
@@ -1568,7 +2164,12 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
           >
             <AnimatePresence>
               {filtered.map(p => (
-                <ProductCard key={p.id} producto={p} onAdd={addToCart} />
+                <ProductCard
+                  key={p.id}
+                  producto={p}
+                  onAdd={addToCart}
+                  onOpenDetail={setDetailProduct}
+                />
               ))}
             </AnimatePresence>
           </motion.div>
@@ -1664,7 +2265,11 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         onRemove={removeFromCart}
         onCheckout={() => {
           setCartOpen(false)
-          if (!isShippingComplete) {
+          // BUG 5: if the client already has shipping info stored on their
+          // cliente row, skip the form and go straight to review.
+          if (hasStoredShipping) {
+            setConfirmOpen(true)
+          } else if (!isShippingComplete) {
             setShippingOpen(true)
           } else {
             setConfirmOpen(true)
@@ -1680,6 +2285,8 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         onClose={() => setShippingOpen(false)}
         initial={shipping}
         submitting={ordering}
+        // tipo_cliente only asked on the first-ever order (no stored cliente row)
+        showTipoCliente={!clienteInfo?.tipo_cliente}
         onSubmit={(values) => {
           setShipping(values)
           if (!direccion) setDireccion(values.direccion)
@@ -1705,6 +2312,25 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         creditoAutorizado={creditoAutorizado}
         creditoDisponible={creditoDisponible}
         empresaPayment={empresaPayment}
+        onBack={() => { setConfirmOpen(false); setShippingOpen(true) }}
+        onClearCart={() => {
+          setCart([])
+          setConfirmOpen(false)
+          setCartOpen(false)
+          toast.success('Carrito vaciado')
+        }}
+        savedShippingInfo={hasStoredShipping ? {
+          nombre: shipping.nombre,
+          direccion: shipping.direccion,
+          ciudad: shipping.ciudad,
+          telefono: shipping.telefono,
+        } : null}
+      />
+
+      <ProductDetailModal
+        producto={detailProduct}
+        onClose={() => setDetailProduct(null)}
+        onAdd={addToCart}
       />
 
       <ChatPanel

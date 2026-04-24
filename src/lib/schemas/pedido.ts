@@ -18,7 +18,9 @@ export const PedidoCreateSchema = z.object({
   items: z.array(PedidoItemSchema).min(1).max(100),
   notas: z.string().max(500).optional().nullable(),
   direccion_entrega: z.string().max(500).optional().nullable(),
-  tipo_pago: z.enum(['efectivo', 'zelle', 'transferencia', 'credito', 'stripe']).optional(),
+  // Valid methods: efectivo, zelle, cheque, credito, stripe. `transferencia`
+  // was removed — USA clients use Zelle, not wire transfers.
+  tipo_pago: z.enum(['efectivo', 'zelle', 'cheque', 'credito', 'stripe']).optional(),
   numero_referencia: z.string().max(100).optional(),
   cliente_data: z.object({
     nombre: z.string().max(200).optional(),
