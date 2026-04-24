@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CreditCard, Loader2, X, Banknote, ArrowLeftRight, Building2, Globe } from 'lucide-react'
+import { CreditCard, Loader2, X, Banknote, Smartphone, Building2, Globe, FileCheck } from 'lucide-react'
 
-type Metodo = 'efectivo' | 'transferencia' | 'credito' | 'stripe'
+type Metodo = 'efectivo' | 'zelle' | 'cheque' | 'credito' | 'stripe'
 
 const METODOS: { value: Metodo; label: string; icon: React.ReactNode; color: string }[] = [
   { value: 'efectivo', label: 'Efectivo', icon: <Banknote className="h-4 w-4" />, color: 'bg-green-600' },
-  { value: 'transferencia', label: 'Transferencia', icon: <ArrowLeftRight className="h-4 w-4" />, color: 'bg-blue-600' },
-  { value: 'credito', label: 'Crédito', icon: <Building2 className="h-4 w-4" />, color: 'bg-purple-600' },
-  { value: 'stripe', label: 'Stripe', icon: <Globe className="h-4 w-4" />, color: 'bg-indigo-600' },
+  { value: 'zelle',    label: 'Zelle',    icon: <Smartphone className="h-4 w-4" />, color: 'bg-purple-600' },
+  { value: 'stripe',   label: 'Tarjeta',  icon: <Globe className="h-4 w-4" />, color: 'bg-indigo-600' },
+  { value: 'cheque',   label: 'Cheque',   icon: <FileCheck className="h-4 w-4" />, color: 'bg-amber-600' },
+  { value: 'credito',  label: 'Crédito',  icon: <Building2 className="h-4 w-4" />, color: 'bg-teal-600' },
 ]
 
 export default function RegistrarPagoButton({ facturaId, total }: { facturaId: string; total: number }) {
@@ -25,8 +26,12 @@ export default function RegistrarPagoButton({ facturaId, total }: { facturaId: s
   const resetModal = () => { setMetodo('efectivo'); setReferencia(''); setNotas(''); setError(''); setOpen(false) }
 
   const handleSubmit = async () => {
-    if (metodo === 'transferencia' && !referencia.trim()) {
-      setError('Ingresa el número de referencia de la transferencia')
+    if (metodo === 'zelle' && !referencia.trim()) {
+      setError('Ingresa el número de confirmación del Zelle')
+      return
+    }
+    if (metodo === 'cheque' && !referencia.trim()) {
+      setError('Ingresa el número de cheque')
       return
     }
     setLoading(true)
@@ -98,18 +103,34 @@ export default function RegistrarPagoButton({ facturaId, total }: { facturaId: s
                 </div>
               </div>
 
-              {/* Referencia (only for transferencia) */}
-              {metodo === 'transferencia' && (
+              {/* Referencia (required for zelle) */}
+              {metodo === 'zelle' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Número de referencia *
+                    Número de confirmación *
                   </label>
                   <input
                     type="text"
                     value={referencia}
                     onChange={e => setReferencia(e.target.value)}
-                    placeholder="Ej: 00123456789"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Ej: ABC123XYZ"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  />
+                </div>
+              )}
+
+              {/* Referencia (required for cheque) */}
+              {metodo === 'cheque' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Número de cheque *
+                  </label>
+                  <input
+                    type="text"
+                    value={referencia}
+                    onChange={e => setReferencia(e.target.value)}
+                    placeholder="Ej: 1024"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   />
                 </div>
               )}

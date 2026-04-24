@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Pedido, PedidoItem, Profile } from '@/lib/types'
+import { Pedido, PedidoItem, Profile, Factura } from '@/lib/types'
 import {
   formatCurrency,
   formatDate,
@@ -14,6 +14,7 @@ import {
   StickyNote, Truck, Package, XCircle,
 } from 'lucide-react'
 import PedidoActions from '@/components/pedidos/PedidoActions'
+import DescargarFacturaPDFButton from '@/components/pedidos/DescargarFacturaPDFButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 
 interface PageProps { params: { id: string } }
@@ -49,7 +50,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
       .eq('id', params.id)
       .single(),
     supabase.from('conductores').select('id, nombre, telefono').eq('activo', true).order('nombre'),
-    supabase.from('empresa_config').select('nombre,telefono,email,direccion').limit(1).maybeSingle(),
+    supabase.from('empresa_config').select('*').limit(1).maybeSingle(),
     user
       ? supabase.from('profiles').select('rol').eq('id', user.id).single()
       : Promise.resolve({ data: null }),
@@ -61,14 +62,39 @@ export default async function PedidoDetailPage({ params }: PageProps) {
   const items = (p.items ?? []) as PedidoItem[]
   const isAdmin = (profile as Profile | null)?.rol === 'admin'
 
-  // Find factura linked to this pedido (if any)
+  // Find factura linked to this pedido (if any) — fetch full data for PDF download
   const { data: facturaData } = await supabase
     .from('facturas')
-    .select('id')
+    .select('*, cliente:clientes(*), vendedor:profiles(*), items:factura_items(*)')
     .eq('pedido_id', p.id)
     .maybeSingle()
 
-  const facturaId = facturaData?.id ?? null
+  const factura = (facturaData as Factura | null) ?? null
+  const facturaId = factura?.id ?? null
+
+  // Resolve payment info: pedido → orden (only ordenes carry tipo_pago).
+  let pagoInfo: {
+    tipo_pago?: any
+    numero_referencia?: string | null
+    pago_confirmado?: boolean | null
+    pago_confirmado_at?: string | null
+  } | null = null
+  if (factura) {
+    const { data: pedidoRow } = await supabase
+      .from('pedidos')
+      .select('orden_id')
+      .eq('id', p.id)
+      .maybeSingle()
+    const ordenId = (pedidoRow as any)?.orden_id
+    if (ordenId) {
+      const { data: ordenRow } = await supabase
+        .from('ordenes')
+        .select('tipo_pago, numero_referencia, pago_confirmado, pago_confirmado_at')
+        .eq('id', ordenId)
+        .maybeSingle()
+      pagoInfo = (ordenRow as any) ?? null
+    }
+  }
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -102,6 +128,13 @@ export default async function PedidoDetailPage({ params }: PageProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {factura && (
+              <DescargarFacturaPDFButton
+                factura={factura}
+                empresaConfig={empresaConfig ?? undefined}
+                pagoInfo={pagoInfo}
+              />
+            )}
             <WhatsAppButton tipo="pedido" pedido={p} empresa={empresaConfig ?? undefined} />
             <PedidoActions
               pedidoId={p.id}

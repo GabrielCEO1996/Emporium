@@ -178,7 +178,7 @@ const S = StyleSheet.create({
   metaCardTitle: {
     fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: C.blue,
+    color: C.navyMid,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -307,7 +307,7 @@ const S = StyleSheet.create({
   notesTitle: {
     fontSize: 7,
     fontFamily: 'Helvetica-Bold',
-    color: C.blue,
+    color: C.navyMid,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
@@ -334,7 +334,7 @@ const S = StyleSheet.create({
 // ─── Estado config ────────────────────────────────────────────────────────────
 
 const ESTADO_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  emitida:         { label: 'EMITIDA',          bg: C.blueLight,   color: C.blue },
+  emitida:         { label: 'EMITIDA',          bg: C.blueLight,   color: C.navyMid },
   enviada:         { label: 'ENVIADA',           bg: '#F3E8FF',     color: '#7C3AED' },
   pagada:          { label: 'PAGADA',            bg: C.greenLight,  color: C.green },
   anulada:         { label: 'ANULADA',           bg: '#fee2e2',     color: C.red },
@@ -421,7 +421,7 @@ export default function FacturaPDF({ factura, empresaConfig, pagoInfo }: Factura
     mensaje_factura: empresaConfig?.mensaje_factura ?? 'Thank you for your business',
   }
   const saldo = (f.total ?? 0) - (f.monto_pagado ?? 0)
-  const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.blue }
+  const estadoCfg = ESTADO_CFG[f.estado] ?? { label: f.estado.toUpperCase(), bg: C.blueLight, color: C.navyMid }
   const pagoMeta = pagoMetaFor(pagoInfo, f.monto_pagado)
 
   return (
@@ -605,8 +605,8 @@ export default function FacturaPDF({ factura, empresaConfig, pagoInfo }: Factura
 
           {/* ── Payment method block ── */}
           {pagoMeta && (
-            <View style={[S.notesBox, { borderColor: pagoMeta.confirmado ? C.green : C.blue }]}>
-              <Text style={[S.notesTitle, { color: pagoMeta.confirmado ? C.green : C.blue }]}>
+            <View style={[S.notesBox, { borderColor: pagoMeta.confirmado ? C.green : C.navyMid }]}>
+              <Text style={[S.notesTitle, { color: pagoMeta.confirmado ? C.green : C.navyMid }]}>
                 Método de Pago
               </Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>

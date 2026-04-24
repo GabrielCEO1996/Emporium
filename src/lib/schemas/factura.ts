@@ -41,7 +41,7 @@ export const FacturaCreateSchema = z.object({
   notas: z.string().max(500).optional().nullable(),
   tasa_impuesto: z.number().min(0).max(1).optional(),
   descuento: z.number().nonnegative().optional(),
-  metodo_pago: z.enum(['efectivo', 'zelle', 'transferencia', 'credito', 'stripe']).optional(),
+  metodo_pago: z.enum(['efectivo', 'zelle', 'cheque', 'credito', 'stripe']).optional(),
 })
 
 export const FacturaUpdateSchema = z.object({

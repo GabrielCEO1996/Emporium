@@ -18,13 +18,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'factura_id y metodo son requeridos' }, { status: 400 })
   }
 
-  const validMetodos = ['efectivo', 'transferencia', 'credito', 'stripe']
+  const validMetodos = ['efectivo', 'zelle', 'cheque', 'credito', 'stripe']
   if (!validMetodos.includes(metodo)) {
     return NextResponse.json({ error: `Método inválido. Valores: ${validMetodos.join(', ')}` }, { status: 400 })
   }
 
-  if (metodo === 'transferencia' && !referencia?.trim()) {
-    return NextResponse.json({ error: 'Las transferencias requieren un número de referencia' }, { status: 400 })
+  if (metodo === 'zelle' && !referencia?.trim()) {
+    return NextResponse.json({ error: 'Los pagos por Zelle requieren un número de confirmación' }, { status: 400 })
+  }
+
+  if (metodo === 'cheque' && !referencia?.trim()) {
+    return NextResponse.json({ error: 'Los pagos por cheque requieren el número de cheque' }, { status: 400 })
   }
 
   // Fetch factura
