@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/utils'
 import {
   ClipboardList, ChevronLeft, ChevronDown, ChevronUp,
   ShoppingBag, Clock, CheckCircle2, Truck, XCircle,
-  FileText, Package, RotateCcw, Receipt,
+  FileText, Package, RotateCcw, Receipt, User,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -53,92 +53,78 @@ interface Props {
   userId: string
 }
 
-// ── Progress steps (5-step) ───────────────────────────────────────────────────
+// ── Progress timeline ─────────────────────────────────────────────────────────
 const STEPS = [
-  { key: 'borrador',   label: 'Recibido',   color: 'bg-slate-400',   ring: 'ring-slate-300' },
-  { key: 'confirmado', label: 'Confirmado', color: 'bg-blue-500',    ring: 'ring-blue-300' },
-  { key: 'preparando', label: 'Preparando', color: 'bg-amber-500',   ring: 'ring-amber-300' },
-  { key: 'en_ruta',   label: 'En camino',  color: 'bg-orange-500',  ring: 'ring-orange-300' },
-  { key: 'entregado',  label: 'Entregado',  color: 'bg-emerald-500', ring: 'ring-emerald-300' },
+  { key: 'borrador',   label: 'Recibido' },
+  { key: 'confirmado', label: 'Confirmado' },
+  { key: 'preparando', label: 'Preparando' },
+  { key: 'en_ruta',    label: 'En camino' },
+  { key: 'entregado',  label: 'Entregado' },
 ]
 
 function getStep(estado: string): number {
-  // Terminal states
-  if (estado === 'pagado' || estado === 'facturado') return 5    // beyond step 4 = green complete
+  if (estado === 'pagado' || estado === 'facturado') return 5
   if (estado === 'entregado') return 4
   if (estado === 'en_ruta')   return 3
   if (estado === 'preparando') return 2
   if (estado === 'confirmado') return 1
-  return 0  // borrador
+  return 0
 }
 
-function ProgressBar({ estado }: { estado: string }) {
-  const cancelled  = estado === 'cancelado'
-  const fullDone   = estado === 'pagado' || estado === 'facturado'
-  const stepIdx    = getStep(estado)
+function Timeline({ estado }: { estado: string }) {
+  const cancelled = estado === 'cancelado'
+  const fullDone  = estado === 'pagado' || estado === 'facturado'
+  const stepIdx   = getStep(estado)
 
   if (cancelled) {
     return (
-      <div className="flex items-center gap-2 py-1">
-        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-        <span className="text-sm font-semibold text-red-500">Pedido cancelado</span>
+      <div className="flex items-center gap-2 py-2">
+        <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+        <span className="text-[11px] uppercase tracking-luxe text-rose-500">Pedido cancelado</span>
       </div>
     )
   }
 
   if (fullDone) {
     return (
-      <div className="flex items-center gap-2 py-2">
-        <div className="flex-1 h-2 rounded-full bg-emerald-500 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: '100%' }}
-            transition={{ duration: 0.6 }}
-            className="h-full bg-emerald-400 rounded-full"
-          />
-        </div>
-        <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
-          {estado === 'pagado' ? '✅ Pagado' : '✅ Facturado'}
+      <div className="flex items-center gap-3 py-2">
+        <div className="flex-1 h-[2px] bg-emerald-500/70 rounded-full" />
+        <span className="text-[10px] uppercase tracking-luxe text-emerald-700 whitespace-nowrap">
+          {estado === 'pagado' ? '✓ Pagado' : '✓ Facturado'}
         </span>
       </div>
     )
   }
 
   return (
-    <div className="pt-1 pb-3">
+    <div className="pt-2 pb-4">
       <div className="flex items-center gap-0">
         {STEPS.map((step, i) => {
           const done   = stepIdx >= i
           const active = stepIdx === i
           return (
             <div key={step.key} className="flex items-center flex-1 last:flex-none">
-              {/* Dot */}
               <div className="flex flex-col items-center">
                 <motion.div
-                  animate={active ? { scale: [1, 1.15, 1] } : {}}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-500 ${
-                    done
-                      ? `${step.color} text-white shadow-sm`
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
-                  } ${active ? `ring-2 ring-offset-1 ${step.ring}` : ''}`}
-                >
-                  {done ? '✓' : i + 1}
-                </motion.div>
-                <span className={`text-[9px] mt-1 font-semibold whitespace-nowrap leading-tight ${
-                  done ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'
+                  animate={active ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ repeat: Infinity, duration: 1.6 }}
+                  className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${
+                    done ? 'bg-brand-navy' : 'bg-stone-300'
+                  } ${active ? 'ring-2 ring-offset-2 ring-brand-gold/60 ring-offset-white' : ''}`}
+                />
+                <span className={`text-[9px] mt-2 uppercase tracking-wide whitespace-nowrap ${
+                  done ? 'text-brand-navy' : 'text-brand-charcoal/40'
                 }`}>
                   {step.label}
                 </span>
               </div>
-              {/* Connector */}
               {i < STEPS.length - 1 && (
-                <div className="flex-1 h-1 mx-0.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden mb-3">
+                <div className="flex-1 h-[1px] mx-1.5 bg-stone-300 overflow-hidden mb-5 relative">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: stepIdx > i ? '100%' : '0%' }}
-                    transition={{ duration: 0.5, delay: i * 0.1 }}
-                    className="h-full bg-teal-500 rounded-full"
+                    transition={{ duration: 0.5, delay: i * 0.08 }}
+                    className="h-full bg-brand-navy"
                   />
                 </div>
               )}
@@ -150,19 +136,24 @@ function ProgressBar({ estado }: { estado: string }) {
   )
 }
 
-// ── Single Pedido card ────────────────────────────────────────────────────────
+// ── Pedido Card ───────────────────────────────────────────────────────────────
 function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: PedidoItem[]) => void }) {
   const [open, setOpen] = useState(false)
 
-  const statusColor: Record<string, string> = {
-    borrador:   'text-slate-500 bg-slate-100 dark:bg-slate-700',
-    confirmado: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
-    preparando: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
-    en_ruta:    'text-orange-600 bg-orange-50 dark:bg-orange-900/30',
-    entregado:  'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30',
-    facturado:  'text-violet-600 bg-violet-50 dark:bg-violet-900/30',
-    pagado:     'text-emerald-700 bg-emerald-100 dark:bg-emerald-900/40',
-    cancelado:  'text-red-500 bg-red-50 dark:bg-red-900/30',
+  const statusTone: Record<string, string> = {
+    borrador:   'text-brand-charcoal bg-stone-100',
+    confirmado: 'text-sky-700 bg-sky-50',
+    preparando: 'text-amber-700 bg-amber-50',
+    en_ruta:    'text-orange-700 bg-orange-50',
+    entregado:  'text-emerald-700 bg-emerald-50',
+    facturado:  'text-violet-700 bg-violet-50',
+    pagado:     'text-emerald-800 bg-emerald-100',
+    cancelado:  'text-rose-600 bg-rose-50',
+  }
+  const statusLabel: Record<string, string> = {
+    borrador: 'Recibido', confirmado: 'Confirmado', preparando: 'Preparando',
+    en_ruta: 'En camino', entregado: 'Entregado', facturado: 'Facturado',
+    pagado: 'Pagado', cancelado: 'Cancelado',
   }
   const statusIcon: Record<string, React.ReactNode> = {
     borrador:   <Clock className="w-3.5 h-3.5" />,
@@ -174,103 +165,87 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
     pagado:     <CheckCircle2 className="w-3.5 h-3.5" />,
     cancelado:  <XCircle className="w-3.5 h-3.5" />,
   }
-  const statusLabel: Record<string, string> = {
-    borrador: 'Recibido', confirmado: 'Confirmado', preparando: 'Preparando',
-    en_ruta: 'En camino', entregado: 'Entregado', facturado: 'Facturado',
-    pagado: 'Pagado ✅', cancelado: 'Cancelado',
-  }
-
-  const sc = statusColor[pedido.estado] ?? statusColor.borrador
+  const tone = statusTone[pedido.estado] ?? statusTone.borrador
   const icon = statusIcon[pedido.estado] ?? <Clock className="w-3.5 h-3.5" />
 
   return (
-    <motion.div layout className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-      {/* Header row */}
-      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between px-5 py-4 text-left">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${sc}`}>
-            {icon}
-          </div>
-          <div className="min-w-0">
-            <p className="font-bold text-slate-800 dark:text-white text-sm">{pedido.numero}</p>
-            <p className="text-xs text-slate-400">
-              {new Date(pedido.fecha_pedido).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
+    <motion.div layout className="bg-white rounded-[22px] border border-stone-200/70 overflow-hidden hover:shadow-[0_20px_45px_-20px_rgba(15,23,42,0.15)] transition-shadow">
+      <button onClick={() => setOpen(v => !v)} className="w-full px-7 pt-6 pb-3 text-left">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-1">
+              {new Date(pedido.fecha_pedido).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
+            <h3 className="font-serif text-2xl text-brand-navy leading-tight">{pedido.numero}</h3>
           </div>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="text-right">
-            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${sc}`}>
+          <div className="text-right flex flex-col items-end gap-1.5">
+            <span className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-luxe px-3 py-1.5 rounded-full ${tone}`}>
               {icon} {statusLabel[pedido.estado] ?? pedido.estado}
             </span>
-            <p className="text-sm font-black text-slate-800 dark:text-white mt-1 tabular-nums">
+            <p className="font-serif text-xl text-brand-navy tabular-nums">
               {formatCurrency(pedido.total)}
             </p>
           </div>
-          {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </div>
       </button>
 
-      {/* Progress bar always visible */}
-      <div className="px-5 pb-1">
-        <ProgressBar estado={pedido.estado} />
+      <div className="px-7">
+        <Timeline estado={pedido.estado} />
       </div>
 
-      {/* Expandable detail */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-center gap-1.5 py-3 text-[10px] uppercase tracking-luxe text-brand-charcoal hover:text-brand-navy transition border-t border-stone-100"
+      >
+        {open ? <>Ocultar detalle <ChevronUp className="w-3 h-3" /></> : <>Ver detalle <ChevronDown className="w-3 h-3" /></>}
+      </button>
+
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden bg-brand-stone/40"
           >
-            <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-4 space-y-3">
-              {/* Items */}
+            <div className="px-7 py-5 space-y-4">
               {pedido.pedido_items && pedido.pedido_items.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {pedido.pedido_items.map(item => (
-                    <li key={item.id} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-3 h-3 text-teal-600" />
-                        </div>
-                        <div>
-                          <span className="font-medium text-slate-700 dark:text-slate-200">
-                            {item.presentaciones?.productos?.nombre ?? 'Producto'}
-                          </span>
-                          <span className="text-slate-400 ml-1 text-xs">
-                            {item.presentaciones?.nombre} ×{item.cantidad}
-                          </span>
-                        </div>
+                    <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-serif text-[15px] text-brand-navy leading-tight">
+                          {item.presentaciones?.productos?.nombre ?? 'Producto'}
+                        </p>
+                        <p className="text-[11px] uppercase tracking-wide text-brand-charcoal/60 mt-0.5">
+                          {item.presentaciones?.nombre} · ×{item.cantidad}
+                        </p>
                       </div>
-                      <span className="font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
+                      <span className="font-serif text-brand-navy tabular-nums shrink-0">
                         {formatCurrency(item.subtotal)}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-400 text-center py-2">Sin detalle de items</p>
+                <p className="text-sm text-brand-charcoal/50 text-center py-2 italic">Sin detalle de items</p>
               )}
 
-              {/* Notes */}
               {pedido.notas && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-0.5">Notas</p>
-                  <p className="text-sm text-amber-800 dark:text-amber-300">{pedido.notas}</p>
+                <div className="bg-amber-50/60 border border-amber-200/60 rounded-xl p-4">
+                  <p className="text-[10px] uppercase tracking-luxe text-amber-700 mb-1">Notas</p>
+                  <p className="text-sm text-amber-900">{pedido.notas}</p>
                 </div>
               )}
 
-              {/* Reorder button (only for delivered/invoiced) */}
               {(pedido.estado === 'entregado' || pedido.estado === 'facturado') &&
                pedido.pedido_items && pedido.pedido_items.length > 0 && (
                 <button
                   onClick={() => onReorder(pedido.pedido_items!)}
-                  className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-teal-600 border border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-900/20 py-2.5 rounded-xl transition"
+                  className="w-full flex items-center justify-center gap-2 text-[11px] uppercase tracking-luxe text-brand-navy border border-brand-navy/30 hover:border-brand-navy hover:bg-brand-navy hover:text-brand-cream py-3 rounded-full transition"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   Volver a pedir
                 </button>
               )}
@@ -282,121 +257,91 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
   )
 }
 
-// ── Orden (client request) card ──────────────────────────────────────────────
+// ── Orden Card ────────────────────────────────────────────────────────────────
 function OrdenCard({ orden }: { orden: Orden }) {
   const map = {
     pendiente: {
-      icon: '⏳',
-      label: 'Pendiente de aprobación',
-      cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+      label: 'Pendiente de aprobación', cls: 'bg-amber-50 text-amber-800 border-amber-200/60',
     },
     aprobada: {
-      icon: '✅',
-      label: 'Aprobada',
-      cls: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+      label: 'Aprobada', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60',
     },
     rechazada: {
-      icon: '❌',
-      label: 'Rechazada',
-      cls: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+      label: 'Rechazada', cls: 'bg-rose-50 text-rose-700 border-rose-200/60',
     },
     cancelada: {
-      icon: '⛔',
-      label: 'Cancelada',
-      cls: 'bg-slate-50 dark:bg-slate-900/20 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+      label: 'Cancelada', cls: 'bg-stone-100 text-brand-charcoal border-stone-200/60',
     },
   }[orden.estado]
 
   return (
     <motion.div
       layout
-      className={`rounded-2xl border shadow-sm px-5 py-4 ${map.cls}`}
+      className={`rounded-[22px] border p-6 ${map.cls}`}
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-semibold opacity-80">
-            <span>{map.icon}</span>
-            <span>{map.label}</span>
-            <span className="opacity-60">·</span>
-            <span>
-              {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </span>
-          </div>
-          <p className="font-bold text-sm mt-1">{orden.numero}</p>
+          <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
+            {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {map.label}
+          </p>
+          <h3 className="font-serif text-xl leading-tight">{orden.numero}</h3>
           {orden.orden_items && (
-            <p className="text-xs opacity-70">
+            <p className="text-[11px] uppercase tracking-wide opacity-60 mt-1">
               {orden.orden_items.length} producto{orden.orden_items.length === 1 ? '' : 's'}
             </p>
           )}
         </div>
-        <p className="font-black tabular-nums text-base">{formatCurrency(Number(orden.total))}</p>
+        <p className="font-serif text-xl tabular-nums">{formatCurrency(Number(orden.total))}</p>
       </div>
 
       {orden.estado === 'rechazada' && orden.motivo_rechazo && (
-        <div className="mt-3 text-sm bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2">
-          <p className="font-semibold">Motivo:</p>
+        <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
+          <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">Motivo</p>
           <p className="opacity-90">{orden.motivo_rechazo}</p>
         </div>
       )}
 
       {orden.estado === 'aprobada' && orden.pedido && (
-        <div className="mt-3 text-sm bg-white/60 dark:bg-black/20 rounded-xl px-3 py-2">
+        <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
           Tu orden se convirtió en el pedido{' '}
-          <span className="font-bold">{orden.pedido.numero}</span>. Míralo abajo 👇
+          <span className="font-semibold">{orden.pedido.numero}</span>. Míralo más abajo.
         </div>
       )}
     </motion.div>
   )
 }
 
-// ── Factura card (compact) ────────────────────────────────────────────────────
+// ── Factura Card ──────────────────────────────────────────────────────────────
 function FacturaCard({ factura }: { factura: Factura }) {
-  const map: Record<Factura['estado'], { cls: string; label: string; icon: string }> = {
-    pagada: {
-      cls: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-      label: 'Pagada', icon: '✅',
-    },
-    emitida: {
-      cls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-      label: 'Emitida', icon: '📄',
-    },
-    anulada: {
-      cls: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
-      label: 'Anulada', icon: '🚫',
-    },
-    con_nota_credito: {
-      cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-      label: 'Con nota crédito', icon: '📝',
-    },
+  const map: Record<Factura['estado'], { cls: string; label: string }> = {
+    pagada:           { cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60', label: 'Pagada' },
+    emitida:          { cls: 'bg-sky-50 text-sky-800 border-sky-200/60',             label: 'Emitida' },
+    anulada:          { cls: 'bg-rose-50 text-rose-700 border-rose-200/60',           label: 'Anulada' },
+    con_nota_credito: { cls: 'bg-amber-50 text-amber-800 border-amber-200/60',        label: 'Con nota crédito' },
   }
   const m = map[factura.estado]
   const saldo = Number(factura.total) - Number(factura.monto_pagado ?? 0)
   return (
-    <motion.div layout className={`rounded-2xl border shadow-sm px-5 py-4 ${m.cls}`}>
+    <motion.div layout className={`rounded-[22px] border p-6 ${m.cls}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-semibold opacity-80">
-            <span>{m.icon}</span>
-            <span>{m.label}</span>
-            <span className="opacity-60">·</span>
-            <span>
-              {new Date(factura.fecha_emision).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </span>
-          </div>
-          <p className="font-bold text-sm mt-1">{factura.numero}</p>
+          <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
+            {new Date(factura.fecha_emision).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {m.label}
+          </p>
+          <h3 className="font-serif text-xl leading-tight">{factura.numero}</h3>
           {factura.estado !== 'pagada' && saldo > 0 && (
-            <p className="text-xs opacity-80 mt-0.5">
-              Saldo pendiente: <span className="font-bold">{formatCurrency(saldo)}</span>
+            <p className="text-[11px] uppercase tracking-wide opacity-70 mt-1">
+              Saldo pendiente · <span className="font-semibold">{formatCurrency(saldo)}</span>
             </p>
           )}
         </div>
-        <p className="font-black tabular-nums text-base">{formatCurrency(Number(factura.total))}</p>
+        <p className="font-serif text-xl tabular-nums">{formatCurrency(Number(factura.total))}</p>
       </div>
     </motion.div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function MisPedidosClient({
   pedidos: initialPedidos, ordenes: initialOrdenes, facturas: initialFacturas, clienteId, userId,
 }: Props) {
@@ -406,10 +351,9 @@ export default function MisPedidosClient({
   const router = useRouter()
   const supabase = createClient()
 
-  // ── Supabase Realtime: pedidos ────────────────────────────────────────────
+  // Realtime: pedidos
   useEffect(() => {
     if (!clienteId) return
-
     const channel = supabase
       .channel(`pedidos-cliente-${clienteId}`)
       .on(
@@ -418,23 +362,19 @@ export default function MisPedidosClient({
         (payload) => {
           setPedidos(prev =>
             prev.map(p =>
-              p.id === payload.new.id
-                ? { ...p, estado: payload.new.estado as string }
-                : p
+              p.id === payload.new.id ? { ...p, estado: payload.new.estado as string } : p
             )
           )
           toast.info(`Pedido ${payload.new.numero} actualizado: ${payload.new.estado}`)
         }
       )
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [clienteId])
 
-  // ── Supabase Realtime: ordenes (own submissions) ──────────────────────────
+  // Realtime: ordenes
   useEffect(() => {
     if (!userId) return
-
     const channel = supabase
       .channel(`ordenes-user-${userId}`)
       .on(
@@ -450,8 +390,7 @@ export default function MisPedidosClient({
             )
           )
           if (nueva.estado === 'aprobada') {
-            toast.success(`Orden ${nueva.numero} aprobada ✅`)
-            // Refresh so the newly-created pedido shows up below
+            toast.success(`Orden ${nueva.numero} aprobada`)
             router.refresh()
           } else if (nueva.estado === 'rechazada') {
             toast.error(`Orden ${nueva.numero} rechazada`)
@@ -459,14 +398,12 @@ export default function MisPedidosClient({
         }
       )
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [userId, router, supabase])
 
-  // ── Supabase Realtime: facturas ───────────────────────────────────────────
+  // Realtime: facturas
   useEffect(() => {
     if (!clienteId) return
-
     const channel = supabase
       .channel(`facturas-cliente-${clienteId}`)
       .on(
@@ -476,13 +413,13 @@ export default function MisPedidosClient({
           const nueva = payload.new as any
           if (payload.eventType === 'INSERT') {
             setFacturas(prev => [nueva as Factura, ...prev])
-            toast.success(`Factura ${nueva.numero} emitida 📄`)
+            toast.success(`Factura ${nueva.numero} emitida`)
           } else if (payload.eventType === 'UPDATE') {
             setFacturas(prev =>
               prev.map(f => (f.id === nueva.id ? { ...f, ...nueva } : f))
             )
             if (nueva.estado === 'pagada') {
-              toast.success(`Factura ${nueva.numero} pagada ✅`)
+              toast.success(`Factura ${nueva.numero} pagada`)
             }
           } else if (payload.eventType === 'DELETE') {
             const old = payload.old as any
@@ -491,11 +428,9 @@ export default function MisPedidosClient({
         }
       )
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [clienteId, supabase])
 
-  // ── Reorder handler ────────────────────────────────────────────────────────
   const handleReorder = (items: PedidoItem[]) => {
     const reorderItems = items.map(item => ({
       presentacionId: item.presentacion_id,
@@ -507,48 +442,69 @@ export default function MisPedidosClient({
     }))
     localStorage.setItem('emporium_reorder', JSON.stringify(reorderItems))
     router.push('/tienda')
-    toast.success('Productos agregados al carrito')
+    toast.success('Productos añadidos al carrito')
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-brand-cream text-brand-navy">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-4 flex items-center gap-3">
-        <Link href="/tienda" className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-          <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-        </Link>
-        <div className="flex items-center gap-2">
-          <ClipboardList className="w-5 h-5 text-teal-600" />
-          <h1 className="font-bold text-slate-800 dark:text-white">Mis Pedidos</h1>
-        </div>
-        {clienteId && (
-          <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-            En vivo
+      <header className="sticky top-0 z-20 bg-brand-cream/85 backdrop-blur-md border-b border-stone-200/70">
+        <div className="max-w-4xl mx-auto px-6 lg:px-10 py-5 flex items-center gap-4">
+          <Link href="/tienda" className="p-2 rounded-full hover:bg-stone-100 transition" aria-label="Volver">
+            <ChevronLeft className="w-5 h-5 text-brand-navy" />
+          </Link>
+          <div className="flex-1">
+            <p className="text-[10px] uppercase tracking-luxe text-brand-gold">Tu historial</p>
+            <h1 className="font-serif text-2xl text-brand-navy leading-tight">Mis pedidos</h1>
           </div>
-        )}
+          {clienteId && (
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-luxe text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              En vivo
+            </div>
+          )}
+        </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6 pb-24">
-        {/* ── Mis Solicitudes (ordenes) ────────────────────────────────── */}
-        {ordenes.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 px-1">
-              <ClipboardList className="w-4 h-4 text-amber-500" />
-              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                Mis Solicitudes
-              </h2>
-              <span className="text-xs text-slate-400">
-                ({ordenes.filter(o => o.estado === 'pendiente').length} pendientes)
-              </span>
+      <main className="max-w-4xl mx-auto px-6 lg:px-10 py-10 space-y-12 pb-28">
+        {/* Empty state */}
+        {pedidos.length === 0 && ordenes.length === 0 && facturas.length === 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center py-24 max-w-md mx-auto">
+            <div className="w-20 h-20 rounded-full bg-brand-stone flex items-center justify-center mx-auto mb-6">
+              <ShoppingBag className="w-7 h-7 text-brand-charcoal/40" />
             </div>
-            <div className="space-y-3">
+            <p className="font-serif text-2xl text-brand-navy mb-2">Aún no tienes pedidos</p>
+            <p className="text-sm text-brand-charcoal/70 mb-6">
+              Explora el catálogo y haz tu primera compra para verla aparecer aquí.
+            </p>
+            <Link
+              href="/tienda"
+              className="inline-flex items-center gap-2 text-[11px] uppercase tracking-luxe text-brand-navy border-b border-brand-navy/30 hover:border-brand-navy pb-0.5 transition"
+            >
+              Ir al catálogo →
+            </Link>
+          </motion.div>
+        )}
+
+        {/* Solicitudes (ordenes) */}
+        {ordenes.length > 0 && (
+          <section className="space-y-5">
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-1">En revisión</p>
+                <h2 className="font-serif text-3xl text-brand-navy">Mis solicitudes</h2>
+              </div>
+              <p className="text-[11px] uppercase tracking-luxe text-brand-charcoal/60">
+                {ordenes.filter(o => o.estado === 'pendiente').length} pendiente{ordenes.filter(o => o.estado === 'pendiente').length === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div className="space-y-4">
               {ordenes.map((o, i) => (
                 <motion.div
                   key={o.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
+                  transition={{ delay: i * 0.05 }}
                 >
                   <OrdenCard orden={o} />
                 </motion.div>
@@ -557,63 +513,52 @@ export default function MisPedidosClient({
           </section>
         )}
 
-        {/* ── Mis Pedidos (aprobados + en proceso) ─────────────────────── */}
-        <section className="space-y-3">
-          {ordenes.length > 0 && (
-            <div className="flex items-center gap-2 px-1">
-              <Truck className="w-4 h-4 text-teal-500" />
-              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                Mis Pedidos
-              </h2>
+        {/* Pedidos */}
+        {pedidos.length > 0 && (
+          <section className="space-y-5">
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-1">En curso</p>
+                <h2 className="font-serif text-3xl text-brand-navy">Pedidos activos</h2>
+              </div>
+              <p className="text-[11px] uppercase tracking-luxe text-brand-charcoal/60">
+                {pedidos.length} total
+              </p>
             </div>
-          )}
+            <div className="space-y-4">
+              {pedidos.map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <PedidoCard pedido={p} onReorder={handleReorder} />
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
 
-          {pedidos.length === 0 && ordenes.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20">
-              <ShoppingBag className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
-              <p className="font-semibold text-slate-500 dark:text-slate-400">Sin pedidos aún</p>
-              <p className="text-sm text-slate-400 mt-1">Haz tu primer pedido en la tienda</p>
-              <Link href="/tienda" className="inline-block mt-4 text-sm text-teal-600 font-semibold hover:underline">
-                Ir a la tienda →
-              </Link>
-            </motion.div>
-          ) : pedidos.length === 0 ? (
-            <p className="text-xs text-slate-400 px-1">
-              Aún no tienes pedidos aprobados. Tus solicitudes aparecen arriba.
-            </p>
-          ) : (
-            pedidos.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <PedidoCard pedido={p} onReorder={handleReorder} />
-              </motion.div>
-            ))
-          )}
-        </section>
-
-        {/* ── Mis Facturas ─────────────────────────────────────────────── */}
+        {/* Facturas */}
         {facturas.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 px-1">
-              <Receipt className="w-4 h-4 text-violet-500" />
-              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                Mis Facturas
-              </h2>
-              <span className="text-xs text-slate-400">
-                ({facturas.filter(f => f.estado === 'pagada').length} pagadas)
-              </span>
+          <section className="space-y-5">
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-1">Documentos</p>
+                <h2 className="font-serif text-3xl text-brand-navy">Mis facturas</h2>
+              </div>
+              <p className="text-[11px] uppercase tracking-luxe text-brand-charcoal/60">
+                {facturas.filter(f => f.estado === 'pagada').length} pagada{facturas.filter(f => f.estado === 'pagada').length === 1 ? '' : 's'}
+              </p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {facturas.map((f, i) => (
                 <motion.div
                   key={f.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
+                  transition={{ delay: i * 0.05 }}
                 >
                   <FacturaCard factura={f} />
                 </motion.div>
@@ -624,16 +569,18 @@ export default function MisPedidosClient({
       </main>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 inset-x-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-4 py-2 lg:hidden">
-        <Link href="/tienda" className="flex flex-col items-center gap-0.5 py-1 text-slate-400 hover:text-slate-600 transition">
-          <ShoppingBag className="w-5 h-5" /><span className="text-xs font-medium">Tienda</span>
+      <nav className="fixed bottom-0 inset-x-0 bg-brand-cream/95 backdrop-blur-md border-t border-stone-200/80 flex items-center justify-around px-4 py-3 md:hidden">
+        <Link href="/tienda" className="flex flex-col items-center gap-1 py-1 text-brand-charcoal hover:text-brand-navy transition">
+          <ShoppingBag className="w-5 h-5" />
+          <span className="text-[9px] uppercase tracking-luxe">Tienda</span>
         </Link>
-        <Link href="/tienda/mis-pedidos" className="flex flex-col items-center gap-0.5 py-1 text-teal-600">
-          <ClipboardList className="w-5 h-5" /><span className="text-xs font-medium">Pedidos</span>
+        <Link href="/tienda/mis-pedidos" className="flex flex-col items-center gap-1 py-1 text-brand-navy">
+          <ClipboardList className="w-5 h-5" />
+          <span className="text-[9px] uppercase tracking-luxe">Pedidos</span>
         </Link>
-        <Link href="/tienda/perfil" className="flex flex-col items-center gap-0.5 py-1 text-slate-400 hover:text-slate-600 transition">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-          <span className="text-xs font-medium">Perfil</span>
+        <Link href="/tienda/perfil" className="flex flex-col items-center gap-1 py-1 text-brand-charcoal hover:text-brand-navy transition">
+          <User className="w-5 h-5" />
+          <span className="text-[9px] uppercase tracking-luxe">Cuenta</span>
         </Link>
       </nav>
     </div>

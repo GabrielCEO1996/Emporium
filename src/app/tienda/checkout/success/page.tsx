@@ -41,31 +41,42 @@ function SuccessContent() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-white dark:bg-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-teal-600 mx-auto" />
-          <p className="text-slate-500 text-sm">Procesando tu pago...</p>
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
+        <div className="text-center space-y-5">
+          <Loader2 className="w-10 h-10 animate-spin text-brand-navy mx-auto" strokeWidth={1.5} />
+          <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal">Procesando tu pago…</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 flex flex-col items-center justify-center gap-6 p-8 text-center">
+    <div className="min-h-screen bg-brand-cream flex flex-col items-center justify-center gap-8 p-8 text-center">
       <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200 }}
-        className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center"
+        initial={{ scale: 0, rotate: -20 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 180 }}
+        className="relative w-28 h-28"
       >
-        <CheckCircle2 className="w-14 h-14 text-emerald-500" />
+        <div className="absolute inset-0 rounded-full bg-brand-gold/20 animate-pulse" />
+        <div className="absolute inset-2 rounded-full bg-brand-mint flex items-center justify-center">
+          <CheckCircle2 className="w-12 h-12 text-emerald-700" strokeWidth={1.5} />
+        </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-2">¡Pago exitoso!</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="max-w-sm space-y-3"
+      >
+        <p className="text-[10px] uppercase tracking-luxe text-brand-gold">Pago confirmado</p>
+        <h1 className="font-serif text-4xl text-brand-navy leading-tight">
+          Gracias por tu pedido
+        </h1>
+        <p className="text-sm text-brand-charcoal/70 leading-relaxed">
           {orderNum
-            ? <>Tu orden <span className="font-bold text-teal-600">{orderNum}</span> fue recibida. Te notificaremos cuando sea aprobada.</>
+            ? <>Tu orden <span className="font-semibold text-brand-navy">{orderNum}</span> fue recibida. Te notificaremos cuando sea aprobada.</>
             : 'Tu pago fue procesado correctamente. Te notificaremos cuando tu orden sea aprobada.'
           }
         </p>
@@ -79,17 +90,17 @@ function SuccessContent() {
       >
         <Link
           href="/tienda/mis-pedidos"
-          className="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold py-3.5 rounded-2xl transition"
+          className="flex items-center justify-center gap-2 bg-brand-navy hover:bg-brand-navy/90 text-brand-cream text-[11px] uppercase tracking-luxe py-4 rounded-full transition"
         >
-          <ClipboardList className="w-4 h-4" />
+          <ClipboardList className="w-3.5 h-3.5" />
           Ver mis pedidos
         </Link>
         <Link
           href="/tienda"
-          className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition py-2"
+          className="flex items-center justify-center gap-2 text-[11px] uppercase tracking-luxe text-brand-charcoal hover:text-brand-navy transition py-3"
         >
-          <ShoppingBag className="w-4 h-4" />
-          Seguir comprando
+          <ShoppingBag className="w-3.5 h-3.5" />
+          Seguir explorando
         </Link>
       </motion.div>
     </div>
@@ -99,8 +110,8 @@ function SuccessContent() {
 export default function CheckoutSuccessPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-navy" strokeWidth={1.5} />
       </div>
     }>
       <SuccessContent />
