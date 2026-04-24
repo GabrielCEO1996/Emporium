@@ -115,6 +115,7 @@ export default function Sidebar({ profile, stockAlertas = 0, pendingOrdenes = 0 
       <Link
         href={item.href}
         onClick={onClick}
+        prefetch={false}
         className={cn(
           'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
           isActive
@@ -268,6 +269,7 @@ export default function Sidebar({ profile, stockAlertas = 0, pendingOrdenes = 0 
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0 flex-1 relative',
                 isActive ? 'text-teal-600' : 'text-slate-500'

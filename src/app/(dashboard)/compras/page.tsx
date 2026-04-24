@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import EliminarCompraButton from './EliminarCompraButton'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 const ESTADO_COLORS: Record<string, string> = {
   borrador: 'bg-amber-100 text-amber-700',

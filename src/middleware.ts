@@ -8,8 +8,16 @@ export async function middleware(request: NextRequest) {
   // against /api/tienda/pedido (or any other /api/* path) was sending
   // cliente/comprador/vendedor POSTs back to /tienda as text/plain,
   // which surfaces to the client as "unexpected response" / "Object".
+  //
+  // We also force 'no-store' on every API response here so that
+  // browsers, proxies and the Next.js fetch cache never serve stale
+  // data after a mutation (create / update / delete). Individual
+  // handlers can still override if they really want caching.
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    return NextResponse.next()
+    const res = NextResponse.next()
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    res.headers.set('Pragma', 'no-cache')
+    return res
   }
 
   return await updateSession(request)

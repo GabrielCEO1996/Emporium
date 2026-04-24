@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // ─── GET /api/ordenes ───────────────────────────────────────────────────────
 // Lists ordenes. Admin/vendedor see all; clients see only their own.
 // Optional filter: ?estado=pendiente|aprobada|rechazada|cancelada

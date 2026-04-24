@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 interface RouteContext { params: { id: string } }
 
 // ─── POST /api/ordenes/[id]/confirmar-pago ─────────────────────────────────

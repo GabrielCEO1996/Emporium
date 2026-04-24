@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // ── GET /api/compras/[id] ─────────────────────────────────────────────────────
 // Returns full compra with proveedor + items joined directly to productos
 // (compra_items.producto_id is denormalized, so no need to go through

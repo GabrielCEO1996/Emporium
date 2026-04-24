@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // POST /api/pedidos/[id]/entregar — ADMIN ONLY
 // despachada → entregada ; deducts stock_total and releases stock_reservado
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {

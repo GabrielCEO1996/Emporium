@@ -4,6 +4,7 @@ import { Inbox, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import OrdenesClient from './OrdenesClient'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 interface PageProps {
   searchParams: { estado?: string }

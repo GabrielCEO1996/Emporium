@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(req: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()

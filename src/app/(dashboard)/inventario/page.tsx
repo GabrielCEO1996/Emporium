@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import InventarioTable from '@/components/inventario/InventarioTable'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function InventarioPage() {
   const supabase = createClient()

@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // POST /api/pedidos/[id]/preparar — DEPRECATED (legacy alias for /aprobar)
 // Kept for backward compatibility. New flow: confirmada → aprobada (reserves inventory).
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {

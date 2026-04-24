@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
 
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/pedidos/venta-directa
 //

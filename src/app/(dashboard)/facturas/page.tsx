@@ -28,6 +28,7 @@ interface PageProps {
 }
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 function isOverdue(factura: Factura): boolean {
   if (factura.estado === 'pagada' || factura.estado === 'anulada' || factura.estado === 'con_nota_credito') {
