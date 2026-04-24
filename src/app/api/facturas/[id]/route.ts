@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { requireAdmin, requireUser } from '@/lib/auth'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -10,8 +11,10 @@ interface RouteContext { params: { id: string } }
 
 export async function GET(_request: Request, { params }: RouteContext) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const gate = await requireUser(supabase)
+  if (!gate.ok) return gate.response
+  const { user, profile } = gate
 
   const { data, error } = await supabase
     .from('facturas')
@@ -22,28 +25,36 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (error) {
     return NextResponse.json({ error: error.code === 'PGRST116' ? 'Factura no encontrada' : error.message }, { status: error.code === 'PGRST116' ? 404 : 500 })
   }
+
+  // Role-based scoping: non-staff callers can only read facturas linked to
+  // their own cliente record. Vendedor sees only their own facturas.
+  if (profile.rol === 'vendedor' && (data as any).vendedor_id !== user.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+  if (profile.rol === 'comprador' || profile.rol === 'cliente') {
+    // Match via clientes.user_id → factura.cliente_id chain (cliente column is inlined).
+    const clienteUserId = (data as any).cliente?.user_id ?? null
+    if (clienteUserId !== user.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+  }
+
   return NextResponse.json(data)
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  const isAdmin = profile?.rol === 'admin'
+  // AUTH: admin-only. Non-admins should never edit factura totals, monto_pagado,
+  // or lock-and-key fields. State changes go through dedicated routes (pagar, enviada).
+  const gate = await requireAdmin(supabase)
+  if (!gate.ok) return gate.response
 
   const body = await request.json()
 
   // Fetch current estado to validate transitions
   const { data: current } = await supabase.from('facturas').select('estado').eq('id', params.id).single()
   if (!current) return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
-
-  // Admin-only estados
-  const adminOnlyEstados = ['anulada', 'pagada']
-  if (body.estado && adminOnlyEstados.includes(body.estado) && !isAdmin) {
-    return NextResponse.json({ error: 'Solo administradores pueden cambiar a ese estado' }, { status: 403 })
-  }
 
   const allowedFields = ['estado', 'monto_pagado', 'fecha_vencimiento', 'notas']
   const updates: Record<string, any> = {}
@@ -58,6 +69,20 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const validEstados = ['emitida', 'enviada', 'pagada', 'anulada', 'con_nota_credito']
   if (updates.estado && !validEstados.includes(updates.estado)) {
     return NextResponse.json({ error: `Estado inválido. Valores: ${validEstados.join(', ')}` }, { status: 400 })
+  }
+
+  // Bound monto_pagado: cannot exceed factura.total and cannot be negative.
+  if ('monto_pagado' in updates) {
+    const n = Number(updates.monto_pagado)
+    if (!Number.isFinite(n) || n < 0) {
+      return NextResponse.json({ error: 'monto_pagado inválido' }, { status: 400 })
+    }
+    const { data: fac } = await supabase.from('facturas').select('total').eq('id', params.id).maybeSingle()
+    const cap = Number(fac?.total ?? 0)
+    if (n > cap) {
+      return NextResponse.json({ error: `monto_pagado no puede superar el total (${cap})` }, { status: 400 })
+    }
+    updates.monto_pagado = n
   }
 
   updates.updated_at = new Date().toISOString()
@@ -75,12 +100,11 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Only admins can delete facturas
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') return NextResponse.json({ error: 'Solo administradores pueden eliminar facturas' }, { status: 403 })
+  // AUTH: admin-only.
+  const gate = await requireAdmin(supabase)
+  if (!gate.ok) return gate.response
+  const { user } = gate
 
   const { data: existing } = await supabase.from('facturas').select('id, estado, numero, total, cliente_id').eq('id', params.id).single()
   if (!existing) return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })

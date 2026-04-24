@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { requireAdminOrVendedor } from '@/lib/auth'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,11 @@ export async function POST(
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // AUTH: staff only (admin or vendedor). Non-staff should never be able
+    // to flip a factura state to "enviada".
+    const gate = await requireAdminOrVendedor(supabase)
+    if (!gate.ok) return gate.response
+    const { user } = gate
 
     const { data: prev } = await supabase
       .from('facturas')

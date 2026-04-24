@@ -1,10 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin, requireAdminOrVendedor } from '@/lib/auth'
+
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// Whitelist of valid estados — anything else is rejected.
+const VALID_ESTADOS = ['emitida', 'aplicada', 'anulada'] as const
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // Staff only — notas de crédito are financial documents.
+  const gate = await requireAdminOrVendedor(supabase)
+  if (!gate.ok) return gate.response
 
   const { data, error } = await supabase
     .from('notas_credito')
@@ -19,14 +29,29 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  // AUTH: admin-only. Edits to estado / motivo can alter downstream reporting
+  // and inventory reconciliation — must not be performed by vendedor or below.
+  const gate = await requireAdmin(supabase)
+  if (!gate.ok) return gate.response
 
   const body = await request.json()
   const allowed = ['estado', 'notas', 'motivo']
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]
+  }
+
+  // Whitelist estado
+  if ('estado' in updates && !VALID_ESTADOS.includes(updates.estado as any)) {
+    return NextResponse.json(
+      { error: `Estado inválido. Valores permitidos: ${VALID_ESTADOS.join(', ')}` },
+      { status: 400 },
+    )
+  }
+
+  if (Object.keys(updates).length === 1) {
+    // only updated_at — nothing to change
+    return NextResponse.json({ error: 'Sin campos válidos para actualizar' }, { status: 400 })
   }
 
   const { data, error } = await supabase
@@ -36,6 +61,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[PUT /api/notas-credito/[id]]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json(data)
 }

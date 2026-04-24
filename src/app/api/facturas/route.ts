@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireAdminOrVendedor, requireUser } from '@/lib/auth'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -11,8 +12,11 @@ export async function GET(request: Request) {
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // AUTH: any authenticated user. Non-staff callers are scoped below to
+    // their own cliente.user_id so they cannot enumerate the factura book.
+    const gate = await requireUser(supabase)
+    if (!gate.ok) return gate.response
+    const { user, profile } = gate
 
     const { searchParams } = new URL(request.url)
 
@@ -42,6 +46,23 @@ export async function GET(request: Request) {
     }
     if (clienteId) {
       query = query.eq('cliente_id', clienteId)
+    }
+
+    // Role-based scoping: non-staff callers only see their own facturas.
+    // - vendedor:   their own sales
+    // - comprador / cliente:  only facturas where cliente.user_id === user.id
+    if (profile.rol === 'vendedor') {
+      query = query.eq('vendedor_id', user.id)
+    } else if (profile.rol === 'comprador' || profile.rol === 'cliente') {
+      const { data: ownCliente } = await supabase
+        .from('clientes')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!ownCliente) {
+        return NextResponse.json({ data: [], total: 0, page, limit })
+      }
+      query = query.eq('cliente_id', ownCliente.id)
     }
 
     const { data, error, count } = await query
@@ -76,8 +97,10 @@ export async function POST(request: Request) {
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // AUTH: staff only. Creating a factura inserts into facturas + factura_items
+    // and must not be reachable by comprador/cliente accounts.
+    const gate = await requireAdminOrVendedor(supabase)
+    if (!gate.ok) return gate.response
 
     const body = await request.json()
 
@@ -127,16 +150,20 @@ export async function POST(request: Request) {
       )
     }
 
-    // Calculate totals
-    const itemsWithSubtotals = facturaItems.map((item) => {
-      const basePrice = item.precio_unitario * item.cantidad
-      const discountAmount = basePrice * ((item.descuento ?? 0) / 100)
-      const subtotal = item.subtotal ?? basePrice - discountAmount
-      return { ...item, subtotal }
+    // Calculate totals — recompute server-side; clamp negatives to block tampering.
+    const itemsWithSubtotals = facturaItems.map((item: any) => {
+      const cantidad = Math.max(0, Number(item.cantidad ?? 0))
+      const precio_unitario = Math.max(0, Number(item.precio_unitario ?? 0))
+      const descuentoPct = Math.max(0, Math.min(100, Number(item.descuento ?? 0)))
+      const basePrice = precio_unitario * cantidad
+      const discountAmount = basePrice * (descuentoPct / 100)
+      const subtotal = Math.max(0, basePrice - discountAmount)
+      return { ...item, cantidad, precio_unitario, descuento: descuentoPct, subtotal }
     })
 
     const subtotal = itemsWithSubtotals.reduce((sum: number, i: any) => sum + i.subtotal, 0)
-    const base_imponible = subtotal - globalDescuento
+    const safeGlobalDescuento = Math.max(0, Number(globalDescuento) || 0)
+    const base_imponible = Math.max(0, subtotal - safeGlobalDescuento)
     const impuesto = 0
     const total = base_imponible
 
@@ -158,7 +185,7 @@ export async function POST(request: Request) {
         fecha_emision: fecha_emision ?? new Date().toISOString().split('T')[0],
         fecha_vencimiento: fecha_vencimiento ?? null,
         subtotal,
-        descuento: globalDescuento,
+        descuento: safeGlobalDescuento,
         base_imponible,
         tasa_impuesto,
         impuesto,

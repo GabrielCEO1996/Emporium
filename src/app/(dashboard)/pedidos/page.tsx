@@ -28,11 +28,15 @@ interface PageProps {
     fecha_inicio?: string
     fecha_fin?: string
     cliente?: string
+    page?: string
   }
 }
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+// Cap per-page rows to avoid pulling the full pedidos stream on every render.
+const PAGE_SIZE = 100
 
 export default async function PedidosPage({ searchParams }: PageProps) {
   const supabase = createClient()
@@ -50,6 +54,8 @@ export default async function PedidosPage({ searchParams }: PageProps) {
   const fechaInicio = searchParams.fecha_inicio || ''
   const fechaFin = searchParams.fecha_fin || ''
   const clienteFilter = searchParams.cliente || ''
+  const page = Math.max(1, parseInt(searchParams.page || '1', 10))
+  const offset = (page - 1) * PAGE_SIZE
 
   let query = supabase
     .from('pedidos')
@@ -68,9 +74,11 @@ export default async function PedidosPage({ searchParams }: PageProps) {
       cliente:clientes(id, nombre, rif),
       conductor:conductores(id, nombre),
       facturas(id, numero)
-    `
+    `,
+      { count: 'exact' }
     )
     .order('fecha_pedido', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1)
 
   if (estadoFilter) {
     query = query.eq('estado', estadoFilter)
@@ -85,9 +93,9 @@ export default async function PedidosPage({ searchParams }: PageProps) {
     query = query.eq('cliente_id', clienteFilter)
   }
 
-  const { data: pedidos, error } = await query
+  const { data: pedidos, error, count: totalRows } = await query
 
-  // Stats from all pedidos (no filter)
+  // Stats from all pedidos (lightweight columns only, no filter)
   const { data: allPedidos } = await supabase
     .from('pedidos')
     .select('total, estado')
@@ -110,6 +118,8 @@ export default async function PedidosPage({ searchParams }: PageProps) {
   }
 
   const hasFilters = estadoFilter || fechaInicio || fechaFin || clienteFilter
+  const totalCount = totalRows ?? pedidos?.length ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -447,12 +457,38 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                 ))}
               </div>
 
-              {/* Footer */}
-              <div className="border-t border-slate-100 bg-slate-50 px-5 py-3">
+              {/* Footer: count + pagination */}
+              <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <p className="text-xs text-slate-500">
-                  {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''}{' '}
-                  encontrado{pedidos.length !== 1 ? 's' : ''}
+                  Mostrando {offset + 1}–{Math.min(offset + PAGE_SIZE, totalCount)} de {totalCount}
                 </p>
+                {totalPages > 1 && (() => {
+                  const params = new URLSearchParams()
+                  if (estadoFilter)  params.set('estado', estadoFilter)
+                  if (fechaInicio)   params.set('fecha_inicio', fechaInicio)
+                  if (fechaFin)      params.set('fecha_fin', fechaFin)
+                  if (clienteFilter) params.set('cliente', clienteFilter)
+                  const href = (p: number) => {
+                    const qs = new URLSearchParams(params)
+                    qs.set('page', String(p))
+                    return `/pedidos?${qs.toString()}`
+                  }
+                  return (
+                    <div className="flex items-center gap-2 text-xs">
+                      {page > 1 ? (
+                        <Link href={href(page - 1)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100">← Anterior</Link>
+                      ) : (
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-400">← Anterior</span>
+                      )}
+                      <span className="text-slate-500">Página {page} de {totalPages}</span>
+                      {page < totalPages ? (
+                        <Link href={href(page + 1)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100">Siguiente →</Link>
+                      ) : (
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-400">Siguiente →</span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </>
           )}

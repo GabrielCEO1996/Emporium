@@ -2,23 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ShoppingBag, Plus, CalendarDays, Truck, Eye, AlertCircle } from 'lucide-react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import {
+  formatCurrency,
+  formatDate,
+  ESTADO_COMPRA_COLORS as ESTADO_COLORS,
+  ESTADO_COMPRA_LABELS as ESTADO_LABELS,
+} from '@/lib/utils'
 import EliminarCompraButton from './EliminarCompraButton'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const ESTADO_COLORS: Record<string, string> = {
-  borrador: 'bg-amber-100 text-amber-700',
-  recibida: 'bg-green-100 text-green-700',
-  cancelada: 'bg-slate-100 text-slate-500',
-}
-
-const ESTADO_LABELS: Record<string, string> = {
-  borrador: 'Borrador',
-  recibida: 'Recibida',
-  cancelada: 'Cancelada',
-}
 
 export default async function ComprasPage() {
   const supabase = createClient()

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { requireAdmin } from '@/lib/auth'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -17,8 +18,12 @@ export async function POST(_request: Request, { params }: RouteContext) {
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // AUTH: admin-only — marking an invoice as paid zeroes out the customer's
+    // debt and inserts an income entry in transacciones. Must never be exposed
+    // to non-admin roles.
+    const gate = await requireAdmin(supabase)
+    if (!gate.ok) return gate.response
+    const { user } = gate
 
     // Fetch current invoice
     const { data: factura, error: fetchError } = await supabase

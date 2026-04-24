@@ -1,6 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { requireAdmin, requireAdminOrVendedor } from '@/lib/auth'
+
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// Whitelist of valid tipos for a nota de crédito; anything else is rejected.
+const VALID_TIPOS = ['devolucion', 'anulacion', 'descuento'] as const
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/notas-credito
@@ -9,8 +17,9 @@ import { logActivity } from '@/lib/activity'
 export async function GET(request: NextRequest) {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  // Staff only — notas de crédito are financial documents.
+  const gate = await requireAdminOrVendedor(supabase)
+  if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(request.url)
   const cliente_id = searchParams.get('cliente_id')
@@ -52,14 +61,26 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  // AUTH: admin-only. Issuing a credit note restores stock, inserts a negative
+  // ledger entry, decrements cliente.deuda_total and flips factura state.
+  const gate = await requireAdmin(supabase)
+  if (!gate.ok) return gate.response
+  const { user } = gate
 
   const body = await request.json()
   const { factura_id, cliente_id, motivo, tipo, items, notas } = body
 
   if (!factura_id || !cliente_id || !motivo || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'Campos requeridos faltantes' }, { status: 400 })
+  }
+
+  // Whitelist tipo
+  const tipoValidado = tipo ? String(tipo) : 'devolucion'
+  if (!VALID_TIPOS.includes(tipoValidado as any)) {
+    return NextResponse.json(
+      { error: `Tipo inválido. Valores permitidos: ${VALID_TIPOS.join(', ')}` },
+      { status: 400 },
+    )
   }
 
   // ── 0. Fetch original factura (to read tipo_pago, total, estado) ──────
@@ -75,12 +96,37 @@ export async function POST(request: NextRequest) {
   if (facturaOriginal.estado === 'anulada') {
     return NextResponse.json({ error: 'La factura ya está anulada' }, { status: 409 })
   }
+  // Idempotency guard: once a factura has a nota de crédito, reject duplicates
+  // to prevent double-refund under a racing second submission.
+  if (facturaOriginal.estado === 'con_nota_credito') {
+    return NextResponse.json(
+      { error: 'La factura ya tiene una nota de crédito asociada' },
+      { status: 409 },
+    )
+  }
+
+  // Recompute subtotals server-side to block client-supplied totals that
+  // exceed the original factura. The attack was: send items with inflated
+  // subtotals and unwind more deuda_total than was ever billed.
+  const computedSubtotalServer = items.reduce((acc: number, i: any) => {
+    const qty = Math.max(0, Number(i.cantidad ?? 0))
+    const pu  = Math.max(0, Number(i.precio_unitario ?? 0))
+    return acc + qty * pu
+  }, 0)
+
+  if (computedSubtotalServer > Number(facturaOriginal.total ?? 0) + 0.01) {
+    return NextResponse.json(
+      { error: 'El total de la nota de crédito no puede superar el de la factura' },
+      { status: 400 },
+    )
+  }
 
   // ── 1. Create the nota_credito header ─────────────────────────────────
   const { data: numData } = await supabase.rpc('get_next_sequence', { seq_name: 'notas_credito' })
   const ncNumero = (numData as string) || `NC-${Date.now()}`
 
-  const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.subtotal ?? 0), 0)
+  // Use the server-recomputed subtotal — never trust the client's.
+  const subtotal = computedSubtotalServer
   const impuesto = 0
   const total    = subtotal
 
@@ -91,7 +137,7 @@ export async function POST(request: NextRequest) {
       factura_id,
       cliente_id,
       motivo,
-      tipo: tipo || 'devolucion',
+      tipo: tipoValidado,
       estado: 'emitida',
       subtotal,
       impuesto,
@@ -106,14 +152,19 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 2. Insert nota_credito_items ──────────────────────────────────────
-  const ncItems = items.map((i: any) => ({
-    nota_credito_id: nc.id,
-    presentacion_id: i.presentacion_id,
-    descripcion:     i.descripcion ?? null,
-    cantidad:        Number(i.cantidad ?? 0),
-    precio_unitario: Number(i.precio_unitario ?? 0),
-    subtotal:        Number(i.subtotal ?? 0),
-  }))
+  const ncItems = items.map((i: any) => {
+    const qty = Math.max(0, Number(i.cantidad ?? 0))
+    const pu  = Math.max(0, Number(i.precio_unitario ?? 0))
+    return {
+      nota_credito_id: nc.id,
+      presentacion_id: i.presentacion_id,
+      descripcion:     i.descripcion ?? null,
+      cantidad:        qty,
+      precio_unitario: pu,
+      // Recomputed — never trust client's subtotal.
+      subtotal:        qty * pu,
+    }
+  })
   const { error: itemsErr } = await supabase.from('nota_credito_items').insert(ncItems)
   if (itemsErr) {
     console.error('[notas-credito] items insert failed:', itemsErr.message)
@@ -226,7 +277,7 @@ export async function POST(request: NextRequest) {
       nota_credito_numero: nc.numero,
       motivo,
       total,
-      tipo: tipo || 'devolucion',
+      tipo: tipoValidado,
     },
   })
 

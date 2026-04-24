@@ -24,11 +24,15 @@ interface PageProps {
     desde?: string
     hasta?: string
     cliente?: string
+    page?: string
   }
 }
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+// Cap per-page rows to keep the response fast. Users can navigate via ?page=N.
+const PAGE_SIZE = 100
 
 function isOverdue(factura: Factura): boolean {
   if (factura.estado === 'pagada' || factura.estado === 'anulada' || factura.estado === 'con_nota_credito') {
@@ -87,42 +91,64 @@ export default async function FacturasPage({ searchParams }: PageProps) {
   const desdeFilter = searchParams.desde || ''
   const hastaFilter = searchParams.hasta || ''
   const clienteFilter = searchParams.cliente || ''
+  const page = Math.max(1, parseInt(searchParams.page || '1', 10))
+  const offset = (page - 1) * PAGE_SIZE
 
+  // Paginated query for the table rows
   let query = supabase
     .from('facturas')
-    .select('*, cliente:clientes(id, nombre, rif, whatsapp, telefono)')
+    .select('*, cliente:clientes(id, nombre, rif, whatsapp, telefono)', { count: 'exact' })
     .order('fecha_emision', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1)
+
+  // Lightweight stats query — only the columns needed for totals/buckets.
+  // Uses the same filters but is NOT paginated so totals stay accurate.
+  let statsQuery = supabase
+    .from('facturas')
+    .select('estado, total, monto_pagado, fecha_emision, fecha_vencimiento, created_at')
 
   if (estadoFilter) {
     query = query.eq('estado', estadoFilter)
+    statsQuery = statsQuery.eq('estado', estadoFilter)
   }
   if (desdeFilter) {
     query = query.gte('fecha_emision', desdeFilter)
+    statsQuery = statsQuery.gte('fecha_emision', desdeFilter)
   }
   if (hastaFilter) {
     query = query.lte('fecha_emision', hastaFilter)
+    statsQuery = statsQuery.lte('fecha_emision', hastaFilter)
   }
 
-  const [{ data: facturas, error }, { data: empresaConfig }] = await Promise.all([
+  const [
+    { data: facturas, error, count },
+    { data: statsRows },
+    { data: empresaConfig },
+  ] = await Promise.all([
     query,
+    statsQuery,
     supabase.from('empresa_config').select('nombre').limit(1).maybeSingle(),
   ])
   const allFacturas: Factura[] = (facturas as Factura[]) ?? []
+  const statsAll = (statsRows as any[]) ?? []
+  const totalRows = count ?? allFacturas.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE))
 
-  // Filter by cliente name if provided
+  // Filter by cliente name if provided (applied only to page rows — the name
+  // filter is a client-side refinement, not pushed down to Postgres).
   const filtered = clienteFilter
     ? allFacturas.filter((f) =>
         f.cliente?.nombre?.toLowerCase().includes(clienteFilter.toLowerCase())
       )
     : allFacturas
 
-  // Summary stats
-  const totalEmitidas = allFacturas.filter((f) => f.estado === 'emitida' || f.estado === 'enviada').length
-  const totalPagadas = allFacturas.filter((f) => f.estado === 'pagada').length
-  const totalAnuladas = allFacturas.filter((f) => f.estado === 'anulada').length
-  const totalVencidas = allFacturas.filter(isOverdue).length
-  const montoTotal = allFacturas.reduce((sum, f) => sum + (f.total ?? 0), 0)
-  const montoPagado = allFacturas.reduce((sum, f) => sum + (f.monto_pagado ?? 0), 0)
+  // Summary stats — computed from the full stats stream (not paginated).
+  const totalEmitidas = statsAll.filter((f: any) => f.estado === 'emitida' || f.estado === 'enviada').length
+  const totalPagadas = statsAll.filter((f: any) => f.estado === 'pagada').length
+  const totalAnuladas = statsAll.filter((f: any) => f.estado === 'anulada').length
+  const totalVencidas = statsAll.filter((f: any) => isOverdue(f as Factura)).length
+  const montoTotal = statsAll.reduce((sum: number, f: any) => sum + (f.total ?? 0), 0)
+  const montoPagado = statsAll.reduce((sum: number, f: any) => sum + (f.monto_pagado ?? 0), 0)
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -136,7 +162,8 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             <div>
               <h1 className="text-xl font-semibold text-slate-900">Facturas</h1>
               <p className="text-sm text-slate-500">
-                {filtered.length} factura{filtered.length !== 1 ? 's' : ''}
+                {totalRows} factura{totalRows !== 1 ? 's' : ''}
+                {totalPages > 1 ? ` · página ${page} de ${totalPages}` : ''}
               </p>
             </div>
           </div>
@@ -405,6 +432,60 @@ export default async function FacturasPage({ searchParams }: PageProps) {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between rounded-lg bg-white border border-slate-200 p-3 text-sm">
+            <p className="text-slate-600">
+              Mostrando <span className="font-semibold">{offset + 1}</span>–
+              <span className="font-semibold">{Math.min(offset + PAGE_SIZE, totalRows)}</span>{' '}
+              de <span className="font-semibold">{totalRows}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              {(() => {
+                const params = new URLSearchParams()
+                if (estadoFilter)  params.set('estado', estadoFilter)
+                if (desdeFilter)   params.set('desde', desdeFilter)
+                if (hastaFilter)   params.set('hasta', hastaFilter)
+                if (clienteFilter) params.set('cliente', clienteFilter)
+                const base = params.toString()
+                const href = (p: number) => {
+                  const qs = new URLSearchParams(base)
+                  qs.set('page', String(p))
+                  return `/facturas?${qs.toString()}`
+                }
+                return (
+                  <>
+                    {page > 1 ? (
+                      <Link
+                        href={href(page - 1)}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+                      >
+                        ← Anterior
+                      </Link>
+                    ) : (
+                      <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-400">
+                        ← Anterior
+                      </span>
+                    )}
+                    {page < totalPages ? (
+                      <Link
+                        href={href(page + 1)}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+                      >
+                        Siguiente →
+                      </Link>
+                    ) : (
+                      <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-400">
+                        Siguiente →
+                      </span>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Mobile Cards */}
         <div className="lg:hidden space-y-3">

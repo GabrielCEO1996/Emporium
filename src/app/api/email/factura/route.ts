@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { requireAdminOrVendedor } from '@/lib/auth'
+
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 function fmt(n: number) {
   return new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n ?? 0)
@@ -171,6 +176,13 @@ function buildHtml(factura: any, empresa: any): string {
 
 export async function POST(request: Request) {
   try {
+    const supabase = createClient()
+
+    // AUTH: only admin or vendedor may trigger invoice emails (prevents abuse
+    // of the Resend quota and email-bombing customers from an unauthed caller).
+    const gate = await requireAdminOrVendedor(supabase)
+    if (!gate.ok) return gate.response
+
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey) {
       return NextResponse.json(
@@ -180,10 +192,9 @@ export async function POST(request: Request) {
     }
 
     const resend = new Resend(apiKey)
-    const supabase = createClient()
     const { factura_id } = await request.json()
 
-    if (!factura_id) {
+    if (!factura_id || typeof factura_id !== 'string') {
       return NextResponse.json({ error: 'factura_id requerido' }, { status: 400 })
     }
 

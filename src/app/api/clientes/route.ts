@@ -1,12 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireAdminOrVendedor } from '@/lib/auth'
+
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(request: Request) {
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // Staff-only — a comprador/cliente has no business listing the cliente book.
+    const gate = await requireAdminOrVendedor(supabase)
+    if (!gate.ok) return gate.response
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
@@ -38,7 +44,8 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ data, total: count ?? 0, page, limit })
-  } catch (error) {
+  } catch (err: any) {
+    console.error('[GET /api/clientes]', err)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }
@@ -47,17 +54,21 @@ export async function POST(request: Request) {
   try {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // Staff-only — creating customer records is a back-office action.
+    const gate = await requireAdminOrVendedor(supabase)
+    if (!gate.ok) return gate.response
 
     const body = await request.json()
 
-    if (!body.nombre || body.nombre.trim() === '') {
+    if (!body.nombre || typeof body.nombre !== 'string' || body.nombre.trim() === '') {
       return NextResponse.json(
         { error: 'El nombre del cliente es requerido' },
         { status: 400 }
       )
     }
+
+    const limiteCredito = Math.max(0, Math.min(1e9, Number(body.limite_credito) || 0))
+    const diasCredito   = Math.max(0, Math.min(365,  Number(body.dias_credito)   || 0))
 
     const clienteData = {
       nombre: body.nombre.trim(),
@@ -68,8 +79,8 @@ export async function POST(request: Request) {
       direccion: body.direccion?.trim() || null,
       ciudad: body.ciudad?.trim() || null,
       zona: body.zona?.trim() || null,
-      limite_credito: Number(body.limite_credito) || 0,
-      dias_credito: Number(body.dias_credito) || 0,
+      limite_credito: limiteCredito,
+      dias_credito: diasCredito,
       activo: body.activo !== undefined ? Boolean(body.activo) : true,
       notas: body.notas?.trim() || null,
     }
@@ -85,7 +96,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(data, { status: 201 })
-  } catch (error) {
+  } catch (err: any) {
+    console.error('[POST /api/clientes]', err)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

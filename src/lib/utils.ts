@@ -84,3 +84,17 @@ export const ESTADO_FACTURA_COLORS: Record<string, string> = {
   anulada: 'bg-red-100 text-red-700',
   con_nota_credito: 'bg-orange-100 text-orange-700',
 }
+
+// Compras — purchase order / stock receipt state. Shared across
+// compras list page, compras detail page, and MiCuenta views.
+export const ESTADO_COMPRA_LABELS: Record<string, string> = {
+  borrador:  'Borrador',
+  recibida:  'Recibida',
+  cancelada: 'Cancelada',
+}
+
+export const ESTADO_COMPRA_COLORS: Record<string, string> = {
+  borrador:  'bg-amber-100 text-amber-700',
+  recibida:  'bg-green-100 text-green-700',
+  cancelada: 'bg-slate-100 text-slate-500',
+}

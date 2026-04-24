@@ -8,21 +8,12 @@ import {
   ArrowLeft, ShoppingBag, CalendarDays, Truck, Package,
   PackageCheck, Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 } from 'lucide-react'
-import { formatCurrency, formatDate } from '@/lib/utils'
-
-// ── constants ─────────────────────────────────────────────────────────────────
-
-const ESTADO_COLORS: Record<string, string> = {
-  borrador:  'bg-amber-100 text-amber-700',
-  recibida:  'bg-green-100 text-green-700',
-  cancelada: 'bg-slate-100 text-slate-500',
-}
-
-const ESTADO_LABELS: Record<string, string> = {
-  borrador:  'Borrador',
-  recibida:  'Recibida',
-  cancelada: 'Cancelada',
-}
+import {
+  formatCurrency,
+  formatDate,
+  ESTADO_COMPRA_COLORS as ESTADO_COLORS,
+  ESTADO_COMPRA_LABELS as ESTADO_LABELS,
+} from '@/lib/utils'
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
