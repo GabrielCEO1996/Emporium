@@ -18,10 +18,10 @@ export async function GET(req: Request) {
     .from('compras')
     .select(`
       *,
-      proveedor:proveedores(id, nombre, empresa),
-      items:compra_items(
+      proveedores(nombre, empresa),
+      compra_items(
         id, cantidad, precio_costo, subtotal,
-        presentacion:presentaciones(id, nombre, productos(nombre))
+        productos(id, nombre, codigo)
       )
     `)
     .order('fecha', { ascending: false })
@@ -86,10 +86,23 @@ export async function POST(req: Request) {
     )
   }
 
-  // Insert items with subtotal
+  // Resolve producto_id for each presentacion (denormalized on compra_items
+  // so we can join productos directly later without going through presentaciones)
+  const presentacionIds = Array.from(new Set(items.map((i: any) => i.presentacion_id)))
+  const { data: presRows } = await supabase
+    .from('presentaciones')
+    .select('id, producto_id')
+    .in('id', presentacionIds)
+
+  const presToProducto = new Map<string, string | null>(
+    (presRows ?? []).map((p: any) => [p.id, p.producto_id ?? null])
+  )
+
+  // Insert items with subtotal + producto_id
   const itemsToInsert = items.map((i: any) => ({
     compra_id: compra.id,
     presentacion_id: i.presentacion_id,
+    producto_id: presToProducto.get(i.presentacion_id) ?? null,
     cantidad: Number(i.cantidad),
     precio_costo: Number(i.precio_costo),
     subtotal: Number(i.cantidad) * Number(i.precio_costo),

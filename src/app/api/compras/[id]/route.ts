@@ -2,7 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ── GET /api/compras/[id] ─────────────────────────────────────────────────────
-// Returns full compra with proveedor + items joined to presentaciones/productos.
+// Returns full compra with proveedor + items joined directly to productos
+// (compra_items.producto_id is denormalized, so no need to go through
+// presentaciones for the basic product info).
 // Admin only (contains cost data).
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -18,35 +20,30 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .from('compras')
     .select(`
       *,
-      proveedor:proveedores(id, nombre, empresa),
-      items:compra_items(
+      proveedores(nombre),
+      compra_items(
         id, cantidad, precio_costo, subtotal,
-        presentacion:presentaciones(
-          id, nombre, stock,
-          producto:productos(id, codigo, nombre)
-        )
+        productos(id, nombre, codigo)
       )
     `)
     .eq('id', params.id)
     .maybeSingle()
 
-  // Distinguish an actual error from "no row found".
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data)  return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
   return NextResponse.json(data)
 }
 
 // ── PATCH /api/compras/[id] ───────────────────────────────────────────────────
-// Body: { estado: 'confirmada' | 'recibida' }
+// Body: { estado: 'recibida' | 'cancelada' }
 //
-//  'confirmada' → borrador → confirmada  (no stock change)
-//  'recibida'   → borrador|confirmada → recibida
-//                 For each compra_item:
-//                   • Check if inventario row exists for presentacion_id
-//                     - YES → UPDATE stock_total += cantidad
-//                     - NO  → INSERT new inventario record
-//                   • INSERT inventario_movimientos record (tipo: 'entrada')
-//                   • UPDATE presentaciones.stock (backward-compat)
+//  'recibida'  → borrador → recibida
+//                For each compra_item:
+//                  • Upsert inventario (stock_total += cantidad, refresh precio_costo)
+//                  • INSERT inventario_movimientos (tipo='entrada')
+//                  • UPDATE presentaciones.stock (backward-compat)
+//                Insert transacciones tipo='gasto'.
+//  'cancelada' → borrador → cancelada  (no stock change)
 //
 // Admin only.
 
@@ -62,40 +59,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body  = await req.json().catch(() => ({}))
   const { estado } = body as { estado?: string }
 
-  if (!estado || !['confirmada', 'recibida'].includes(estado)) {
+  if (!estado || !['recibida', 'cancelada'].includes(estado)) {
     return NextResponse.json(
-      { error: 'Estado inválido. Valores permitidos: confirmada | recibida' },
+      { error: 'Estado inválido. Valores permitidos: recibida | cancelada' },
       { status: 400 }
     )
   }
 
-  // Fetch current compra + items (need presentacion_id and cantidad for inventory)
+  // Fetch current compra + items (need presentacion_id + producto_id for inventory)
   const { data: compra } = await supabase
     .from('compras')
     .select(`
       id, estado,
-      items:compra_items(
-        id, presentacion_id, cantidad, precio_costo,
-        presentacion:presentaciones(producto_id)
-      )
+      compra_items(id, presentacion_id, producto_id, cantidad, precio_costo)
     `)
     .eq('id', params.id)
     .single()
 
   if (!compra) return NextResponse.json({ error: 'Compra no encontrada' }, { status: 404 })
 
-  // ── Validate transition ────────────────────────────────────────────────────
-
-  if (estado === 'confirmada' && compra.estado !== 'borrador') {
+  // Only borrador can transition to recibida | cancelada
+  if (compra.estado !== 'borrador') {
     return NextResponse.json(
-      { error: `Solo se puede confirmar una compra en borrador (estado actual: ${compra.estado})` },
-      { status: 400 }
-    )
-  }
-
-  if (estado === 'recibida' && !['borrador', 'confirmada'].includes(compra.estado)) {
-    return NextResponse.json(
-      { error: `Solo se puede recibir una compra en borrador o confirmada (estado actual: ${compra.estado})` },
+      { error: `Solo se pueden modificar compras en borrador (estado actual: ${compra.estado})` },
       { status: 400 }
     )
   }
@@ -103,15 +89,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // ── Inventory update (only when transitioning to 'recibida') ──────────────
 
   if (estado === 'recibida') {
-    const items: any[] = compra.items ?? []
+    const items: any[] = (compra as any).compra_items ?? []
 
     await Promise.all(items.map(async (item: any) => {
       const presentacionId: string = item.presentacion_id
-      let productoId: string | null = (item.presentacion as any)?.producto_id ?? null
+      let productoId: string | null = item.producto_id ?? null
       const cantidad: number = item.cantidad
 
-      // 1. Update presentaciones.stock (backward-compat column) +
-      //    resolve producto_id directly from presentaciones if join missed it.
+      // Update presentaciones.stock (backward-compat) + resolve producto_id if missing
       const { data: pres } = await supabase
         .from('presentaciones')
         .select('stock, producto_id')
@@ -126,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         .update({ stock: nuevoStockPres, costo: item.precio_costo, updated_at: new Date().toISOString() })
         .eq('id', presentacionId)
 
-      // 2. Check if inventario record exists for this presentacion
+      // Upsert inventario
       const { data: inv } = await supabase
         .from('inventario')
         .select('id, stock_total')
@@ -134,7 +119,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         .maybeSingle()
 
       if (inv) {
-        // YES → UPDATE stock_total += cantidad, refresh precio_costo with latest
         const nuevoTotal = (inv.stock_total ?? 0) + cantidad
         await supabase
           .from('inventario')
@@ -145,52 +129,49 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           })
           .eq('id', inv.id)
 
-        // INSERT inventario_movimientos
         await supabase.from('inventario_movimientos').insert({
-          producto_id:    productoId,
+          producto_id:     productoId,
           presentacion_id: presentacionId,
-          tipo:           'entrada',
+          tipo:            'entrada',
           cantidad,
-          stock_anterior: inv.stock_total ?? 0,
-          stock_nuevo:    nuevoTotal,
+          stock_anterior:  inv.stock_total ?? 0,
+          stock_nuevo:     nuevoTotal,
           referencia_tipo: 'compra',
-          referencia_id:  params.id,
-          usuario_id:     user.id,
-          notas:          'Compra recibida',
+          referencia_id:   params.id,
+          usuario_id:      user.id,
+          notas:           'Compra recibida',
         })
       } else if (productoId) {
-        // NO → INSERT new inventario record with stock_total = cantidad + precio_costo
         await supabase.from('inventario').insert({
-          producto_id:    productoId,
+          producto_id:     productoId,
           presentacion_id: presentacionId,
-          stock_total:    cantidad,
+          stock_total:     cantidad,
           stock_reservado: 0,
-          precio_costo:   Number(item.precio_costo) || 0,
-          precio_venta:   0,
+          precio_costo:    Number(item.precio_costo) || 0,
+          precio_venta:    0,
         })
 
-        // INSERT inventario_movimientos (first entry ever)
         await supabase.from('inventario_movimientos').insert({
-          producto_id:    productoId,
+          producto_id:     productoId,
           presentacion_id: presentacionId,
-          tipo:           'entrada',
+          tipo:            'entrada',
           cantidad,
-          stock_anterior: 0,
-          stock_nuevo:    cantidad,
+          stock_anterior:  0,
+          stock_nuevo:     cantidad,
           referencia_tipo: 'compra',
-          referencia_id:  params.id,
-          usuario_id:     user.id,
-          notas:          'Primera entrada — compra recibida',
+          referencia_id:   params.id,
+          usuario_id:      user.id,
+          notas:           'Primera entrada — compra recibida',
         })
       }
     }))
   }
 
-  // ── Persist new estado ─────────────────────────────────────────────────────
+  // ── Persist new estado (compras table has no updated_at column) ───────────
 
   const { data, error } = await supabase
     .from('compras')
-    .update({ estado, updated_at: new Date().toISOString() })
+    .update({ estado })
     .eq('id', params.id)
     .select()
     .single()
@@ -227,21 +208,21 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   const { data: compra } = await supabase
     .from('compras')
-    .select('*, items:compra_items(presentacion_id, cantidad)')
+    .select('*, compra_items(presentacion_id, producto_id, cantidad)')
     .eq('id', params.id)
     .single()
 
   if (!compra) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  // Borrador / confirmada: just delete, no stock reversal needed
+  // borrador | cancelada: just delete, no stock reversal needed
   if (compra.estado !== 'recibida') {
     const { error } = await supabase.from('compras').delete().eq('id', params.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }
 
-  // Recibida: reverse inventory before deleting
-  await Promise.all((compra.items ?? []).map(async (item: any) => {
+  // recibida: reverse inventory before deleting
+  await Promise.all(((compra as any).compra_items ?? []).map(async (item: any) => {
     const { data: pres } = await supabase
       .from('presentaciones')
       .select('stock, producto_id')
@@ -265,16 +246,16 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
         const nuevoTotal = Math.max(inv.stock_reservado ?? 0, (inv.stock_total ?? 0) - item.cantidad)
         await supabase.from('inventario').update({ stock_total: nuevoTotal }).eq('id', inv.id)
         await supabase.from('inventario_movimientos').insert({
-          producto_id:    pres.producto_id,
+          producto_id:     item.producto_id ?? pres.producto_id,
           presentacion_id: item.presentacion_id,
-          tipo:           'salida',
-          cantidad:       item.cantidad,
-          stock_anterior: inv.stock_total,
-          stock_nuevo:    nuevoTotal,
+          tipo:            'salida',
+          cantidad:        item.cantidad,
+          stock_anterior:  inv.stock_total,
+          stock_nuevo:     nuevoTotal,
           referencia_tipo: 'compra',
-          referencia_id:  params.id,
-          usuario_id:     user.id,
-          notas:          'Anulación de compra',
+          referencia_id:   params.id,
+          usuario_id:      user.id,
+          notas:           'Anulación de compra',
         })
       }
     }

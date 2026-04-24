@@ -9,11 +9,14 @@ CREATE TABLE IF NOT EXISTS compras (
   created_at timestamptz DEFAULT now()
 );
 
--- Items de cada compra (presentacion_id para actualizar stock correctamente)
+-- Items de cada compra.
+-- presentacion_id: necesario para actualizar stock en la presentación correcta
+-- producto_id: denormalizado desde presentaciones para joins directos con productos
 CREATE TABLE IF NOT EXISTS compra_items (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   compra_id uuid REFERENCES compras(id) ON DELETE CASCADE,
   presentacion_id uuid REFERENCES presentaciones(id) ON DELETE SET NULL,
+  producto_id uuid REFERENCES productos(id) ON DELETE SET NULL,
   cantidad integer NOT NULL CHECK (cantidad > 0),
   precio_costo decimal(10,2) NOT NULL CHECK (precio_costo >= 0),
   subtotal decimal(10,2) GENERATED ALWAYS AS (cantidad * precio_costo) STORED

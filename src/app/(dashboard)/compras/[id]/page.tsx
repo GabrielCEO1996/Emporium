@@ -13,14 +13,14 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 
 const ESTADO_COLORS: Record<string, string> = {
   borrador:  'bg-amber-100 text-amber-700',
-  confirmada: 'bg-blue-100 text-blue-700',
   recibida:  'bg-green-100 text-green-700',
+  cancelada: 'bg-slate-100 text-slate-500',
 }
 
 const ESTADO_LABELS: Record<string, string> = {
   borrador:  'Borrador',
-  confirmada: 'Confirmada',
   recibida:  'Recibida',
+  cancelada: 'Cancelada',
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -56,11 +56,11 @@ export default function CompraDetailPage() {
 
   // ── estado change (calls PATCH /api/compras/[id]) ─────────────────────────
 
-  const handleEstado = async (nuevoEstado: 'confirmada' | 'recibida') => {
+  const handleEstado = async (nuevoEstado: 'recibida' | 'cancelada') => {
     const confirmMsg =
-      nuevoEstado === 'confirmada'
-        ? '¿Confirmar esta orden de compra? Pasará al estado "Confirmada" y quedará lista para recibir.'
-        : '¿Marcar como Recibida? El inventario se actualizará con las cantidades registradas.'
+      nuevoEstado === 'recibida'
+        ? '¿Confirmar que recibiste esta compra?'
+        : '¿Cancelar esta compra?'
 
     if (!confirm(confirmMsg)) return
 
@@ -129,9 +129,9 @@ export default function CompraDetailPage() {
   // ── derived flags ──────────────────────────────────────────────────────────
 
   const isBorrador   = compra.estado === 'borrador'
-  const isConfirmada = compra.estado === 'confirmada'
   const isRecibida   = compra.estado === 'recibida'
-  const items: any[] = compra.items ?? []
+  const isCancelada  = compra.estado === 'cancelada'
+  const items: any[] = compra.compra_items ?? compra.items ?? []
 
   // ── render ─────────────────────────────────────────────────────────────────
 
@@ -174,22 +174,8 @@ export default function CompraDetailPage() {
           <div className="flex flex-col items-end gap-2">
             <div className="flex flex-wrap items-center gap-2">
 
-              {/* borrador → confirmar */}
+              {/* borrador → recibida (updates inventario) */}
               {isBorrador && (
-                <button
-                  onClick={() => handleEstado('confirmada')}
-                  disabled={!!actionBusy}
-                  className="flex items-center gap-2 rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {actionBusy === 'confirmada'
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <CheckCircle2 className="h-4 w-4" />}
-                  Confirmar Compra
-                </button>
-              )}
-
-              {/* borrador | confirmada → recibida (updates inventario) */}
-              {(isBorrador || isConfirmada) && (
                 <button
                   onClick={() => handleEstado('recibida')}
                   disabled={!!actionBusy}
@@ -206,7 +192,14 @@ export default function CompraDetailPage() {
               {isRecibida && (
                 <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
                   <CheckCircle2 className="h-4 w-4" />
-                  ✅ Recibida
+                  Recibida
+                </div>
+              )}
+
+              {/* cancelada → badge */}
+              {isCancelada && (
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
+                  Cancelada
                 </div>
               )}
 
@@ -245,21 +238,18 @@ export default function CompraDetailPage() {
             <div>
               <p className="font-semibold text-amber-800">Compra en borrador</p>
               <p className="text-sm text-amber-700">
-                Confirma la orden con el proveedor antes de recibirla.
-                El inventario solo se actualiza al marcarla como <strong>Recibida</strong>.
+                El inventario se actualizará cuando marques la compra como <strong>Recibida</strong>.
               </p>
             </div>
           </div>
         )}
 
-        {isConfirmada && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
-            <PackageCheck className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+        {isCancelada && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-slate-500 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="font-semibold text-blue-800">Orden confirmada</p>
-              <p className="text-sm text-blue-700">
-                Cuando llegue la mercancía, haz clic en <strong>Marcar como Recibida</strong> para actualizar el inventario.
-              </p>
+              <p className="font-semibold text-slate-700">Compra cancelada</p>
+              <p className="text-sm text-slate-500">Esta compra fue cancelada y no afectó el inventario.</p>
             </div>
           </div>
         )}
@@ -330,14 +320,18 @@ export default function CompraDetailPage() {
               <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
                 Proveedor
               </h2>
-              {compra.proveedor ? (
+              {(compra.proveedores ?? compra.proveedor) ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Truck className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    <span className="font-semibold text-slate-900">{compra.proveedor.nombre}</span>
+                    <span className="font-semibold text-slate-900">
+                      {(compra.proveedores ?? compra.proveedor).nombre}
+                    </span>
                   </div>
-                  {compra.proveedor.empresa && (
-                    <p className="text-sm text-slate-500 ml-6">{compra.proveedor.empresa}</p>
+                  {(compra.proveedores ?? compra.proveedor).empresa && (
+                    <p className="text-sm text-slate-500 ml-6">
+                      {(compra.proveedores ?? compra.proveedor).empresa}
+                    </p>
                   )}
                 </div>
               ) : (
@@ -386,12 +380,12 @@ export default function CompraDetailPage() {
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-3">
                         <p className="font-medium text-slate-900">
-                          {/* GET route: presentacion:presentaciones(... producto:productos(nombre)) */}
-                          {item.presentacion?.producto?.nombre ?? item.producto?.nombre ?? '—'}
+                          {/* GET route: compra_items(... productos(id, nombre, codigo)) */}
+                          {item.productos?.nombre ?? item.producto?.nombre ?? '—'}
                         </p>
-                        <p className="text-xs text-slate-500">
-                          {item.presentacion?.nombre ?? ''}
-                        </p>
+                        {item.productos?.codigo && (
+                          <p className="text-xs text-slate-500">{item.productos.codigo}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-slate-700">
                         {item.cantidad}
