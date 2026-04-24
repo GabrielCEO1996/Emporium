@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Search, ChevronRight, Package2, Tag, BarChart3 } from 'lucide-react'
 import { Producto, Presentacion, Inventario } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -117,10 +118,15 @@ export default function ProductosTable({ productos }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-slate-100">
+                        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-slate-100">
                           {producto.imagen_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={producto.imagen_url} alt={producto.nombre} className="h-full w-full object-cover" />
+                            <Image
+                              src={producto.imagen_url}
+                              alt={producto.nombre}
+                              fill
+                              sizes="40px"
+                              className="object-cover"
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-teal-50">
                               <Package2 className="h-5 w-5 text-teal-400" />

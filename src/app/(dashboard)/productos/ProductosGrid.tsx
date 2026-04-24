@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { LayoutGrid, List, Package2 } from 'lucide-react'
 import { Producto, Presentacion, Inventario } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -39,10 +40,15 @@ function ProductCard({ p }: { p: ProductoWithPresentaciones }) {
   return (
     <Link href={`/productos/${p.id}`}>
       <div className="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 hover:shadow-md hover:border-teal-200 dark:hover:border-teal-700 transition-all cursor-pointer">
-        <div className="aspect-square w-full rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 flex items-center justify-center mb-3 overflow-hidden">
+        <div className="relative aspect-square w-full rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 flex items-center justify-center mb-3 overflow-hidden">
           {p.imagen_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover" />
+            <Image
+              src={p.imagen_url}
+              alt={p.nombre}
+              fill
+              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 200px"
+              className="object-cover"
+            />
           ) : (
             <div className="w-12 h-12 bg-teal-100 dark:bg-teal-800 rounded-xl flex items-center justify-center">
               <span className="text-lg font-bold text-teal-700 dark:text-teal-300">{initials}</span>

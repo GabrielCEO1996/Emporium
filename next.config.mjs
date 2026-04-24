@@ -46,6 +46,16 @@ const nextConfig = {
   eslint:     { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
 
+  // Allow next/image to optimize product photos served from Supabase Storage
+  // and the Unsplash placeholder CDN. Other origins are rejected, per the
+  // default security stance. Keep in sync with img-src in securityHeaders.
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.supabase.co' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+    ],
+  },
+
   async headers() {
     return [
       // Apply security headers to every route

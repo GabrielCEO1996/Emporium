@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { requireAdminOrVendedor } from '@/lib/auth'
+import { checkRateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -182,6 +183,12 @@ export async function POST(request: Request) {
     // of the Resend quota and email-bombing customers from an unauthed caller).
     const gate = await requireAdminOrVendedor(supabase)
     if (!gate.ok) return gate.response
+    const { user } = gate
+
+    // Rate limit: 10 emails per minute per authenticated user. Stops both
+    // runaway scripts and an insider accidentally email-blasting a customer.
+    const rl = checkRateLimit(`email:${user.id}`, 10, 60_000)
+    if (!rl.success) return tooManyRequests(60_000)
 
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey) {

@@ -1,10 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { checkRateLimit, tooManyRequests } from '@/lib/rate-limit'
+
+// Disable all caching for this route handler — always serve fresh data.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function POST(req: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // Rate limit: 30 messages/minute per user. Protects the Anthropic API key
+  // from runaway loops and caps per-user cost.
+  const rl = checkRateLimit(`chat:${user.id}`, 30, 60_000)
+  if (!rl.success) return tooManyRequests(60_000)
 
   const { messages, productos } = await req.json()
 
