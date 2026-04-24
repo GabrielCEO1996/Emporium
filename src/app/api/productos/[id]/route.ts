@@ -16,13 +16,15 @@ export async function GET(
 
   const isAdmin = ctx.rol === 'admin'
   const invFields = isAdmin
-    ? 'stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, updated_at'
-    : 'stock_total, stock_reservado, stock_disponible, precio_venta, updated_at'
+    ? 'stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, numero_lote, fecha_vencimiento, updated_at'
+    : 'stock_total, stock_reservado, stock_disponible, precio_venta, numero_lote, fecha_vencimiento, updated_at'
 
   const { data, error: dbError } = await supabase
     .from('productos')
     .select(
-      `id, codigo, nombre, descripcion, categoria, imagen_url, activo, created_at, updated_at,
+      `id, codigo, nombre, descripcion, categoria, imagen_url, activo,
+       tiene_vencimiento, stock_minimo, precio_venta_sugerido,
+       created_at, updated_at,
        presentaciones(
          id, nombre, unidad, codigo_barras, activo, stock_minimo,
          inventario(${invFields})
@@ -61,6 +63,9 @@ export async function PUT(
   if (body.categoria !== undefined)   updates.categoria   = sanitize(body.categoria, 100) || null
   if (body.activo !== undefined)      updates.activo      = Boolean(body.activo)
   if (body.imagen_url !== undefined)  updates.imagen_url  = clean(body.imagen_url, 500) || null
+  if (body.tiene_vencimiento !== undefined)     updates.tiene_vencimiento     = Boolean(body.tiene_vencimiento)
+  if (body.stock_minimo !== undefined)          updates.stock_minimo          = Math.max(0, safeInt(body.stock_minimo, 0))
+  if (body.precio_venta_sugerido !== undefined) updates.precio_venta_sugerido = Math.max(0, Number(body.precio_venta_sugerido) || 0)
 
   if (updates.nombre === '') {
     return NextResponse.json({ error: 'El nombre no puede estar vacío' }, { status: 400 })

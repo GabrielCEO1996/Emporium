@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS productos (
   categoria TEXT,
   activo BOOLEAN DEFAULT true,
   imagen_url TEXT,
+  tiene_vencimiento BOOLEAN DEFAULT false NOT NULL,
+  stock_minimo INTEGER DEFAULT 0 NOT NULL,
+  precio_venta_sugerido NUMERIC(12,2) DEFAULT 0 NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

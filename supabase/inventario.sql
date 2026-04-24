@@ -11,9 +11,18 @@ CREATE TABLE IF NOT EXISTS inventario (
   stock_total integer DEFAULT 0 NOT NULL CHECK (stock_total >= 0),
   stock_reservado integer DEFAULT 0 NOT NULL CHECK (stock_reservado >= 0),
   stock_disponible integer GENERATED ALWAYS AS (stock_total - stock_reservado) STORED,
-  updated_at timestamptz DEFAULT now(),
-  UNIQUE(presentacion_id)
+  numero_lote text,
+  fecha_vencimiento date,
+  updated_at timestamptz DEFAULT now()
 );
+
+-- NULL-safe uniqueness: one row per (producto, presentacion, lot).
+-- Products without expiration get a single row with numero_lote = NULL.
+CREATE UNIQUE INDEX IF NOT EXISTS inventario_lote_unique_idx
+  ON inventario (producto_id, presentacion_id, COALESCE(numero_lote, '__NOLOT__'));
+
+CREATE INDEX IF NOT EXISTS inventario_fecha_venc_idx
+  ON inventario (fecha_vencimiento ASC NULLS LAST);
 
 -- Movement log (audit trail for all stock changes)
 CREATE TABLE IF NOT EXISTS inventario_movimientos (
@@ -24,6 +33,8 @@ CREATE TABLE IF NOT EXISTS inventario_movimientos (
   cantidad integer NOT NULL,
   stock_anterior integer,
   stock_nuevo integer,
+  numero_lote text,
+  fecha_vencimiento date,
   referencia_tipo text, -- 'compra', 'pedido_confirmado', 'pedido_entregado', 'pedido_cancelado', 'ajuste_manual'
   referencia_id uuid,
   usuario_id uuid REFERENCES auth.users(id),

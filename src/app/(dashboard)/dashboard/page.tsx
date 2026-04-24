@@ -63,6 +63,12 @@ export default async function DashboardPage() {
   thirtyDaysAgo.setHours(0, 0, 0, 0)
   const thirtyDaysAgoISO = thirtyDaysAgo.toISOString()
 
+  // Cut-offs for expiration KPIs
+  const todayISO = new Date().toISOString().split('T')[0]
+  const in30Days = new Date()
+  in30Days.setDate(in30Days.getDate() + 30)
+  const in30DaysISO = in30Days.toISOString().split('T')[0]
+
   const [
     { count: totalPedidos },
     { count: totalClientes },
@@ -77,6 +83,9 @@ export default async function DashboardPage() {
     { count: ventasCount },
     { data: configMeta },
     { count: facturasVencidasCount },
+    { data: lotesVencePronto },
+    { data: lotesVencidos },
+    { data: inventarioStockMinimo },
   ] = await Promise.all([
     supabase.from('pedidos').select('*', { count: 'exact', head: true }),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
@@ -114,7 +123,41 @@ export default async function DashboardPage() {
       .select('*', { count: 'exact', head: true })
       .in('estado', ['emitida', 'enviada'])
       .lt('fecha_emision', thirtyDaysAgoISO),
+    // Lots expiring in the next 30 days (still have stock)
+    supabase.from('inventario')
+      .select('id, producto_id, stock_total')
+      .gte('fecha_vencimiento', todayISO)
+      .lte('fecha_vencimiento', in30DaysISO)
+      .gt('stock_total', 0),
+    // Expired lots still carrying stock
+    supabase.from('inventario')
+      .select('id, producto_id, stock_total')
+      .lt('fecha_vencimiento', todayISO)
+      .gt('stock_total', 0),
+    // Aggregate stock by producto to compute stock_bajo against productos.stock_minimo
+    supabase.from('productos')
+      .select('id, nombre, stock_minimo, inventario(stock_total)')
+      .gt('stock_minimo', 0)
+      .eq('activo', true),
   ])
+
+  // ── Lot expiration + stock_minimo KPIs ────────────────────────────────────
+  const vencePronto = new Set<string>(
+    (lotesVencePronto ?? []).map((r: any) => r.producto_id).filter(Boolean)
+  )
+  const venceProntoCount = vencePronto.size
+
+  const vencidos = new Set<string>(
+    (lotesVencidos ?? []).map((r: any) => r.producto_id).filter(Boolean)
+  )
+  const vencidosCount = vencidos.size
+
+  // A producto counts as "stock bajo" when SUM(inventario.stock_total) < productos.stock_minimo
+  const stockBajoCount = (inventarioStockMinimo ?? []).filter((p: any) => {
+    const inv: any[] = Array.isArray(p.inventario) ? p.inventario : p.inventario ? [p.inventario] : []
+    const total = inv.reduce((s, r) => s + (r.stock_total ?? 0), 0)
+    return (p.stock_minimo ?? 0) > 0 && total < (p.stock_minimo ?? 0)
+  }).length
 
   // ── Calculate period totals ───────────────────────────────────────────────
 
@@ -267,6 +310,67 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Inventario KPIs (stock bajo / vence pronto / vencidos) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          {
+            label: 'Stock bajo',
+            icon: '⚠️',
+            value: stockBajoCount,
+            description: 'productos por debajo del mínimo',
+            href: '/inventario?filter=stock_bajo',
+            ring: 'border-amber-200',
+            text: 'text-amber-700',
+            bg: 'bg-amber-50',
+            highlight: stockBajoCount > 0,
+          },
+          {
+            label: 'Vence pronto',
+            icon: '🔴',
+            value: venceProntoCount,
+            description: 'productos con lotes que vencen en 30 días',
+            href: '/inventario?filter=vence_pronto',
+            ring: 'border-red-200',
+            text: 'text-red-700',
+            bg: 'bg-red-50',
+            highlight: venceProntoCount > 0,
+          },
+          {
+            label: 'Vencidos',
+            icon: '⚫',
+            value: vencidosCount,
+            description: 'productos con lotes ya vencidos',
+            href: '/inventario?filter=vencidos',
+            ring: 'border-slate-300',
+            text: 'text-slate-900',
+            bg: 'bg-slate-100',
+            highlight: vencidosCount > 0,
+          },
+        ].map(kpi => (
+          <Link
+            key={kpi.label}
+            href={kpi.href}
+            className={`bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border ${
+              kpi.highlight ? kpi.ring + ' ring-1 ring-offset-0' : 'border-slate-200 dark:border-slate-700'
+            } hover:shadow-md transition-shadow`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                <span className="mr-1.5">{kpi.icon}</span>
+                {kpi.label}
+              </p>
+              <div className={`w-8 h-8 ${kpi.bg} rounded-lg flex items-center justify-center`}>
+                <AlertTriangle className={`w-4 h-4 ${kpi.text}`} />
+              </div>
+            </div>
+            <p className={`text-3xl font-bold ${kpi.highlight ? kpi.text : 'text-slate-400'}`}>
+              <CountUp value={kpi.value} />
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{kpi.description}</p>
+          </Link>
+        ))}
+      </div>
 
       {/* ── Quick counters ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

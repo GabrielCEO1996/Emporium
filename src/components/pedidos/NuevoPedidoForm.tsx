@@ -249,8 +249,8 @@ function StepProductos({
         .from('presentaciones')
         .select(`
           *,
-          producto:productos(id, codigo, nombre, categoria),
-          inventario(stock_total, stock_reservado, stock_disponible, precio_venta)
+          producto:productos(id, codigo, nombre, categoria, tiene_vencimiento, precio_venta_sugerido),
+          inventario(stock_total, stock_reservado, stock_disponible, precio_venta, fecha_vencimiento)
         `)
         .eq('activo', true)
         .order('nombre')
@@ -263,11 +263,42 @@ function StepProductos({
       }
 
       const { data } = await dbQuery
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
       const mapped = ((data as any[]) ?? []).map((pres: any) => {
-        const inv = Array.isArray(pres.inventario) ? pres.inventario[0] : pres.inventario
-        const stock = inv?.stock_disponible ?? pres.stock ?? 0
-        const precio = inv?.precio_venta && inv.precio_venta > 0 ? inv.precio_venta : (pres.precio ?? 0)
-        return { ...pres, stock, precio }
+        // Aggregate stock across non-expired lots (never expose lot info to the vendor).
+        const invRows: any[] = Array.isArray(pres.inventario)
+          ? pres.inventario
+          : pres.inventario
+            ? [pres.inventario]
+            : []
+
+        let stockFresh = 0
+        let stockExpired = 0
+        let precio = 0
+        for (const r of invRows) {
+          const isExpired = r.fecha_vencimiento
+            ? new Date(r.fecha_vencimiento).getTime() < today.getTime()
+            : false
+          const disp = r.stock_disponible ?? Math.max(0, (r.stock_total ?? 0) - (r.stock_reservado ?? 0))
+          if (isExpired) stockExpired += disp
+          else stockFresh += disp
+          if (!precio && (r.precio_venta ?? 0) > 0) precio = r.precio_venta
+        }
+        if (!precio) {
+          precio = pres.producto?.precio_venta_sugerido || pres.precio || 0
+        }
+
+        // Fallback to legacy column if inventario is completely missing (products with no inventory row).
+        const stock = invRows.length > 0 ? stockFresh : (pres.stock ?? 0)
+
+        return {
+          ...pres,
+          stock,
+          stock_expired: stockExpired,
+          precio,
+          all_expired: invRows.length > 0 && stockFresh <= 0 && stockExpired > 0,
+        }
       })
       setResults(mapped)
       setLoading(false)
@@ -317,13 +348,15 @@ function StepProductos({
             )}
             {results.map((pres) => {
               const cartItem = inCart(pres.id)
+              const allExpired = (pres as any).all_expired === true
               const sinStock = pres.stock <= 0
+              const disabled = sinStock || allExpired
               return (
                 <div
                   key={pres.id}
                   className={cn(
                     'flex items-center justify-between px-3 py-2.5 gap-3',
-                    sinStock && 'opacity-50'
+                    disabled && 'opacity-50'
                   )}
                 >
                   <div className="flex-1 min-w-0">
@@ -334,25 +367,31 @@ function StepProductos({
                       <span className="text-xs font-semibold text-teal-700">
                         {formatCurrency(pres.precio)}
                       </span>
-                      <span
-                        className={cn(
-                          'text-xs font-semibold rounded-full px-1.5 py-0.5',
-                          stockBadgeClass(pres.stock)
-                        )}
-                      >
-                        {sinStock ? 'Agotado' : `Stock: ${pres.stock} ${pres.unidad}`}
-                      </span>
+                      {allExpired ? (
+                        <span className="text-xs font-semibold rounded-full px-1.5 py-0.5 bg-slate-900 text-white">
+                          ⚫ Vencido - No disponible
+                        </span>
+                      ) : (
+                        <span
+                          className={cn(
+                            'text-xs font-semibold rounded-full px-1.5 py-0.5',
+                            stockBadgeClass(pres.stock)
+                          )}
+                        >
+                          {sinStock ? 'Agotado' : `Stock: ${pres.stock} ${pres.unidad}`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
                     type="button"
-                    disabled={sinStock}
-                    onClick={() => !sinStock && onAdd(pres as any)}
+                    disabled={disabled}
+                    onClick={() => !disabled && onAdd(pres as any)}
                     className={cn(
                       'flex h-7 w-7 items-center justify-center rounded-full transition-colors shrink-0',
                       cartItem
                         ? 'bg-green-100 text-green-700'
-                        : sinStock
+                        : disabled
                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         : 'bg-teal-100 text-teal-700 hover:bg-teal-200'
                     )}

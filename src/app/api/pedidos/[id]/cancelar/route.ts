@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchLotsFefo, allocateFefo } from '@/lib/fefo'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -62,38 +63,39 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (requiereLiberacion) {
     const { data: items } = await supabase
       .from('pedido_items')
-      .select('presentacion_id, cantidad, presentaciones(producto_id)')
+      .select('presentacion_id, cantidad')
       .eq('pedido_id', params.id)
 
     if (items && items.length > 0) {
-      await Promise.all(items.map(async (item: any) => {
-        const { data: inv } = await supabase
-          .from('inventario')
-          .select('id, stock_reservado, producto_id')
-          .eq('presentacion_id', item.presentacion_id)
-          .maybeSingle()
+      for (const item of items as any[]) {
+        const lots = await fetchLotsFefo(supabase, item.presentacion_id)
+        // Release reservation in FEFO order — lots that expire first
+        // get their reservation freed first so they become available again.
+        const allocs = allocateFefo(lots, item.cantidad, 'reservado')
 
-        if (inv) {
-          const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
+        for (const { lot, take } of allocs) {
+          const nuevoReservado = Math.max(0, (lot.stock_reservado ?? 0) - take)
           await supabase
             .from('inventario')
             .update({ stock_reservado: nuevoReservado })
-            .eq('id', inv.id)
+            .eq('id', lot.id)
 
           await supabase.from('inventario_movimientos').insert({
-            producto_id: inv.producto_id,
-            presentacion_id: item.presentacion_id,
-            tipo: 'liberacion',
-            cantidad: item.cantidad,
-            stock_anterior: inv.stock_reservado ?? 0,
-            stock_nuevo: nuevoReservado,
-            referencia_tipo: 'pedido_cancelado',
-            referencia_id: params.id,
-            usuario_id: user.id,
-            notas: motivo ? `Cancelación: ${motivo}` : 'Pedido cancelado — liberación de reserva',
+            producto_id:       lot.producto_id,
+            presentacion_id:   item.presentacion_id,
+            tipo:              'liberacion',
+            cantidad:          take,
+            stock_anterior:    lot.stock_reservado ?? 0,
+            stock_nuevo:       nuevoReservado,
+            numero_lote:       lot.numero_lote,
+            fecha_vencimiento: lot.fecha_vencimiento,
+            referencia_tipo:   'pedido_cancelado',
+            referencia_id:     params.id,
+            usuario_id:        user.id,
+            notas:             motivo ? `Cancelación: ${motivo}` : 'Pedido cancelado — liberación FEFO',
           })
         }
-      }))
+      }
     }
   }
 

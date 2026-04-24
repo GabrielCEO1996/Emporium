@@ -15,7 +15,7 @@ export default async function NuevaCompraPage() {
       .from('presentaciones')
       .select(`
         id, nombre,
-        productos(id, codigo, nombre),
+        productos(id, codigo, nombre, tiene_vencimiento),
         inventario(stock_total, stock_disponible, precio_costo)
       `)
       .eq('activo', true)
@@ -28,14 +28,20 @@ export default async function NuevaCompraPage() {
   ])
 
   // Flatten nested inventario so the client can use `costo`/`stock` directly.
+  // Sum stock across lots (for products with tiene_vencimiento the inventario join returns multiple rows).
   const pres = (presentaciones ?? []).map((p: any) => {
-    const inv = Array.isArray(p.inventario) ? p.inventario[0] : p.inventario
+    const invRows: any[] = Array.isArray(p.inventario) ? p.inventario : p.inventario ? [p.inventario] : []
+    const stock = invRows.reduce((s, r) => s + (r.stock_disponible ?? r.stock_total ?? 0), 0)
+    // Last known precio_costo (any row with a non-zero cost wins; fallback to first row).
+    const costoRow = invRows.find(r => (r.precio_costo ?? 0) > 0) ?? invRows[0]
     return {
       id: p.id,
       nombre: p.nombre,
       codigo: p.productos?.codigo ?? null,
-      costo: inv?.precio_costo ?? 0,
-      stock: inv?.stock_disponible ?? inv?.stock_total ?? 0,
+      costo: costoRow?.precio_costo ?? 0,
+      stock,
+      producto_id: p.productos?.id ?? null,
+      tiene_vencimiento: Boolean(p.productos?.tiene_vencimiento),
       productos: p.productos ? { nombre: p.productos.nombre } : null,
     }
   })

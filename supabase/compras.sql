@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS compra_items (
   producto_id uuid REFERENCES productos(id) ON DELETE SET NULL,
   cantidad integer NOT NULL CHECK (cantidad > 0),
   precio_costo decimal(10,2) NOT NULL CHECK (precio_costo >= 0),
-  subtotal decimal(10,2) GENERATED ALWAYS AS (cantidad * precio_costo) STORED
+  subtotal decimal(10,2) GENERATED ALWAYS AS (cantidad * precio_costo) STORED,
+  numero_lote text,
+  fecha_vencimiento date
 );
 
 -- Índices

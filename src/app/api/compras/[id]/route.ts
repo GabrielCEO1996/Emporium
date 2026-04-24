@@ -70,12 +70,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     )
   }
 
-  // Fetch current compra + items (need presentacion_id + producto_id for inventory)
+  // Fetch current compra + items (need presentacion_id + producto_id + lot info for inventory)
   const { data: compra } = await supabase
     .from('compras')
     .select(`
       id, estado,
-      compra_items(id, presentacion_id, producto_id, cantidad, precio_costo)
+      compra_items(id, presentacion_id, producto_id, cantidad, precio_costo, numero_lote, fecha_vencimiento)
     `)
     .eq('id', params.id)
     .single()
@@ -95,10 +95,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (estado === 'recibida') {
     const items: any[] = (compra as any).compra_items ?? []
 
-    await Promise.all(items.map(async (item: any) => {
+    // Process items SEQUENTIALLY when they carry lots, so the LOT-YYYY-NNNN
+    // sequence can't collide. Non-lot items are still quick.
+    for (const item of items) {
       const presentacionId: string = item.presentacion_id
       let productoId: string | null = item.producto_id ?? null
       const cantidad: number = item.cantidad
+      let numeroLote: string | null = item.numero_lote ?? null
+      const fechaVenc: string | null = item.fecha_vencimiento ?? null
 
       // Update presentaciones.stock (backward-compat) + resolve producto_id if missing
       const { data: pres } = await supabase
@@ -109,66 +113,93 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
       if (!productoId) productoId = (pres as any)?.producto_id ?? null
 
+      // If the product has expiration but no lot was typed, auto-generate LOT-YYYY-NNNN.
+      if (!numeroLote && fechaVenc && productoId) {
+        const { data: newLot } = await supabase.rpc('next_lote_numero')
+        if (typeof newLot === 'string' && newLot.length > 0) {
+          numeroLote = newLot
+          // Persist the generated lot onto compra_items so the audit trail matches.
+          await supabase
+            .from('compra_items')
+            .update({ numero_lote: numeroLote })
+            .eq('id', item.id)
+        }
+      }
+
       const nuevoStockPres = (pres?.stock ?? 0) + cantidad
       await supabase
         .from('presentaciones')
         .update({ stock: nuevoStockPres, costo: item.precio_costo, updated_at: new Date().toISOString() })
         .eq('id', presentacionId)
 
-      // Upsert inventario
-      const { data: inv } = await supabase
+      // Look up an existing inventario row for this EXACT lot (lot-aware).
+      let invQuery = supabase
         .from('inventario')
         .select('id, stock_total')
         .eq('presentacion_id', presentacionId)
-        .maybeSingle()
+
+      if (numeroLote) {
+        invQuery = invQuery.eq('numero_lote', numeroLote)
+      } else {
+        invQuery = invQuery.is('numero_lote', null)
+      }
+
+      const { data: inv } = await invQuery.maybeSingle()
 
       if (inv) {
         const nuevoTotal = (inv.stock_total ?? 0) + cantidad
         await supabase
           .from('inventario')
           .update({
-            stock_total:  nuevoTotal,
-            precio_costo: Number(item.precio_costo) || 0,
-            updated_at:   new Date().toISOString(),
+            stock_total:       nuevoTotal,
+            precio_costo:      Number(item.precio_costo) || 0,
+            fecha_vencimiento: fechaVenc ?? undefined,
+            updated_at:        new Date().toISOString(),
           })
           .eq('id', inv.id)
 
         await supabase.from('inventario_movimientos').insert({
-          producto_id:     productoId,
-          presentacion_id: presentacionId,
-          tipo:            'entrada',
+          producto_id:       productoId,
+          presentacion_id:   presentacionId,
+          tipo:              'entrada',
           cantidad,
-          stock_anterior:  inv.stock_total ?? 0,
-          stock_nuevo:     nuevoTotal,
-          referencia_tipo: 'compra',
-          referencia_id:   params.id,
-          usuario_id:      user.id,
-          notas:           'Compra recibida',
+          stock_anterior:    inv.stock_total ?? 0,
+          stock_nuevo:       nuevoTotal,
+          numero_lote:       numeroLote,
+          fecha_vencimiento: fechaVenc,
+          referencia_tipo:   'compra',
+          referencia_id:     params.id,
+          usuario_id:        user.id,
+          notas:             'Compra recibida',
         })
       } else if (productoId) {
         await supabase.from('inventario').insert({
-          producto_id:     productoId,
-          presentacion_id: presentacionId,
-          stock_total:     cantidad,
-          stock_reservado: 0,
-          precio_costo:    Number(item.precio_costo) || 0,
-          precio_venta:    0,
+          producto_id:       productoId,
+          presentacion_id:   presentacionId,
+          stock_total:       cantidad,
+          stock_reservado:   0,
+          precio_costo:      Number(item.precio_costo) || 0,
+          precio_venta:      0,
+          numero_lote:       numeroLote,
+          fecha_vencimiento: fechaVenc,
         })
 
         await supabase.from('inventario_movimientos').insert({
-          producto_id:     productoId,
-          presentacion_id: presentacionId,
-          tipo:            'entrada',
+          producto_id:       productoId,
+          presentacion_id:   presentacionId,
+          tipo:              'entrada',
           cantidad,
-          stock_anterior:  0,
-          stock_nuevo:     cantidad,
-          referencia_tipo: 'compra',
-          referencia_id:   params.id,
-          usuario_id:      user.id,
-          notas:           'Primera entrada — compra recibida',
+          stock_anterior:    0,
+          stock_nuevo:       cantidad,
+          numero_lote:       numeroLote,
+          fecha_vencimiento: fechaVenc,
+          referencia_tipo:   'compra',
+          referencia_id:     params.id,
+          usuario_id:        user.id,
+          notas:             'Primera entrada — compra recibida',
         })
       }
-    }))
+    }
   }
 
   // ── Persist new estado (compras table has no updated_at column) ───────────

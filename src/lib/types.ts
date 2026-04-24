@@ -20,6 +20,12 @@ export interface Producto {
   activo: boolean
   imagen_url?: string
   proveedor_id?: string | null
+  /** If true, we track per-lot stock with expiration dates. */
+  tiene_vencimiento?: boolean
+  /** Alert when stock_total across all lots falls below this number. */
+  stock_minimo?: number
+  /** Default precio_venta pre-filled when creating a pedido. */
+  precio_venta_sugerido?: number
   created_at: string
   updated_at: string
   presentaciones?: Presentacion[]
@@ -64,6 +70,10 @@ export interface Inventario {
   stock_disponible: number
   precio_venta: number
   precio_costo: number
+  /** Optional lot number. NULL means "generic stock, no expiration tracked". */
+  numero_lote?: string | null
+  /** Expiration date for this lot (only for productos.tiene_vencimiento = true). */
+  fecha_vencimiento?: string | null
   updated_at: string
 }
 

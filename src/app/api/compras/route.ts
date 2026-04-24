@@ -102,14 +102,16 @@ export async function POST(req: Request) {
     (presRows ?? []).map((p: any) => [p.id, p.producto_id ?? null])
   )
 
-  // Insert items with subtotal + producto_id
+  // Insert items with producto_id + lot info (when product has expiration).
+  // NOTE: `subtotal` is a GENERATED column (cantidad * precio_costo) — do NOT set it.
   const itemsToInsert = items.map((i: any) => ({
     compra_id: compra.id,
     presentacion_id: i.presentacion_id,
     producto_id: presToProducto.get(i.presentacion_id) ?? null,
     cantidad: Number(i.cantidad),
     precio_costo: Number(i.precio_costo),
-    subtotal: Number(i.cantidad) * Number(i.precio_costo),
+    numero_lote: i.numero_lote ? String(i.numero_lote).trim() || null : null,
+    fecha_vencimiento: i.fecha_vencimiento || null,
   }))
 
   const { error: itemsError } = await supabase.from('compra_items').insert(itemsToInsert)

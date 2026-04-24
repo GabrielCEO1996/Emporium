@@ -34,17 +34,19 @@ export async function GET(request: NextRequest) {
   // Catalog-only fields on productos. Pricing + stock come from inventario.
   // Everyone sees precio_venta; only admin sees precio_costo.
   const isAdmin = ctx.rol === 'admin'
-  const invFields = isAdmin
-    ? 'stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, updated_at'
-    : 'stock_total, stock_reservado, stock_disponible, precio_venta, updated_at'
+  const invSelect = isAdmin
+    ? `stock_total, stock_reservado, stock_disponible, precio_venta, precio_costo, numero_lote, fecha_vencimiento, updated_at`
+    : `stock_total, stock_reservado, stock_disponible, precio_venta, numero_lote, fecha_vencimiento, updated_at`
 
   const { data, error: dbError, count } = await supabase
     .from('productos')
     .select(
-      `id, codigo, nombre, descripcion, categoria, imagen_url, activo, created_at, updated_at,
+      `id, codigo, nombre, descripcion, categoria, imagen_url, activo,
+       tiene_vencimiento, stock_minimo, precio_venta_sugerido,
+       created_at, updated_at,
        presentaciones(
          id, nombre, unidad, codigo_barras, activo, stock_minimo,
-         inventario(${invFields})
+         inventario(${invSelect})
        )`,
       { count: 'exact' },
     )
@@ -83,6 +85,9 @@ export async function POST(request: NextRequest) {
     categoria:   sanitize(body.categoria, 100) || null,
     activo:      typeof body.activo === 'boolean' ? body.activo : true,
     imagen_url:  clean(body.imagen_url, 500) || null,
+    tiene_vencimiento:      typeof body.tiene_vencimiento === 'boolean' ? body.tiene_vencimiento : false,
+    stock_minimo:           Math.max(0, safeInt(body.stock_minimo, 0)),
+    precio_venta_sugerido:  Math.max(0, Number(body.precio_venta_sugerido) || 0),
   }
 
   const { data: producto, error: productoError } = await supabase

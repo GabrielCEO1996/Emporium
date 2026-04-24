@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchLotsFefo, allocateFefo } from '@/lib/fefo'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // POST /api/pedidos/[id]/aprobar — ADMIN ONLY
-// confirmada → aprobada ; reserves inventory (stock_reservado +=)
+// confirmada → aprobada ; reserves inventory (stock_reservado +=) using FEFO.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
 
@@ -34,38 +35,40 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const { data: items } = await supabase
     .from('pedido_items')
-    .select('presentacion_id, cantidad, presentaciones(producto_id)')
+    .select('presentacion_id, cantidad')
     .eq('pedido_id', params.id)
 
   if (items && items.length > 0) {
-    await Promise.all(items.map(async (item: any) => {
-      const { data: inv } = await supabase
-        .from('inventario')
-        .select('id, stock_reservado, producto_id')
-        .eq('presentacion_id', item.presentacion_id)
-        .maybeSingle()
+    // Sequential — each item may touch multiple lot rows; keep DB state coherent.
+    for (const item of items as any[]) {
+      const lots = await fetchLotsFefo(supabase, item.presentacion_id)
+      const allocs = allocateFefo(lots, item.cantidad, 'disponible')
 
-      if (inv) {
-        const nuevoReservado = (inv.stock_reservado ?? 0) + item.cantidad
+      // Note: if total allocated < item.cantidad there wasn't enough fresh stock.
+      // We still reserve what's available — admin will see the shortfall when despachar fails.
+      for (const { lot, take } of allocs) {
+        const nuevoReservado = (lot.stock_reservado ?? 0) + take
         await supabase
           .from('inventario')
           .update({ stock_reservado: nuevoReservado })
-          .eq('id', inv.id)
+          .eq('id', lot.id)
 
         await supabase.from('inventario_movimientos').insert({
-          producto_id: inv.producto_id,
-          presentacion_id: item.presentacion_id,
-          tipo: 'reserva',
-          cantidad: item.cantidad,
-          stock_anterior: inv.stock_reservado ?? 0,
-          stock_nuevo: nuevoReservado,
-          referencia_tipo: 'pedido_aprobado',
-          referencia_id: params.id,
-          usuario_id: user.id,
-          notas: 'Pedido aprobado — reserva de stock',
+          producto_id:       lot.producto_id,
+          presentacion_id:   item.presentacion_id,
+          tipo:              'reserva',
+          cantidad:          take,
+          stock_anterior:    lot.stock_reservado ?? 0,
+          stock_nuevo:       nuevoReservado,
+          numero_lote:       lot.numero_lote,
+          fecha_vencimiento: lot.fecha_vencimiento,
+          referencia_tipo:   'pedido_aprobado',
+          referencia_id:     params.id,
+          usuario_id:        user.id,
+          notas:             'Pedido aprobado — reserva FEFO',
         })
       }
-    }))
+    }
   }
 
   const { data, error } = await supabase

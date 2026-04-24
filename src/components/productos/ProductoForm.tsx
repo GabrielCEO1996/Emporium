@@ -58,6 +58,13 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
   const [categoria, setCategoria] = useState(initialData?.categoria ?? '')
   const [activo, setActivo] = useState(initialData?.activo ?? true)
   const [imagenUrl, setImagenUrl] = useState(initialData?.imagen_url ?? '')
+  const [tieneVencimiento, setTieneVencimiento] = useState(initialData?.tiene_vencimiento ?? false)
+  const [stockMinimo, setStockMinimo] = useState<string>(
+    initialData?.stock_minimo != null ? String(initialData.stock_minimo) : '0'
+  )
+  const [precioVentaSugerido, setPrecioVentaSugerido] = useState<string>(
+    initialData?.precio_venta_sugerido != null ? String(initialData.precio_venta_sugerido) : '0'
+  )
   const [presentaciones, setPresentaciones] = useState<PresentacionDraft[]>(
     initialData?.presentaciones?.map(toDraft) ?? [emptyPresentacion()]
   )
@@ -122,6 +129,9 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
       categoria: categoria || null,
       activo,
       imagen_url: imagenUrl || null,
+      tiene_vencimiento: tieneVencimiento,
+      stock_minimo: Math.max(0, parseInt(stockMinimo || '0', 10) || 0),
+      precio_venta_sugerido: Math.max(0, parseFloat(precioVentaSugerido || '0') || 0),
       presentaciones: presentaciones.map(p => ({
         ...(p.id ? { id: p.id } : {}),
         nombre: p.nombre.trim(),
@@ -246,6 +256,74 @@ export default function ProductoForm({ initialData, mode }: ProductoFormProps) {
               placeholder="Descripción opcional del producto..."
               className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
+          </div>
+
+          {/* Vencimiento + stock mínimo + precio sugerido */}
+          <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={tieneVencimiento}
+                onClick={() => setTieneVencimiento(v => !v)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2',
+                  tieneVencimiento ? 'bg-teal-600' : 'bg-slate-300'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    tieneVencimiento ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+              <div>
+                <span className="text-sm font-medium text-slate-700">
+                  Este producto tiene fecha de vencimiento
+                </span>
+                <p className="text-xs text-slate-500">
+                  Si lo activas, cada compra te pedirá número de lote y fecha de vencimiento, y se aplicará FEFO al despachar pedidos.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Stock mínimo
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={stockMinimo}
+                  onChange={e => setStockMinimo(e.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                <p className="mt-1 text-xs text-slate-400">Alerta cuando el stock total baja de este número.</p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Precio de venta sugerido
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={precioVentaSugerido}
+                    onChange={e => setPrecioVentaSugerido(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-slate-300 pl-7 pr-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Se usa como valor por defecto al crear un pedido.</p>
+              </div>
+            </div>
           </div>
 
           {/* Imagen */}
