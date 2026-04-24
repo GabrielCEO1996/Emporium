@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('id, estado, cliente_id, vendedor_id, subtotal, descuento, total')
+    .select('id, numero, estado, cliente_id, vendedor_id, subtotal, descuento, total')
     .eq('id', params.id)
     .single()
 
@@ -35,11 +36,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   // Auto-create factura if not exists
   const { data: existingFactura } = await supabase
     .from('facturas')
-    .select('id')
+    .select('id, numero')
     .eq('pedido_id', params.id)
     .maybeSingle()
 
-  let facturaId: string | null = existingFactura?.id ?? null
+  let facturaId:     string | null = existingFactura?.id     ?? null
+  let facturaNumero: string | null = existingFactura?.numero ?? null
 
   if (!facturaId) {
     const { data: pedidoItems } = await supabase
@@ -88,7 +90,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       )
     }
 
-    facturaId = nuevaFactura.id
+    facturaId     = nuevaFactura.id
+    facturaNumero = nuevaFactura.numero
   }
 
   const { data, error } = await supabase
@@ -99,5 +102,23 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ...data, factura_id: facturaId })
+
+  // Activity log — link pedido ↔ factura so /historial can render both as clickable.
+  // Fire-and-forget; a log failure must never roll back the state change.
+  void logActivity(supabase as any, {
+    user_id: user.id,
+    action: 'despachar_pedido',
+    resource: 'pedidos',
+    resource_id: params.id,
+    estado_anterior: pedido.estado,
+    estado_nuevo: 'despachada',
+    details: {
+      pedido_id:      params.id,
+      pedido_numero:  pedido.numero,
+      factura_id:     facturaId,
+      factura_numero: facturaNumero,
+    },
+  })
+
+  return NextResponse.json({ ...data, factura_id: facturaId, factura_numero: facturaNumero })
 }

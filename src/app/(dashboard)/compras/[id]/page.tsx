@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   ArrowLeft, ShoppingBag, CalendarDays, Truck, Package,
   PackageCheck, Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
@@ -72,13 +73,23 @@ export default function CompraDetailPage() {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ estado: nuevoEstado }),
+        cache:   'no-store',
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Error al cambiar estado')
 
-      // Re-fetch full compra (PATCH returns minimal object, we need items too)
+      toast.success(
+        nuevoEstado === 'recibida'
+          ? 'Compra recibida — inventario actualizado'
+          : 'Compra cancelada'
+      )
+
+      // Refresh the route tree (invalidates server cache + any parallel
+      // dashboards reading compras) and re-fetch the full compra body.
+      router.refresh()
       await fetchCompra()
     } catch (e: any) {
+      toast.error(e.message)
       setActionError(e.message)
     } finally {
       setActionBusy(null)
@@ -92,11 +103,13 @@ export default function CompraDetailPage() {
     setActionBusy('delete')
     setActionError('')
     try {
-      const res  = await fetch(`/api/compras/${id}`, { method: 'DELETE' })
+      const res  = await fetch(`/api/compras/${id}`, { method: 'DELETE', cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Error al eliminar')
+      toast.success('Compra eliminada')
       router.push('/compras')
     } catch (e: any) {
+      toast.error(e.message)
       setActionError(e.message)
       setActionBusy(null)
     }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchLotsFefo, allocateFefo } from '@/lib/fefo'
+import { logActivity } from '@/lib/activity'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('estado, vendedor_id, notas')
+    .select('numero, estado, vendedor_id, notas')
     .eq('id', params.id)
     .single()
 
@@ -110,5 +111,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: facturaRow } = await supabase
+    .from('facturas')
+    .select('id, numero')
+    .eq('pedido_id', params.id)
+    .maybeSingle()
+
+  void logActivity(supabase as any, {
+    user_id: user.id,
+    action: 'cancelar_pedido',
+    resource: 'pedidos',
+    resource_id: params.id,
+    estado_anterior: estadoActual,
+    estado_nuevo: 'cancelada',
+    details: {
+      pedido_id:      params.id,
+      pedido_numero:  pedido.numero,
+      factura_id:     facturaRow?.id     ?? null,
+      factura_numero: facturaRow?.numero ?? null,
+      motivo:         motivo || null,
+    },
+  })
+
   return NextResponse.json(data)
 }

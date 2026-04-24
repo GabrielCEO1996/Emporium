@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('estado, vendedor_id')
+    .select('numero, estado, vendedor_id')
     .eq('id', params.id)
     .single()
 
@@ -49,5 +50,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  void logActivity(supabase as any, {
+    user_id: user.id,
+    action: 'confirmar_pedido',
+    resource: 'pedidos',
+    resource_id: params.id,
+    estado_anterior: pedido.estado,
+    estado_nuevo: 'confirmada',
+    details: { pedido_id: params.id, pedido_numero: pedido.numero },
+  })
+
   return NextResponse.json(data)
 }

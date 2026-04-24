@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchLotsFefo, allocateFefo } from '@/lib/fefo'
+import { logActivity } from '@/lib/activity'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Solo administradores pueden marcar pedidos como entregados' }, { status: 403 })
   }
 
-  const { data: pedido } = await supabase.from('pedidos').select('estado').eq('id', params.id).single()
+  const { data: pedido } = await supabase.from('pedidos').select('numero, estado').eq('id', params.id).single()
   if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
   // Accept new 'despachada' + legacy 'despachado' / 'en_ruta' for backward compatibility
   if (!['despachada', 'despachado', 'en_ruta'].includes(pedido.estado)) {
@@ -118,5 +119,28 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Include factura link in the log if one exists for this pedido
+  const { data: facturaRow } = await supabase
+    .from('facturas')
+    .select('id, numero')
+    .eq('pedido_id', params.id)
+    .maybeSingle()
+
+  void logActivity(supabase as any, {
+    user_id: user.id,
+    action: 'entregar_pedido',
+    resource: 'pedidos',
+    resource_id: params.id,
+    estado_anterior: pedido.estado,
+    estado_nuevo: 'entregada',
+    details: {
+      pedido_id:      params.id,
+      pedido_numero:  pedido.numero,
+      factura_id:     facturaRow?.id     ?? null,
+      factura_numero: facturaRow?.numero ?? null,
+    },
+  })
+
   return NextResponse.json(data)
 }

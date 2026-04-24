@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { EstadoPedido } from '@/lib/types'
 import {
-  Loader2, CheckCircle2, Truck, Package, AlertCircle, Lock,
+  Loader2, CheckCircle2, Truck, Package, Lock,
   XCircle, FileText, Trash2, X, ShieldCheck,
 } from 'lucide-react'
 
@@ -37,7 +38,6 @@ export default function PedidoActions({
   const router = useRouter()
   const [conductorId, setConductorId] = useState(currentConductorId ?? '')
   const [loading, setLoading] = useState<LoadingKey | null>(null)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Cancelar modal state
   const [showCancelarModal, setShowCancelarModal] = useState(false)
@@ -46,16 +46,12 @@ export default function PedidoActions({
   const setLoad = (key: LoadingKey) => setLoading(key)
   const clearLoad = () => setLoading(null)
 
-  const showMsg = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text })
-    setTimeout(() => setMessage(null), 5000)
-  }
-
   const doPost = async (endpoint: string, body?: Record<string, any>) => {
     const res = await fetch(`/api/pedidos/${pedidoId}/${endpoint}`, {
       method: 'POST',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error ?? 'Error')
@@ -66,9 +62,9 @@ export default function PedidoActions({
     setLoad('confirmar')
     try {
       await doPost('confirmar')
-      showMsg('success', 'Pedido confirmado')
+      toast.success('Pedido confirmado')
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
@@ -76,19 +72,23 @@ export default function PedidoActions({
     setLoad('aprobar')
     try {
       await doPost('aprobar')
-      showMsg('success', 'Pedido aprobado — inventario reservado')
+      toast.success('Pedido aprobado — inventario reservado')
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
   const handleDespachar = async () => {
     setLoad('despachar')
     try {
-      await doPost('despachar')
-      showMsg('success', 'Pedido despachado — factura emitida')
+      const data = await doPost('despachar')
+      toast.success(
+        data?.factura_numero
+          ? `Pedido despachado — factura ${data.factura_numero} emitida`
+          : 'Pedido despachado — factura emitida'
+      )
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
@@ -97,9 +97,9 @@ export default function PedidoActions({
     setLoad('entregar')
     try {
       await doPost('entregar')
-      showMsg('success', 'Pedido entregado — stock actualizado')
+      toast.success('Pedido entregado — stock actualizado')
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
@@ -108,11 +108,11 @@ export default function PedidoActions({
     setLoad('cancelar')
     try {
       await doPost('cancelar', { motivo: motivoCancelacion.trim() })
-      showMsg('success', 'Pedido cancelado — reserva liberada')
+      toast.success('Pedido cancelado — reserva liberada')
       setShowCancelarModal(false)
       setMotivoCancelacion('')
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
@@ -120,11 +120,12 @@ export default function PedidoActions({
     if (!confirm('¿Eliminar este pedido? Esta acción no se puede deshacer.')) return
     setLoad('eliminar')
     try {
-      const res = await fetch(`/api/pedidos/${pedidoId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/pedidos/${pedidoId}`, { method: 'DELETE', cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Error')
+      toast.success('Pedido eliminado')
       router.push('/pedidos')
-    } catch (e: any) { showMsg('error', e.message); clearLoad() }
+    } catch (e: any) { toast.error(e.message); clearLoad() }
   }
 
   const handleGuardarConductor = async () => {
@@ -134,12 +135,13 @@ export default function PedidoActions({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conductor_id: conductorId || null }),
+        cache: 'no-store',
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Error')
-      showMsg('success', 'Conductor actualizado')
+      toast.success('Conductor actualizado')
       router.refresh()
-    } catch (e: any) { showMsg('error', e.message) }
+    } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
   }
 
@@ -160,20 +162,6 @@ export default function PedidoActions({
   return (
     <>
       <div className="flex flex-col items-end gap-3">
-        {/* Feedback */}
-        {message && (
-          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border ${
-            message.type === 'success'
-              ? 'bg-green-50 text-green-700 border-green-200'
-              : 'bg-red-50 text-red-700 border-red-200'
-          }`}>
-            {message.type === 'success'
-              ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
-            {message.text}
-          </div>
-        )}
-
         {/* ── BORRADOR ─────────────────────────────────────────────────────── */}
         {isBorrador && (
           <div className="flex flex-wrap items-center gap-2">

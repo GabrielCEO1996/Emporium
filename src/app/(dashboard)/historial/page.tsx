@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { formatCurrency, formatDate, ESTADO_PEDIDO_COLORS, ESTADO_PEDIDO_LABELS, ESTADO_FACTURA_COLORS, ESTADO_FACTURA_LABELS } from '@/lib/utils'
-import { History, TrendingUp, ReceiptText, ShoppingCart } from 'lucide-react'
+import { TrendingUp, ReceiptText, ShoppingCart, Activity, ArrowRight } from 'lucide-react'
 import { Profile } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -46,6 +46,14 @@ export default async function HistorialPage({ searchParams }: PageProps) {
     .order('fecha_emision', { ascending: false })
     .limit(100)
 
+  // Activity log query — used only when tipo === 'actividad'.
+  // We filter by date but not by cliente (activity rows aren't cliente-scoped).
+  let actividadQuery = supabase
+    .from('activity_logs')
+    .select('id, user_id, action, resource, resource_id, estado_anterior, estado_nuevo, details, created_at')
+    .order('created_at', { ascending: false })
+    .limit(200)
+
   if (cliente_id) {
     pedidosQuery = pedidosQuery.eq('cliente_id', cliente_id)
     facturasQuery = facturasQuery.eq('cliente_id', cliente_id)
@@ -53,13 +61,27 @@ export default async function HistorialPage({ searchParams }: PageProps) {
   if (fecha_inicio) {
     pedidosQuery = pedidosQuery.gte('fecha_pedido', fecha_inicio)
     facturasQuery = facturasQuery.gte('fecha_emision', fecha_inicio)
+    actividadQuery = actividadQuery.gte('created_at', fecha_inicio)
   }
   if (fecha_fin) {
     pedidosQuery = pedidosQuery.lte('fecha_pedido', fecha_fin + 'T23:59:59')
     facturasQuery = facturasQuery.lte('fecha_emision', fecha_fin + 'T23:59:59')
+    actividadQuery = actividadQuery.lte('created_at', fecha_fin + 'T23:59:59')
   }
 
-  const [{ data: pedidos }, { data: facturas }] = await Promise.all([pedidosQuery, facturasQuery])
+  const [{ data: pedidos }, { data: facturas }, { data: actividad }] = await Promise.all([
+    pedidosQuery,
+    facturasQuery,
+    actividadQuery,
+  ])
+
+  // Hydrate usuario nombres for the activity feed (profiles.full_name keyed by id).
+  const userIds = Array.from(new Set((actividad ?? []).map((a: any) => a.user_id).filter(Boolean)))
+  const { data: users } = userIds.length > 0
+    ? await supabase.from('profiles').select('id, nombre, email').in('id', userIds)
+    : { data: [] as any[] }
+  const userById = new Map<string, { nombre: string | null; email: string | null }>()
+  ;(users ?? []).forEach((u: any) => userById.set(u.id, { nombre: u.nombre, email: u.email }))
 
   // Stats
   const totalFacturado = facturas?.reduce((a, f) => a + f.total, 0) || 0
@@ -116,6 +138,7 @@ export default async function HistorialPage({ searchParams }: PageProps) {
             >
               <option value="facturas">Facturas</option>
               <option value="pedidos">Pedidos</option>
+              <option value="actividad">Actividad</option>
             </select>
           </div>
         </div>
@@ -161,11 +184,109 @@ export default async function HistorialPage({ searchParams }: PageProps) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h2 className="font-semibold text-slate-700">
-            {tipo === 'facturas' ? `Facturas (${facturas?.length || 0})` : `Pedidos (${pedidos?.length || 0})`}
+            {tipo === 'facturas'  && `Facturas (${facturas?.length  || 0})`}
+            {tipo === 'pedidos'   && `Pedidos (${pedidos?.length    || 0})`}
+            {tipo === 'actividad' && `Actividad (${actividad?.length || 0})`}
           </h2>
         </div>
 
-        {tipo === 'facturas' ? (
+        {tipo === 'actividad' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50">
+                <tr className="text-xs text-slate-500 uppercase tracking-wider">
+                  <th className="text-left px-5 py-3">Fecha</th>
+                  <th className="text-left px-5 py-3">Usuario</th>
+                  <th className="text-left px-5 py-3">Acción</th>
+                  <th className="text-left px-5 py-3">Documentos</th>
+                  <th className="text-left px-5 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {actividad && actividad.length > 0 ? actividad.map((a: any) => {
+                  const u = a.user_id ? userById.get(a.user_id) : null
+                  const d = (a.details ?? {}) as Record<string, any>
+                  const pedidoId      = d.pedido_id     ?? (a.resource === 'pedidos'  ? a.resource_id : null)
+                  const pedidoNumero  = d.pedido_numero ?? null
+                  const facturaId     = d.factura_id    ?? (a.resource === 'facturas' ? a.resource_id : null)
+                  const facturaNumero = d.factura_numero ?? null
+                  return (
+                    <tr key={a.id} className="hover:bg-slate-50 transition">
+                      <td className="px-5 py-3 text-sm text-slate-500 whitespace-nowrap">
+                        {formatDate(a.created_at)}
+                        <div className="text-[11px] text-slate-400">
+                          {new Date(a.created_at).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-sm text-slate-700">
+                        <div className="font-medium">{u?.nombre ?? 'Sistema'}</div>
+                        {u?.email && <div className="text-[11px] text-slate-400">{u.email}</div>}
+                      </td>
+                      <td className="px-5 py-3 text-sm">
+                        <span className="inline-block text-xs font-semibold px-2 py-1 rounded bg-slate-100 text-slate-700">
+                          {a.action}
+                        </span>
+                        {d.motivo && (
+                          <div className="text-[11px] text-slate-500 mt-1 italic">“{d.motivo}”</div>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {pedidoId && (
+                            <Link
+                              href={`/pedidos/${pedidoId}`}
+                              className="inline-flex items-center gap-1 text-teal-600 hover:underline font-medium"
+                            >
+                              <ShoppingCart className="w-3 h-3" />
+                              {pedidoNumero ?? 'Pedido'}
+                            </Link>
+                          )}
+                          {pedidoId && facturaId && (
+                            <ArrowRight className="w-3 h-3 text-slate-400" />
+                          )}
+                          {facturaId && (
+                            <Link
+                              href={`/facturas/${facturaId}`}
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-medium"
+                            >
+                              <ReceiptText className="w-3 h-3" />
+                              {facturaNumero ?? 'Factura'}
+                            </Link>
+                          )}
+                          {!pedidoId && !facturaId && a.resource && (
+                            <span className="text-slate-400">{a.resource}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-sm">
+                        {(a.estado_anterior || a.estado_nuevo) ? (
+                          <span className="inline-flex items-center gap-1 text-xs">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                              {a.estado_anterior ?? '—'}
+                            </span>
+                            <ArrowRight className="w-3 h-3 text-slate-400" />
+                            <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-semibold">
+                              {a.estado_nuevo ?? '—'}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                }) : (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">
+                      <Activity className="w-6 h-6 mx-auto mb-2 text-slate-300" />
+                      No se encontraron eventos
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : tipo === 'facturas' ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50">
