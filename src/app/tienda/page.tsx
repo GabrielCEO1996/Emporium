@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TiendaClient from './TiendaClient'
+import { isStripeConfigured } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +83,7 @@ export default async function TiendaPage() {
       productos={productos as any[]}
       clienteInfo={clienteData as any}
       empresaPayment={empresaPayment as any}
+      stripeEnabled={isStripeConfigured()}
     />
   )
 }

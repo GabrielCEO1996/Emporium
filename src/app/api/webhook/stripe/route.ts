@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { sendNuevaOrdenEmail } from '@/lib/email/nueva-orden'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2025-03-31.basil',
@@ -209,16 +210,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       console.error('[webhook/stripe] factura/transaccion threw (non-fatal):', facOuter)
     }
 
-    // ── 4. Mark orden as aprobada ───────────────────────────────────────
+    // ── 4. Mark orden as aprobada + pago_confirmado ─────────────────────
     const { error: ordenUpdErr } = await supabase
       .from('ordenes')
-      .update({ estado: 'aprobada', updated_at: new Date().toISOString() })
+      .update({
+        estado: 'aprobada',
+        pago_confirmado: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', orden.id)
     if (ordenUpdErr) {
       console.error('[webhook/stripe] orden update failed:', ordenUpdErr)
     }
 
     console.log('[webhook/stripe] orden', orden.numero, '→ pedido', pedido.numero, 'paid')
+
+    // ── 5. Admin + customer email — fire-and-forget ─────────────────────
+    // Swallow errors so the webhook always returns 200 to Stripe.
+    try {
+      await sendNuevaOrdenEmail(supabase, orden.id)
+    } catch (emailErr) {
+      console.error('[webhook/stripe] email send threw (non-fatal):', emailErr)
+    }
     return
   }
 

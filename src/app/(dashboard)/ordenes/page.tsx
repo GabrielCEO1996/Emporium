@@ -25,26 +25,31 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const estadoFilter = searchParams.estado || 'pendiente'
 
-  let query = supabase
-    .from('ordenes')
-    .select(`
+  // Try with the new payment_proof_url column first; fall back to the old
+  // shape if the migration hasn't been applied yet.
+  const buildQuery = (includeProof: boolean) => {
+    const selectCols = `
       id, numero, estado, total, notas, direccion_entrega,
       motivo_rechazo, created_at, updated_at, cliente_id,
-      tipo_pago, numero_referencia, pago_confirmado,
+      tipo_pago, numero_referencia, pago_confirmado${includeProof ? ', payment_proof_url' : ''},
       cliente:clientes(id, nombre, rif, email, telefono),
       items:orden_items(
         id, cantidad, precio_unitario, subtotal,
         presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
       ),
       pedido:pedidos!pedidos_orden_id_fkey(id, numero, estado)
-    `)
-    .order('created_at', { ascending: false })
-
-  if (estadoFilter && estadoFilter !== 'todas') {
-    query = query.eq('estado', estadoFilter)
+    `
+    let q = supabase.from('ordenes').select(selectCols).order('created_at', { ascending: false })
+    if (estadoFilter && estadoFilter !== 'todas') q = q.eq('estado', estadoFilter)
+    return q
   }
 
-  const { data: ordenes } = await query
+  let ordenesRes = await buildQuery(true)
+  if (ordenesRes.error && /payment_proof_url/.test(ordenesRes.error.message || '')) {
+    console.warn('[ordenes/page] payment_proof_url column missing — retrying without it')
+    ordenesRes = await buildQuery(false)
+  }
+  const ordenes = ordenesRes.data
 
   // Count for tab badges
   const { data: counts } = await supabase.from('ordenes').select('estado')

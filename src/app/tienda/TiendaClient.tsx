@@ -49,6 +49,9 @@ interface Props {
     banco_routing?: string | null
     banco_titular?: string | null
   } | null
+  /** Server-computed flag — true only if STRIPE_SECRET_KEY is set to a real
+   *  key. When false, the Stripe tile is hidden (but Zelle/Cheque still work). */
+  stripeEnabled?: boolean
 }
 
 // Valid tienda payment methods. 'transferencia' was removed — USA
@@ -536,10 +539,128 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+// ── Payment Proof Upload ──────────────────────────────────────────────────────
+// Uploads an image (Zelle screenshot / Cheque front photo) directly to the
+// Supabase Storage bucket `payment-proofs` and returns the public URL via
+// setValue. Validates MIME + 10KB ≤ size ≤ 5MB to stop empty/junk uploads.
+function PaymentProofUpload({
+  value, onChange, label, hint, accentClass,
+}: {
+  value: string
+  onChange: (url: string) => void
+  label: string
+  hint: string
+  /** Tailwind color class applied to the border + icon for the empty state,
+   *  e.g. 'border-emerald-300 text-emerald-600'. */
+  accentClass: string
+}) {
+  const supabase = createClient()
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleFile = async (file: File) => {
+    // Client-side validation — the server double-checks, but we fail fast.
+    if (!file.type.startsWith('image/')) {
+      toast.error('Debe ser una imagen (JPG, PNG, HEIC)')
+      return
+    }
+    if (file.size < 10 * 1024) {
+      toast.error('La imagen es demasiado pequeña — ¿subiste el archivo correcto?')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Máximo 5 MB por imagen')
+      return
+    }
+    setUploading(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().slice(0, 5)
+      const path = `comprobante-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .upload(path, file, { upsert: false, cacheControl: '3600', contentType: file.type })
+      if (error) throw error
+      const { data: pub } = supabase.storage.from('payment-proofs').getPublicUrl(data.path)
+      if (!pub?.publicUrl) throw new Error('No se pudo obtener URL pública')
+      onChange(pub.publicUrl)
+      toast.success('Comprobante adjuntado')
+    } catch (err: any) {
+      console.error('[PaymentProofUpload]', err)
+      toast.error(err?.message ?? 'No se pudo subir el comprobante')
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  if (value) {
+    return (
+      <div className="rounded-xl border border-stone-200 bg-white p-3 flex items-start gap-3">
+        <img src={value} alt="Comprobante" className="w-16 h-16 rounded-lg object-cover border border-stone-200" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] uppercase tracking-luxe text-emerald-700 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" /> Comprobante adjunto
+          </p>
+          <a
+            href={value}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-brand-charcoal/60 hover:text-brand-navy underline break-all"
+          >
+            Ver imagen completa
+          </a>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="text-[11px] uppercase tracking-wide text-rose-500 hover:text-rose-600"
+        >
+          Quitar
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) handleFile(f)
+        }}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className={`w-full rounded-xl border-2 border-dashed ${accentClass} px-4 py-5 text-center hover:bg-white/40 transition disabled:opacity-60`}
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="w-5 h-5 mx-auto mb-1 animate-spin" />
+            <p className="text-[11px] uppercase tracking-luxe">Subiendo…</p>
+          </>
+        ) : (
+          <>
+            <Plus className="w-5 h-5 mx-auto mb-1" />
+            <p className="text-[11px] uppercase tracking-luxe font-medium">{label}</p>
+            <p className="text-[10px] mt-0.5 normal-case opacity-70">{hint}</p>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 // ── Confirmation Modal ────────────────────────────────────────────────────────
 function ConfirmModal({
   items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
   tipoPago, setTipoPago, numeroRef, setNumeroRef,
+  proofUrl, setProofUrl, rol, stripeEnabled,
   creditoAutorizado, creditoDisponible,
   empresaPayment,
   onBack, onClearCart,
@@ -550,6 +671,9 @@ function ConfirmModal({
   direccion: string; setDireccion: (v: string) => void
   tipoPago: TipoPago; setTipoPago: (t: TipoPago) => void
   numeroRef: string; setNumeroRef: (v: string) => void
+  proofUrl: string; setProofUrl: (v: string) => void
+  rol: string
+  stripeEnabled: boolean
   creditoAutorizado: boolean; creditoDisponible: number
   empresaPayment?: Props['empresaPayment']
   /** Called when the user clicks "← Editar datos de envío" to go back. */
@@ -562,15 +686,51 @@ function ConfirmModal({
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
-  const methods: TipoPago[] = ['zelle', 'stripe', 'cheque', 'efectivo']
-  if (creditoAutorizado) methods.push('credito')
+  // ── ROL-BASED METHOD FILTERING (SECURITY — MIRRORS BACKEND) ─────────────
+  // comprador: only stripe (if configured) + zelle + cheque.
+  //   Efectivo / tarjeta-presencial are admin/vendedor-only in-store sales.
+  // cliente: everything except efectivo.
+  // admin / vendedor: everything.
+  const methods: TipoPago[] = (() => {
+    if (rol === 'comprador') {
+      const base: TipoPago[] = ['zelle', 'cheque']
+      if (stripeEnabled) base.unshift('stripe')
+      return base
+    }
+    if (rol === 'cliente') {
+      const base: TipoPago[] = ['zelle', 'cheque']
+      if (stripeEnabled) base.unshift('stripe')
+      if (creditoAutorizado) base.push('credito')
+      return base
+    }
+    // admin / vendedor / conductor — full set
+    const base: TipoPago[] = ['zelle', 'cheque', 'efectivo']
+    if (stripeEnabled) base.unshift('stripe')
+    if (creditoAutorizado) base.push('credito')
+    return base
+  })()
+
+  // If the currently selected method is no longer allowed (e.g. stripe
+  // disabled mid-session), nudge to the first valid option.
+  useEffect(() => {
+    if (!methods.includes(tipoPago) && methods.length > 0) {
+      setTipoPago(methods[0])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [methods.join(','), tipoPago])
 
   const meta = PAGO_METHODS[tipoPago]
   const creditoInsuficiente = tipoPago === 'credito' && total > creditoDisponible
   const zelleRefMissing = tipoPago === 'zelle' && !numeroRef.trim()
   const chequeRefMissing = tipoPago === 'cheque' && !numeroRef.trim()
   const refFaltante = zelleRefMissing || chequeRefMissing
-  const ctaDisabled = loading || creditoInsuficiente || refFaltante
+  // Comprador must upload proof for zelle/cheque. Other rols aren't forced
+  // by the UI (admin verifies before releasing), but we still offer the upload.
+  const proofMissing =
+    rol === 'comprador' &&
+    (tipoPago === 'zelle' || tipoPago === 'cheque') &&
+    !proofUrl
+  const ctaDisabled = loading || creditoInsuficiente || refFaltante || proofMissing
 
   const ctaLabel =
     tipoPago === 'stripe'   ? 'Pagar con tarjeta' :
@@ -754,6 +914,26 @@ function ConfirmModal({
                       <p className="text-[11px] text-rose-500 mt-1.5">Requerido para verificar tu pago.</p>
                     )}
                   </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
+                      Captura de pantalla del pago
+                      {rol === 'comprador' && <span className="text-rose-500"> *</span>}
+                    </label>
+                    <PaymentProofUpload
+                      value={proofUrl}
+                      onChange={setProofUrl}
+                      label="Adjuntar captura"
+                      hint="JPG o PNG · máx. 5 MB"
+                      accentClass="border-emerald-300 text-emerald-700"
+                    />
+                    {proofMissing && tipoPago === 'zelle' && (
+                      <p className="text-[11px] text-rose-500 mt-1.5">
+                        Requerida para confirmar el pago por Zelle.
+                      </p>
+                    )}
+                  </div>
+
                   <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
                     Al confirmar, tu orden queda pendiente. Verificaremos el pago y la aprobaremos.
                   </p>
@@ -779,6 +959,26 @@ function ConfirmModal({
                       <p className="text-[11px] text-rose-500 mt-1.5">Requerido para registrar el pago.</p>
                     )}
                   </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
+                      Foto del frente del cheque
+                      {rol === 'comprador' && <span className="text-rose-500"> *</span>}
+                    </label>
+                    <PaymentProofUpload
+                      value={proofUrl}
+                      onChange={setProofUrl}
+                      label="Adjuntar foto del cheque"
+                      hint="JPG o PNG · máx. 5 MB"
+                      accentClass="border-amber-300 text-amber-700"
+                    />
+                    {proofMissing && tipoPago === 'cheque' && (
+                      <p className="text-[11px] text-rose-500 mt-1.5">
+                        Requerida para confirmar el cheque.
+                      </p>
+                    )}
+                  </div>
+
                   <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
                     Coordina la entrega del cheque con nuestro equipo. La orden queda pendiente hasta confirmación.
                   </p>
@@ -1749,7 +1949,7 @@ function Hero({ nombre }: { nombre: string }) {
 }
 
 // ── Main TiendaClient ─────────────────────────────────────────────────────────
-export default function TiendaClient({ profile, productos, clienteInfo, empresaPayment }: Props) {
+export default function TiendaClient({ profile, productos, clienteInfo, empresaPayment, stripeEnabled = false }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -1771,8 +1971,15 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
   const [ordering, setOrdering] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const [tipoPago, setTipoPago] = useState<TipoPago>(profile.rol === 'comprador' ? 'stripe' : 'zelle')
+  // Default tipoPago respects rol + stripe availability. comprador without
+  // stripe → zelle. Otherwise comprador → stripe, authorized → zelle.
+  const [tipoPago, setTipoPago] = useState<TipoPago>(
+    profile.rol === 'comprador' && stripeEnabled ? 'stripe' : 'zelle'
+  )
   const [numeroRef, setNumeroRef] = useState('')
+  // Uploaded proof URL (Zelle screenshot / Cheque front photo). Required for
+  // comprador on zelle/cheque — enforced server-side in /api/tienda/pedido.
+  const [proofUrl, setProofUrl] = useState<string>('')
 
   // BUG 4 — product detail modal state
   const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
@@ -1948,6 +2155,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
             (tipoPago === 'zelle' || tipoPago === 'cheque')
               ? numeroRef.trim()
               : undefined,
+          payment_proof_url:
+            (tipoPago === 'zelle' || tipoPago === 'cheque') && proofUrl
+              ? proofUrl
+              : undefined,
         }),
       })
 
@@ -1970,6 +2181,7 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setCartOpen(false)
       setNotas('')
       setNumeroRef('')
+      setProofUrl('')
       router.push('/tienda/mis-pedidos')
       const msg =
         tipoPago === 'credito'  ? `Orden ${data.numero ?? ''} creada con crédito` :
@@ -2309,6 +2521,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         setTipoPago={setTipoPago}
         numeroRef={numeroRef}
         setNumeroRef={setNumeroRef}
+        proofUrl={proofUrl}
+        setProofUrl={setProofUrl}
+        rol={profile.rol}
+        stripeEnabled={stripeEnabled}
         creditoAutorizado={creditoAutorizado}
         creditoDisponible={creditoDisponible}
         empresaPayment={empresaPayment}

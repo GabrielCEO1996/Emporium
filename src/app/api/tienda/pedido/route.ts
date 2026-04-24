@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { rateLimit, rateLimitResponse } from '@/lib/security'
+import { rateLimit, rateLimitResponse, logActivity } from '@/lib/security'
+import { isStripeConfigured } from '@/lib/stripe'
 
 // ─── POST /api/tienda/pedido ────────────────────────────────────────────────
 // Single entrypoint for the tienda cart.
@@ -62,20 +63,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // ── Rate limit: 20 orders/hour per user ────────────────────────────────
-    if (!rateLimit(`tienda_orden:${user.id}`, 20, 60 * 60 * 1000)) {
-      return rateLimitResponse(60 * 60 * 1000)
-    }
-
-    // ── Rol — drives TYPE A vs TYPE B flow ─────────────────────────────────
+    // ── Rol — drives method restrictions + per-rol rate limit ──────────────
     const { data: profileRow, error: profileErr } = await supabase
       .from('profiles').select('rol').eq('id', user.id).maybeSingle()
     if (profileErr) console.error('[tienda/pedido] profile fetch error:', profileErr)
     const rol: string = profileRow?.rol ?? 'comprador'
-    // Only comprador must pay via Stripe upfront.
-    // Every other role (cliente, vendedor, admin, conductor) uses admin-approval.
-    const canCreateOrdenes = rol !== 'comprador'
-    console.log(`[tienda/pedido] user=${user.id} rol=${rol} canCreateOrdenes=${canCreateOrdenes}`)
+
+    // Rate limit: comprador = 3 orders/hour (anti-fraud on guest-style checkout),
+    // authorized roles keep the generous 20/hour allowance.
+    const rateMax = rol === 'comprador' ? 3 : 20
+    if (!rateLimit(`tienda_orden:${user.id}`, rateMax, 60 * 60 * 1000)) {
+      return rateLimitResponse(60 * 60 * 1000)
+    }
+    console.log(`[tienda/pedido] user=${user.id} rol=${rol} rateMax=${rateMax}`)
 
     // ── Parse body ─────────────────────────────────────────────────────────
     let body: any
@@ -84,7 +84,20 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 })
     }
-    const { items, notas, direccion_entrega, cliente_data, tipo_pago, numero_referencia } = body ?? {}
+    const {
+      items,
+      notas,
+      direccion_entrega,
+      cliente_data,
+      tipo_pago,
+      numero_referencia,
+      payment_proof_url,
+    } = body ?? {}
+    // NOTE: Stripe verification happens at /api/webhook/stripe on
+    // `checkout.session.completed` — the signed payload tells us the intent
+    // succeeded. We intentionally don't accept a payment_intent_id from the
+    // client here (trusting client-supplied IDs would let a caller forge
+    // "paid" orders).
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'El carrito está vacío' }, { status: 400 })
@@ -107,18 +120,110 @@ export async function POST(req: Request) {
       // Legacy clients (no selector) — infer
       tipoPago = (rol === 'comprador') ? 'stripe' : 'credito'
     }
-    const referencia = typeof numero_referencia === 'string' ? numero_referencia.trim() : ''
-    if (tipoPago === 'zelle' && !referencia) {
+
+    // ── ROL-BASED METHOD RESTRICTIONS (SECURITY) ───────────────────────────
+    // comprador can ONLY pay with: stripe, zelle, cheque.
+    //   - efectivo / tarjeta (in-person) are admin/vendedor-only in-store sales.
+    //   - credito requires authorized cliente account.
+    // cliente (authorized) can use anything except in-person efectivo.
+    // admin / vendedor can use anything (they're on-site).
+    const COMPRADOR_ALLOWED = ['stripe', 'zelle', 'cheque'] as const
+    if (rol === 'comprador' && !(COMPRADOR_ALLOWED as readonly string[]).includes(tipoPago)) {
+      logActivity(supabase, {
+        userId: user.id,
+        action: 'security_violation_payment_method',
+        resource: 'ordenes',
+        details: {
+          rol,
+          attempted_tipo_pago: tipoPago,
+          allowed: COMPRADOR_ALLOWED,
+          reason: 'comprador_cannot_use_in_person_methods',
+        },
+      })
       return NextResponse.json(
-        { error: 'Debes proporcionar el número de confirmación del Zelle' },
-        { status: 400 }
+        {
+          error: 'Ese método de pago no está disponible en la tienda en línea. ' +
+                 'Efectivo y tarjeta presencial solo aplican para ventas en tienda.',
+        },
+        { status: 403 }
       )
     }
-    if (tipoPago === 'cheque' && !referencia) {
+    if (rol === 'cliente' && tipoPago === 'efectivo') {
+      logActivity(supabase, {
+        userId: user.id,
+        action: 'security_violation_payment_method',
+        resource: 'ordenes',
+        details: { rol, attempted_tipo_pago: tipoPago, reason: 'cliente_cannot_use_cash_online' },
+      })
       return NextResponse.json(
-        { error: 'Debes proporcionar el número de cheque' },
-        { status: 400 }
+        { error: 'El pago en efectivo solo aplica para ventas en tienda.' },
+        { status: 403 }
       )
+    }
+
+    // Guard: if stripe not configured, reject early instead of creating a
+    // phantom orden that will never get a checkout URL.
+    if (tipoPago === 'stripe' && !isStripeConfigured()) {
+      return NextResponse.json(
+        { error: 'Pago con tarjeta no configurado. Contacta al administrador.' },
+        { status: 503 }
+      )
+    }
+
+    const referencia = typeof numero_referencia === 'string' ? numero_referencia.trim() : ''
+    const proofUrl = typeof payment_proof_url === 'string' ? payment_proof_url.trim() : ''
+
+    // Zelle / Cheque rules (enforced for comprador; cliente+ can be laxer as
+    // admin manually verifies before releasing the pedido).
+    if (tipoPago === 'zelle') {
+      if (!referencia) {
+        return NextResponse.json(
+          { error: 'Debes proporcionar el número de confirmación del Zelle' },
+          { status: 400 }
+        )
+      }
+      if (rol === 'comprador' && referencia.length < 6) {
+        return NextResponse.json(
+          { error: 'El número de confirmación del Zelle debe tener al menos 6 caracteres' },
+          { status: 400 }
+        )
+      }
+      if (rol === 'comprador' && !proofUrl) {
+        return NextResponse.json(
+          { error: 'Debes adjuntar una captura de pantalla del pago Zelle' },
+          { status: 400 }
+        )
+      }
+    }
+    if (tipoPago === 'cheque') {
+      if (!referencia) {
+        return NextResponse.json(
+          { error: 'Debes proporcionar el número de cheque' },
+          { status: 400 }
+        )
+      }
+      if (rol === 'comprador' && !/^\d{3,}$/.test(referencia)) {
+        return NextResponse.json(
+          { error: 'El número de cheque debe ser numérico (3+ dígitos)' },
+          { status: 400 }
+        )
+      }
+      if (rol === 'comprador' && !proofUrl) {
+        return NextResponse.json(
+          { error: 'Debes adjuntar una foto del frente del cheque' },
+          { status: 400 }
+        )
+      }
+    }
+    // Proof URL sanity: must be a Supabase storage public URL we control.
+    if (proofUrl) {
+      const validProofPrefix = proofUrl.includes('/storage/v1/object/public/payment-proofs/')
+      if (!validProofPrefix) {
+        return NextResponse.json(
+          { error: 'El comprobante adjunto no es válido' },
+          { status: 400 }
+        )
+      }
     }
 
     // ── Normalize optional cliente_data from shipping form ─────────────────
@@ -268,9 +373,11 @@ export async function POST(req: Request) {
     // ══════════════════════════════════════════════════════════════════════
     const ordenNumero = await nextNumero('ordenes', 'ORD', 'ordenes')
 
-    const { data: orden, error: ordenInsertErr } = await supabase
-      .from('ordenes')
-      .insert({
+    // Build the insert payload. payment_proof_url + payment_reference are new
+    // columns (see supabase/payment_proofs.sql). If the user runs the code
+    // before applying the migration we silently retry without them.
+    const buildOrdenPayload = (includeProofCols: boolean) => {
+      const base: Record<string, any> = {
         numero: ordenNumero,
         cliente_id,
         user_id: user.id,
@@ -283,12 +390,36 @@ export async function POST(req: Request) {
           (tipoPago === 'zelle' || tipoPago === 'cheque') && referencia
             ? referencia
             : null,
-      })
+      }
+      if (includeProofCols) {
+        base.payment_proof_url = proofUrl || null
+        base.payment_reference = referencia || null
+      }
+      return base
+    }
+
+    let { data: orden, error: ordenInsertErr } = await supabase
+      .from('ordenes')
+      .insert(buildOrdenPayload(true))
       .select()
       .single()
 
-    if (ordenInsertErr) {
-      if (!isMissingRelation(ordenInsertErr)) {
+    if (ordenInsertErr && (
+      isMissingColumn(ordenInsertErr, 'payment_proof_url') ||
+      isMissingColumn(ordenInsertErr, 'payment_reference')
+    )) {
+      console.warn('[tienda/pedido] ordenes.payment_proof_url missing — retrying without it')
+      const retry = await supabase
+        .from('ordenes')
+        .insert(buildOrdenPayload(false))
+        .select()
+        .single()
+      orden = retry.data
+      ordenInsertErr = retry.error
+    }
+
+    if (ordenInsertErr || !orden) {
+      if (ordenInsertErr && !isMissingRelation(ordenInsertErr)) {
         console.error('[tienda/pedido] ordenes insert error:', ordenInsertErr)
         return NextResponse.json(
           { error: 'Error al crear la orden: ' + (ordenInsertErr.message ?? 'error desconocido') },
@@ -300,9 +431,10 @@ export async function POST(req: Request) {
     } else {
       // Orden created — now insert items.
       // Schema uses `precio_unitario`; retry with legacy `precio` column if needed.
+      const ordenId: string = orden.id
       const buildItems = (col: 'precio_unitario' | 'precio') =>
         items.map((item: any) => ({
-          orden_id: orden.id,
+          orden_id: ordenId,
           presentacion_id: item.presentacion_id,
           cantidad: Number(item.cantidad),
           [col]: Number(item.precio_unitario),
@@ -333,12 +465,43 @@ export async function POST(req: Request) {
         // orden_items table doesn't exist yet — fall through to PATH B
         console.warn('[tienda/pedido] orden_items table missing — falling back to pedidos')
       } else {
-        // ── Items saved. Branch on tipo_pago. ────────────────────────────
+        // ── Items saved. Fire activity log + email (fire-and-forget). ────
+        const ordenForHook = orden  // narrow for TS inside closure
+
+        const fireSideEffects = () => {
+          // 1. activity_logs — audit trail
+          logActivity(supabase, {
+            userId: user.id,
+            action: 'orden_creada',
+            resource: 'ordenes',
+            resourceId: ordenForHook.id,
+            details: {
+              rol,
+              tipo_pago: tipoPago,
+              total,
+              numero: ordenForHook.numero,
+              has_proof: Boolean(proofUrl),
+              numero_referencia: referencia || null,
+            },
+          })
+          // 2. Email notification — never blocks the main response
+          const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL
+          if (siteOrigin) {
+            fetch(`${siteOrigin}/api/email/nueva-orden`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orden_id: ordenForHook.id }),
+            }).catch(err => console.error('[tienda/pedido] email trigger failed (non-fatal):', err))
+          }
+        }
+
+        // ── Branch on tipo_pago. ─────────────────────────────────────────
         // credito: consume the credit line (fire-and-forget RPC) and return.
         if (tipoPago === 'credito') {
           supabase.rpc('usar_credito', { p_cliente_id: cliente_id, p_monto: total })
             .then(() => null, err => console.error('[tienda/pedido] usar_credito:', err))
           console.log(`[tienda/pedido] orden ${orden.numero} created — credito`)
+          fireSideEffects()
           return NextResponse.json(
             {
               success: true,
@@ -354,6 +517,7 @@ export async function POST(req: Request) {
         // zelle / cheque / efectivo: admin confirms payment manually later.
         if (tipoPago === 'zelle' || tipoPago === 'cheque' || tipoPago === 'efectivo') {
           console.log(`[tienda/pedido] orden ${orden.numero} created — ${tipoPago} (pending manual confirmation)`)
+          fireSideEffects()
           return NextResponse.json(
             {
               success: true,
@@ -422,6 +586,9 @@ export async function POST(req: Request) {
 
         if (stripeSession?.url) {
           console.log(`[tienda/pedido] stripe session created for orden ${orden.numero}`)
+          // Log creation now; email will also fire from the Stripe webhook on
+          // successful payment (double-entry is fine — admin sees both events).
+          fireSideEffects()
           return NextResponse.json(
             {
               success: true,

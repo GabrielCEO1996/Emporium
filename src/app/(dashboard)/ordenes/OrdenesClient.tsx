@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   CheckCircle2, XCircle, Clock, Loader2, MapPin, StickyNote,
-  Package2, ChevronDown, ChevronUp, User,
-  Wallet, Landmark, CreditCard, FileText, BadgeCheck,
+  Package2, ChevronDown, ChevronUp, User, AlertTriangle, ExternalLink, Image as ImageIcon,
+  Wallet, Landmark, CreditCard, FileText, BadgeCheck, Banknote, FileCheck,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
-type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito'
+type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
 
 interface Orden {
   id: string
@@ -24,6 +24,9 @@ interface Orden {
   tipo_pago: TipoPago | null
   numero_referencia: string | null
   pago_confirmado: boolean | null
+  /** Public URL to the Zelle screenshot / Cheque photo the buyer uploaded.
+   *  Only present when the DB migration `payment_proofs.sql` has been run. */
+  payment_proof_url?: string | null
   cliente: { id: string; nombre: string; rif: string | null; email: string | null; telefono: string | null } | null
   items: Array<{
     id: string
@@ -34,6 +37,10 @@ interface Orden {
   }>
   pedido?: { id: string; numero: string; estado: string } | null
 }
+
+// Which tipo_pago values require manual admin confirmation before we can
+// release the pedido. Stripe/credito don't — they're auto-confirmed elsewhere.
+const MANUAL_CONFIRM_METHODS: Array<TipoPago> = ['zelle', 'cheque', 'efectivo', 'transferencia']
 
 export default function OrdenesClient({
   ordenes, isAdmin,
@@ -61,7 +68,12 @@ export default function OrdenesClient({
   }
 
   const handleConfirmarPago = async (orden: Orden) => {
-    const tipo = orden.tipo_pago === 'zelle' ? 'Zelle' : 'transferencia'
+    const tipo =
+      orden.tipo_pago === 'zelle' ? 'Zelle' :
+      orden.tipo_pago === 'cheque' ? 'cheque' :
+      orden.tipo_pago === 'efectivo' ? 'efectivo' :
+      orden.tipo_pago === 'transferencia' ? 'transferencia' :
+      'este método'
     if (!confirm(`¿Confirmar que recibiste el pago de ${orden.numero} por ${tipo}? Esto aprobará la orden y creará el pedido.`)) return
     setBusyId(orden.id)
     try {
@@ -128,6 +140,15 @@ export default function OrdenesClient({
                 <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
                   <EstadoBadge estado={orden.estado} />
                   <TipoPagoBadge tipo={orden.tipo_pago} confirmado={orden.pago_confirmado} />
+                  {/* NEW: pending-verification pill for manual methods */}
+                  {orden.estado === 'pendiente'
+                    && MANUAL_CONFIRM_METHODS.includes((orden.tipo_pago ?? 'pendiente') as TipoPago)
+                    && !orden.pago_confirmado && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                      <AlertTriangle className="w-3 h-3" />
+                      Sin verificar
+                    </span>
+                  )}
                   <span>{formatDate(orden.created_at)}</span>
                 </div>
                 <p className="font-bold text-slate-800 dark:text-white mt-1">
@@ -138,10 +159,22 @@ export default function OrdenesClient({
                   {orden.cliente?.nombre ?? 'Cliente desconocido'}
                   {orden.cliente?.rif && <span className="text-slate-400">· {orden.cliente.rif}</span>}
                 </p>
-                {orden.tipo_pago === 'transferencia' && orden.numero_referencia && (
+                {orden.numero_referencia && (orden.tipo_pago === 'zelle' || orden.tipo_pago === 'cheque' || orden.tipo_pago === 'transferencia') && (
                   <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5 font-mono">
-                    Ref: <span className="font-bold">{orden.numero_referencia}</span>
+                    {orden.tipo_pago === 'cheque' ? 'Cheque Nº: ' : 'Ref: '}
+                    <span className="font-bold">{orden.numero_referencia}</span>
                   </p>
+                )}
+                {orden.payment_proof_url && (
+                  <a
+                    href={orden.payment_proof_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-teal-700 dark:text-teal-300 mt-0.5 hover:underline"
+                  >
+                    <ImageIcon className="w-3 h-3" /> Ver comprobante
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 )}
               </div>
 
@@ -157,7 +190,7 @@ export default function OrdenesClient({
                 {orden.estado === 'pendiente' && isAdmin && (
                   <>
                     {/* Manual payment methods need the admin to confirm receipt */}
-                    {(orden.tipo_pago === 'zelle' || orden.tipo_pago === 'transferencia') && !orden.pago_confirmado ? (
+                    {MANUAL_CONFIRM_METHODS.includes((orden.tipo_pago ?? 'pendiente') as TipoPago) && !orden.pago_confirmado ? (
                       <button
                         disabled={busy}
                         onClick={() => handleConfirmarPago(orden)}
@@ -228,6 +261,35 @@ export default function OrdenesClient({
                     <StickyNote className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
                     <span>{orden.notas}</span>
                   </p>
+                )}
+                {orden.payment_proof_url && (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      Comprobante de pago
+                      {orden.numero_referencia && (
+                        <span className="ml-2 font-mono text-sky-600 dark:text-sky-400">
+                          {orden.tipo_pago === 'cheque' ? 'Cheque Nº ' : 'Ref '}
+                          {orden.numero_referencia}
+                        </span>
+                      )}
+                    </p>
+                    <a href={orden.payment_proof_url} target="_blank" rel="noreferrer" className="block">
+                      <img
+                        src={orden.payment_proof_url}
+                        alt="Comprobante de pago"
+                        className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-slate-50 dark:bg-slate-800 hover:opacity-90 transition"
+                      />
+                    </a>
+                    <a
+                      href={orden.payment_proof_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-teal-700 dark:text-teal-300 hover:underline"
+                    >
+                      Abrir en pestaña nueva <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 )}
                 <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
                   {orden.items.map(it => (
@@ -306,6 +368,8 @@ function TipoPagoBadge({
     transferencia: { cls: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',                  icon: <Landmark className="w-3 h-3" />, label: 'Transf.' },
     stripe:        { cls: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',      icon: <CreditCard className="w-3 h-3" />, label: 'Tarjeta' },
     credito:       { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',          icon: <FileText className="w-3 h-3" />, label: 'Crédito' },
+    cheque:        { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',          icon: <FileCheck className="w-3 h-3" />, label: 'Cheque' },
+    efectivo:      { cls: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',              icon: <Banknote className="w-3 h-3" />, label: 'Efectivo' },
   }
   const m = map[tipo as Exclude<TipoPago, 'pendiente'>]
   if (!m) return null
