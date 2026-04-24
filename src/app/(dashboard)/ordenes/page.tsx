@@ -25,13 +25,16 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const estadoFilter = searchParams.estado || 'pendiente'
 
-  // Try with the new payment_proof_url column first; fall back to the old
-  // shape if the migration hasn't been applied yet.
-  const buildQuery = (includeProof: boolean) => {
+  // Try with the new payment_proof_url + checkout_v2 columns first; fall back
+  // to the old shape if the migration hasn't been applied yet. Two flags:
+  //   • includeProof      → payment_proof_url (payment_proofs.sql)
+  //   • includeV2Cols     → estado_pago, verificado_por, verificado_at (checkout_v2.sql)
+  const buildQuery = (includeProof: boolean, includeV2Cols: boolean) => {
+    const v2Cols = includeV2Cols ? ', estado_pago, verificado_por, verificado_at' : ''
     const selectCols = `
       id, numero, estado, total, notas, direccion_entrega,
       motivo_rechazo, created_at, updated_at, cliente_id,
-      tipo_pago, numero_referencia, pago_confirmado${includeProof ? ', payment_proof_url' : ''},
+      tipo_pago, numero_referencia, pago_confirmado${includeProof ? ', payment_proof_url' : ''}${v2Cols},
       cliente:clientes(id, nombre, rif, email, telefono),
       items:orden_items(
         id, cantidad, precio_unitario, subtotal,
@@ -44,10 +47,15 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
     return q
   }
 
-  let ordenesRes = await buildQuery(true)
+  let ordenesRes = await buildQuery(true, true)
+  // Cascade: drop v2 cols first, then proof col if still missing
+  if (ordenesRes.error && /estado_pago|verificado_(por|at)/i.test(ordenesRes.error.message || '')) {
+    console.warn('[ordenes/page] checkout_v2 columns missing — retrying without them')
+    ordenesRes = await buildQuery(true, false)
+  }
   if (ordenesRes.error && /payment_proof_url/.test(ordenesRes.error.message || '')) {
     console.warn('[ordenes/page] payment_proof_url column missing — retrying without it')
-    ordenesRes = await buildQuery(false)
+    ordenesRes = await buildQuery(false, false)
   }
   const ordenes = ordenesRes.data
 

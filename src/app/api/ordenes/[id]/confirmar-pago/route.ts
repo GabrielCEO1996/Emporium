@@ -112,17 +112,37 @@ export async function POST(_req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: itemsErr.message }, { status: 500 })
   }
 
-  // Mark orden aprobada + confirm the manual payment trail
-  const { error: updErr } = await supabase
-    .from('ordenes')
-    .update({
+  // Mark orden aprobada + confirm the manual payment trail.
+  // checkout_v2: estado_pago='verificado' with verificado_por/at audit stamps.
+  // Defensive: if the migration hasn't been applied yet, retry without the
+  // new columns so an unmigrated DB still works.
+  const nowIso = new Date().toISOString()
+  const buildUpdate = (includeV2Cols: boolean) => {
+    const base: Record<string, any> = {
       estado: 'aprobada',
       pago_confirmado: true,
-      pago_confirmado_at: new Date().toISOString(),
+      pago_confirmado_at: nowIso,
       pago_confirmado_por: user.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.id)
+      updated_at: nowIso,
+    }
+    if (includeV2Cols) {
+      base.estado_pago = 'verificado'
+      base.verificado_por = user.id
+      base.verificado_at = nowIso
+    }
+    return base
+  }
+
+  let updErr: any
+  {
+    const { error } = await supabase.from('ordenes').update(buildUpdate(true)).eq('id', params.id)
+    updErr = error
+  }
+  if (updErr && /estado_pago|verificado_(por|at)/i.test(updErr.message || '')) {
+    console.warn('[ordenes/confirmar-pago] estado_pago columns missing — retrying without')
+    const { error } = await supabase.from('ordenes').update(buildUpdate(false)).eq('id', params.id)
+    updErr = error
+  }
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 })
   }

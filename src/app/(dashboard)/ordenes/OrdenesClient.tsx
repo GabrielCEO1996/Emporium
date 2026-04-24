@@ -11,6 +11,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
+type EstadoPago = 'verificado' | 'pendiente_verificacion' | 'rechazado'
 
 interface Orden {
   id: string
@@ -27,6 +28,10 @@ interface Orden {
   /** Public URL to the Zelle screenshot / Cheque photo the buyer uploaded.
    *  Only present when the DB migration `payment_proofs.sql` has been run. */
   payment_proof_url?: string | null
+  /** checkout_v2: payment verification state machine.
+   *  Only present when `checkout_v2.sql` has been run. */
+  estado_pago?: EstadoPago | null
+  verificado_at?: string | null
   cliente: { id: string; nombre: string; rif: string | null; email: string | null; telefono: string | null } | null
   items: Array<{
     id: string
@@ -140,8 +145,11 @@ export default function OrdenesClient({
                 <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
                   <EstadoBadge estado={orden.estado} />
                   <TipoPagoBadge tipo={orden.tipo_pago} confirmado={orden.pago_confirmado} />
-                  {/* NEW: pending-verification pill for manual methods */}
-                  {orden.estado === 'pendiente'
+                  <EstadoPagoBadge estadoPago={orden.estado_pago ?? null} />
+                  {/* Legacy fallback: if checkout_v2 hasn't been migrated yet, use
+                      pago_confirmado + manual-method heuristic as before. */}
+                  {!orden.estado_pago
+                    && orden.estado === 'pendiente'
                     && MANUAL_CONFIRM_METHODS.includes((orden.tipo_pago ?? 'pendiente') as TipoPago)
                     && !orden.pago_confirmado && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
@@ -378,6 +386,34 @@ function TipoPagoBadge({
       {m.icon}
       {m.label}
       {confirmado && <BadgeCheck className="w-3 h-3" />}
+    </span>
+  )
+}
+
+function EstadoPagoBadge({ estadoPago }: { estadoPago: EstadoPago | null }) {
+  if (!estadoPago) return null
+  const map: Record<EstadoPago, { cls: string; icon: React.ReactNode; label: string }> = {
+    verificado: {
+      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+      icon: <BadgeCheck className="w-3 h-3" />,
+      label: 'Pago verificado',
+    },
+    pendiente_verificacion: {
+      cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+      icon: <AlertTriangle className="w-3 h-3" />,
+      label: 'Pago por verificar',
+    },
+    rechazado: {
+      cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      icon: <XCircle className="w-3 h-3" />,
+      label: 'Pago rechazado',
+    },
+  }
+  const m = map[estadoPago]
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${m.cls}`}>
+      {m.icon}
+      {m.label}
     </span>
   )
 }

@@ -43,12 +43,16 @@ export async function PUT(request: Request) {
 
     const body = await request.json()
     const allowed = [
-      'nombre', 'rif', 'direccion', 'telefono', 'email', 'logo_url', 'mensaje_factura',
+      'nombre', 'rif', 'direccion', 'telefono', 'email', 'whatsapp',
+      'logo_url', 'mensaje_factura',
+      'meta_mensual', 'moneda_secundaria', 'tasa_cambio',
       // Payment methods advertised to clients on the tienda checkout
       'zelle_numero', 'zelle_titular',
       'banco_nombre', 'banco_cuenta', 'banco_routing', 'banco_titular',
+      // checkout_v2: admin notifications + cheque mailing address
+      'email_admin', 'direccion_envio_cheques',
     ]
-    const updates: Record<string, string> = {}
+    const updates: Record<string, any> = {}
     for (const key of allowed) {
       if (key in body) updates[key] = body[key]
     }

@@ -48,9 +48,12 @@ interface Props {
     banco_cuenta?: string | null
     banco_routing?: string | null
     banco_titular?: string | null
+    /** Where comprador mails their cheque — shown on the cheque step. */
+    direccion_envio_cheques?: string | null
   } | null
   /** Server-computed flag — true only if STRIPE_SECRET_KEY is set to a real
-   *  key. When false, the Stripe tile is hidden (but Zelle/Cheque still work). */
+   *  key. When false, the Stripe tile becomes "Próximamente" and is not
+   *  selectable. Zelle/Cheque still work regardless. */
   stripeEnabled?: boolean
 }
 
@@ -657,10 +660,17 @@ function PaymentProofUpload({
 }
 
 // ── Confirmation Modal ────────────────────────────────────────────────────────
+// Two-phase wizard:
+//   Step A — pick payment method (cards + recap + Continue)
+//   Step B — method-specific details + shipping/notes + Confirm
+// Combined with the Cart drawer and Shipping modal outside this component, the
+// full checkout feels like a 4-step flow (Carrito → Envío → Método → Pagar).
 function ConfirmModal({
   items, open, onClose, onConfirm, loading, notas, setNotas, direccion, setDireccion,
   tipoPago, setTipoPago, numeroRef, setNumeroRef,
-  proofUrl, setProofUrl, rol, stripeEnabled,
+  proofUrl, setProofUrl,
+  bancoNombre, setBancoNombre,
+  rol, stripeEnabled,
   creditoAutorizado, creditoDisponible,
   empresaPayment,
   onBack, onClearCart,
@@ -672,6 +682,8 @@ function ConfirmModal({
   tipoPago: TipoPago; setTipoPago: (t: TipoPago) => void
   numeroRef: string; setNumeroRef: (v: string) => void
   proofUrl: string; setProofUrl: (v: string) => void
+  /** Cheque only — issuing bank name (optional but encouraged). */
+  bancoNombre: string; setBancoNombre: (v: string) => void
   rol: string
   stripeEnabled: boolean
   creditoAutorizado: boolean; creditoDisponible: number
@@ -684,40 +696,48 @@ function ConfirmModal({
   savedShippingInfo?: { nombre?: string; direccion?: string; ciudad?: string; telefono?: string } | null
 }) {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  // 'method' = step 3 (pick method), 'details' = step 4 (execute payment).
+  const [step, setStep] = useState<'method' | 'details'>('method')
+  // Reset step every time the modal re-opens, so back-to-cart-then-reopen
+  // doesn't land on the wrong screen.
+  useEffect(() => {
+    if (open) setStep('method')
+  }, [open])
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
   // ── ROL-BASED METHOD FILTERING (SECURITY — MIRRORS BACKEND) ─────────────
-  // comprador: only stripe (if configured) + zelle + cheque.
-  //   Efectivo / tarjeta-presencial are admin/vendedor-only in-store sales.
-  // cliente: everything except efectivo.
+  // comprador: stripe + zelle + cheque. (Stripe is always shown; if it's not
+  //   configured we render it as "Próximamente" and block selection.)
+  // cliente: stripe + zelle + cheque + credito (if authorized).
   // admin / vendedor: everything.
   const methods: TipoPago[] = (() => {
-    if (rol === 'comprador') {
-      const base: TipoPago[] = ['zelle', 'cheque']
-      if (stripeEnabled) base.unshift('stripe')
-      return base
-    }
+    if (rol === 'comprador') return ['stripe', 'zelle', 'cheque']
     if (rol === 'cliente') {
-      const base: TipoPago[] = ['zelle', 'cheque']
-      if (stripeEnabled) base.unshift('stripe')
+      const base: TipoPago[] = ['stripe', 'zelle', 'cheque']
       if (creditoAutorizado) base.push('credito')
       return base
     }
     // admin / vendedor / conductor — full set
-    const base: TipoPago[] = ['zelle', 'cheque', 'efectivo']
-    if (stripeEnabled) base.unshift('stripe')
+    const base: TipoPago[] = ['stripe', 'zelle', 'cheque', 'efectivo']
     if (creditoAutorizado) base.push('credito')
     return base
   })()
 
-  // If the currently selected method is no longer allowed (e.g. stripe
-  // disabled mid-session), nudge to the first valid option.
+  const isMethodDisabled = (m: TipoPago) => {
+    if (m === 'stripe' && !stripeEnabled) return true
+    if (m === 'credito' && !creditoAutorizado) return true
+    return false
+  }
+
+  // If the currently selected method is disabled (e.g. stripe not configured
+  // or credito revoked), nudge to the first available option.
   useEffect(() => {
-    if (!methods.includes(tipoPago) && methods.length > 0) {
-      setTipoPago(methods[0])
+    if (isMethodDisabled(tipoPago)) {
+      const firstAvailable = methods.find(m => !isMethodDisabled(m))
+      if (firstAvailable) setTipoPago(firstAvailable)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [methods.join(','), tipoPago])
+  }, [methods.join(','), tipoPago, stripeEnabled, creditoAutorizado])
 
   const meta = PAGO_METHODS[tipoPago]
   const creditoInsuficiente = tipoPago === 'credito' && total > creditoDisponible
@@ -763,8 +783,12 @@ function ConfirmModal({
               {/* Top row: title + close */}
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">Paso 3 de 3</p>
-                  <h2 className="font-serif text-2xl text-brand-navy mt-1">Revisar y confirmar</h2>
+                  <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">
+                    Paso {step === 'method' ? '3' : '4'} de 4
+                  </p>
+                  <h2 className="font-serif text-2xl text-brand-navy mt-1">
+                    {step === 'method' ? 'Método de pago' : 'Confirmar pedido'}
+                  </h2>
                 </div>
                 <button
                   onClick={onClose}
@@ -774,18 +798,22 @@ function ConfirmModal({
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              {/* Step dots */}
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-luxe text-brand-charcoal/60">
-                <span className="flex items-center gap-1.5">
+              {/* Step dots — 4 phases: Carrito → Envío → Método → Confirmar */}
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-luxe text-brand-charcoal/60 overflow-x-auto">
+                <span className="flex items-center gap-1.5 shrink-0">
                   <span className="w-2 h-2 rounded-full bg-brand-navy/40" /> Carrito
                 </span>
-                <ChevronRight className="w-3 h-3 text-brand-charcoal/30" />
-                <span className="flex items-center gap-1.5">
+                <ChevronRight className="w-3 h-3 text-brand-charcoal/30 shrink-0" />
+                <span className="flex items-center gap-1.5 shrink-0">
                   <span className="w-2 h-2 rounded-full bg-brand-navy/40" /> Envío
                 </span>
-                <ChevronRight className="w-3 h-3 text-brand-charcoal/30" />
-                <span className="flex items-center gap-1.5 text-brand-navy font-medium">
-                  <span className="w-2 h-2 rounded-full bg-brand-navy" /> Confirmar
+                <ChevronRight className="w-3 h-3 text-brand-charcoal/30 shrink-0" />
+                <span className={`flex items-center gap-1.5 shrink-0 ${step === 'method' ? 'text-brand-navy font-medium' : ''}`}>
+                  <span className={`w-2 h-2 rounded-full ${step === 'method' ? 'bg-brand-navy' : 'bg-brand-navy/40'}`} /> Método
+                </span>
+                <ChevronRight className="w-3 h-3 text-brand-charcoal/30 shrink-0" />
+                <span className={`flex items-center gap-1.5 shrink-0 ${step === 'details' ? 'text-brand-navy font-medium' : ''}`}>
+                  <span className={`w-2 h-2 rounded-full ${step === 'details' ? 'bg-brand-navy' : 'bg-brand-navy/40'}`} /> Confirmar
                 </span>
               </div>
             </div>
@@ -845,45 +873,84 @@ function ConfirmModal({
                 <span className="font-serif text-3xl text-brand-navy">{formatCurrency(total)}</span>
               </div>
 
-              {/* Payment method selector */}
-              <div>
-                <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">
-                  Método de pago
-                </p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {methods.map(m => {
-                    const mm = PAGO_METHODS[m]
-                    const active = tipoPago === m
-                    const Icon = mm.Icon
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setTipoPago(m)}
-                        className={`relative text-left p-4 rounded-2xl border transition-all active:scale-[0.99] ${
-                          active
-                            ? `${mm.accent} border-transparent ring-1 ${mm.ring} shadow-sm`
-                            : 'bg-white border-stone-200 hover:border-brand-navy/40'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <Icon className={`w-4 h-4 ${active ? mm.text : 'text-brand-charcoal/50'}`} />
-                          <span className={`text-xs uppercase tracking-wide font-medium ${active ? mm.text : 'text-brand-navy'}`}>
-                            {mm.label}
-                          </span>
-                          {active && <CheckCircle2 className={`w-3.5 h-3.5 ml-auto ${mm.text}`} />}
-                        </div>
-                        <p className="text-[11px] text-brand-charcoal/70 leading-snug">
-                          {mm.tagline}
-                        </p>
-                      </button>
-                    )
-                  })}
+              {/* Payment method selector — shown on step 3 (method) only. */}
+              {step === 'method' && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">
+                    Elige cómo vas a pagar
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {methods.map(m => {
+                      const mm = PAGO_METHODS[m]
+                      const active = tipoPago === m
+                      const disabled = isMethodDisabled(m)
+                      const Icon = mm.Icon
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => !disabled && setTipoPago(m)}
+                          className={`relative text-left p-4 rounded-2xl border transition-all active:scale-[0.99] ${
+                            disabled
+                              ? 'bg-stone-50 border-stone-200 opacity-70 cursor-not-allowed'
+                              : active
+                              ? `${mm.accent} border-transparent ring-1 ${mm.ring} shadow-sm`
+                              : 'bg-white border-stone-200 hover:border-brand-navy/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Icon className={`w-4 h-4 ${active && !disabled ? mm.text : 'text-brand-charcoal/50'}`} />
+                            <span className={`text-xs uppercase tracking-wide font-medium ${active && !disabled ? mm.text : 'text-brand-navy'}`}>
+                              {mm.label}
+                            </span>
+                            {active && !disabled && <CheckCircle2 className={`w-3.5 h-3.5 ml-auto ${mm.text}`} />}
+                            {disabled && (
+                              <span className="ml-auto text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stone-200 text-brand-charcoal/60">
+                                Próximamente
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-brand-charcoal/70 leading-snug">
+                            {disabled && m === 'stripe'
+                              ? 'Pago con tarjeta estará disponible pronto.'
+                              : disabled && m === 'credito'
+                              ? 'Requiere línea de crédito autorizada por el vendedor.'
+                              : mm.tagline}
+                          </p>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Selected method recap — shown on step 4 (details) only. */}
+              {step === 'details' && (() => {
+                const mm = PAGO_METHODS[tipoPago]
+                const Icon = mm.Icon
+                return (
+                  <div className={`rounded-2xl p-4 border ${mm.accent} border-transparent ring-1 ${mm.ring} flex items-center justify-between`}>
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 ${mm.text}`} />
+                      <div>
+                        <p className={`text-xs uppercase tracking-wide font-medium ${mm.text}`}>{mm.label}</p>
+                        <p className="text-[11px] text-brand-charcoal/70">{mm.tagline}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep('method')}
+                      className="text-[10px] uppercase tracking-luxe text-brand-gold hover:text-brand-navy border-b border-brand-gold/40 hover:border-brand-navy pb-0.5 transition"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                )
+              })()}
 
               {/* Payment-method specific cards */}
-              {tipoPago === 'zelle' && (
+              {step === 'details' && tipoPago === 'zelle' && (
                 <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 p-5 space-y-3">
                   <p className="text-[10px] uppercase tracking-luxe text-emerald-700 flex items-center gap-1.5">
                     <Wallet className="w-3.5 h-3.5" /> Enviar pago por Zelle
@@ -894,12 +961,19 @@ function ConfirmModal({
                       {empresaPayment.zelle_titular && (
                         <CopyRow label="Titular" value={empresaPayment.zelle_titular} />
                       )}
+                      <CopyRow label="Monto exacto" value={formatCurrency(total)} />
                     </div>
                   ) : (
-                    <p className="text-xs text-brand-charcoal/60 italic">
-                      El administrador aún no ha configurado la cuenta de Zelle.
-                    </p>
+                    <div className="rounded-xl bg-white border border-rose-200 p-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <p className="text-xs text-rose-600 leading-snug">
+                        Zelle no disponible. Contacta al vendedor o usa otro método.
+                      </p>
+                    </div>
                   )}
+                  <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
+                    Transfiere el monto exacto a los datos arriba, luego sube el comprobante abajo.
+                  </p>
                   <div>
                     <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
                       Número de confirmación Zelle <span className="text-rose-500">*</span>
@@ -940,11 +1014,24 @@ function ConfirmModal({
                 </div>
               )}
 
-              {tipoPago === 'cheque' && (
+              {step === 'details' && tipoPago === 'cheque' && (
                 <div className="rounded-2xl border border-amber-200/60 bg-amber-50/50 p-5 space-y-3">
                   <p className="text-[10px] uppercase tracking-luxe text-amber-700 flex items-center gap-1.5">
                     <FileCheck className="w-3.5 h-3.5" /> Pago con cheque
                   </p>
+                  <p className="text-[11px] text-brand-charcoal/80 leading-relaxed">
+                    Sube la foto del cheque ya firmado. Procesaremos el pedido cuando recibamos el cheque físico.
+                  </p>
+
+                  {empresaPayment?.direccion_envio_cheques && (
+                    <div className="rounded-xl bg-white border border-amber-200 p-3 space-y-1">
+                      <p className="text-[10px] uppercase tracking-luxe text-amber-700">Envía el cheque a:</p>
+                      <p className="text-xs text-brand-navy leading-snug">
+                        {empresaPayment.direccion_envio_cheques}
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
                       Número de cheque <span className="text-rose-500">*</span>
@@ -953,11 +1040,24 @@ function ConfirmModal({
                       value={numeroRef}
                       onChange={e => setNumeroRef(e.target.value)}
                       placeholder="Ej. 1024"
+                      inputMode="numeric"
                       className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
                     />
                     {chequeRefMissing && (
                       <p className="text-[11px] text-rose-500 mt-1.5">Requerido para registrar el pago.</p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/70 mb-1.5">
+                      Banco emisor <span className="normal-case text-brand-charcoal/40 tracking-normal">(opcional)</span>
+                    </label>
+                    <input
+                      value={bancoNombre}
+                      onChange={e => setBancoNombre(e.target.value)}
+                      placeholder="Ej. Chase, Bank of America"
+                      className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
+                    />
                   </div>
 
                   <div>
@@ -978,14 +1078,10 @@ function ConfirmModal({
                       </p>
                     )}
                   </div>
-
-                  <p className="text-[11px] text-brand-charcoal/70 leading-relaxed">
-                    Coordina la entrega del cheque con nuestro equipo. La orden queda pendiente hasta confirmación.
-                  </p>
                 </div>
               )}
 
-              {tipoPago === 'efectivo' && (
+              {step === 'details' && tipoPago === 'efectivo' && (
                 <div className="rounded-2xl border border-teal-200/60 bg-teal-50/50 p-5 space-y-2">
                   <p className="text-[10px] uppercase tracking-luxe text-teal-700 flex items-center gap-1.5">
                     <Banknote className="w-3.5 h-3.5" /> Pago en efectivo
@@ -996,7 +1092,7 @@ function ConfirmModal({
                 </div>
               )}
 
-              {tipoPago === 'stripe' && (
+              {step === 'details' && tipoPago === 'stripe' && (
                 <div className="rounded-2xl border border-violet-200/60 bg-violet-50/50 p-5 space-y-1.5">
                   <p className="text-[10px] uppercase tracking-luxe text-violet-700 flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5" /> Pago con tarjeta
@@ -1008,7 +1104,7 @@ function ConfirmModal({
                 </div>
               )}
 
-              {tipoPago === 'credito' && (
+              {step === 'details' && tipoPago === 'credito' && (
                 <div className={`rounded-2xl border p-5 space-y-2 ${
                   creditoInsuficiente
                     ? 'border-rose-200/60 bg-rose-50/50'
@@ -1037,65 +1133,78 @@ function ConfirmModal({
                 </div>
               )}
 
-              {/* Shipping address */}
-              <div>
-                <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
-                  Dirección de entrega
-                </label>
-                <input
-                  value={direccion}
-                  onChange={e => setDireccion(e.target.value)}
-                  placeholder="Av. Principal, Casa 5…"
-                  className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
-                />
-              </div>
+              {/* Shipping address + notes — step 4 only */}
+              {step === 'details' && (
+                <>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
+                      Dirección de entrega
+                    </label>
+                    <input
+                      value={direccion}
+                      onChange={e => setDireccion(e.target.value)}
+                      placeholder="Av. Principal, Casa 5…"
+                      className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
+                    />
+                  </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
-                  Notas <span className="normal-case text-brand-charcoal/40 tracking-normal">(opcional)</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Instrucciones especiales…"
-                  className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy resize-none transition"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-2">
+                      Notas <span className="normal-case text-brand-charcoal/40 tracking-normal">(opcional)</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={notas}
+                      onChange={e => setNotas(e.target.value)}
+                      placeholder="Instrucciones especiales…"
+                      className="w-full text-sm border border-stone-200 rounded-xl px-4 py-3 bg-white text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy resize-none transition"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Sticky footer */}
             <div className="shrink-0 px-7 py-5 border-t border-stone-200/80 bg-white space-y-2.5">
-              <button
-                onClick={onConfirm}
-                disabled={ctaDisabled}
-                className={`w-full py-4 rounded-full text-[11px] uppercase tracking-luxe font-medium text-brand-cream flex items-center justify-center gap-2 transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  tipoPago === 'stripe'
-                    ? 'bg-gradient-to-r from-violet-700 to-indigo-700 hover:from-violet-600 hover:to-indigo-600'
-                    : tipoPago === 'credito'
-                    ? 'bg-amber-700 hover:bg-amber-600'
-                    : tipoPago === 'cheque'
-                    ? 'bg-amber-700 hover:bg-amber-600'
-                    : tipoPago === 'efectivo'
-                    ? 'bg-teal-700 hover:bg-teal-600'
-                    : 'bg-brand-navy hover:bg-brand-navy/90'
-                }`}
-              >
-                {loading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando…</>
-                  : <><meta.Icon className="w-4 h-4" /> {ctaLabel}</>
-                }
-              </button>
+              {step === 'method' ? (
+                <button
+                  onClick={() => setStep('details')}
+                  disabled={isMethodDisabled(tipoPago)}
+                  className="w-full py-4 rounded-full text-[11px] uppercase tracking-luxe font-medium text-brand-cream bg-brand-navy hover:bg-brand-navy/90 flex items-center justify-center gap-2 transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continuar <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={onConfirm}
+                  disabled={ctaDisabled}
+                  className={`w-full py-4 rounded-full text-[11px] uppercase tracking-luxe font-medium text-brand-cream flex items-center justify-center gap-2 transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed ${
+                    tipoPago === 'stripe'
+                      ? 'bg-gradient-to-r from-violet-700 to-indigo-700 hover:from-violet-600 hover:to-indigo-600'
+                      : tipoPago === 'credito'
+                      ? 'bg-amber-700 hover:bg-amber-600'
+                      : tipoPago === 'cheque'
+                      ? 'bg-amber-700 hover:bg-amber-600'
+                      : tipoPago === 'efectivo'
+                      ? 'bg-teal-700 hover:bg-teal-600'
+                      : 'bg-brand-navy hover:bg-brand-navy/90'
+                  }`}
+                >
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando…</>
+                    : <><meta.Icon className="w-4 h-4" /> {ctaLabel}</>
+                  }
+                </button>
+              )}
               {/* Back + clear cart row */}
               <div className="flex items-center justify-between gap-3 pt-1">
                 <button
-                  onClick={onBack}
+                  onClick={step === 'method' ? onBack : () => setStep('method')}
                   disabled={loading}
                   className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-brand-charcoal hover:text-brand-navy transition disabled:opacity-40"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
-                  Volver a datos de envío
+                  {step === 'method' ? 'Volver a datos de envío' : 'Cambiar método'}
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(true)}
@@ -1980,6 +2089,8 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
   // Uploaded proof URL (Zelle screenshot / Cheque front photo). Required for
   // comprador on zelle/cheque — enforced server-side in /api/tienda/pedido.
   const [proofUrl, setProofUrl] = useState<string>('')
+  // Optional: cheque issuer bank name. Appended to the orden notas.
+  const [bancoNombre, setBancoNombre] = useState<string>('')
 
   // BUG 4 — product detail modal state
   const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
@@ -2158,6 +2269,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
           payment_proof_url:
             (tipoPago === 'zelle' || tipoPago === 'cheque') && proofUrl
               ? proofUrl
+              : undefined,
+          banco_nombre:
+            tipoPago === 'cheque' && bancoNombre.trim()
+              ? bancoNombre.trim()
               : undefined,
         }),
       })
@@ -2523,6 +2638,8 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         setNumeroRef={setNumeroRef}
         proofUrl={proofUrl}
         setProofUrl={setProofUrl}
+        bancoNombre={bancoNombre}
+        setBancoNombre={setBancoNombre}
         rol={profile.rol}
         stripeEnabled={stripeEnabled}
         creditoAutorizado={creditoAutorizado}

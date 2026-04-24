@@ -70,12 +70,27 @@ export default async function TiendaPage() {
   }
 
   // Empresa payment info — shown inside the checkout modal when the client
-  // picks Zelle or bank transfer, so they know where to send the money.
-  const { data: empresaPayment } = await supabase
-    .from('empresa_config')
-    .select('zelle_numero, zelle_titular, banco_nombre, banco_cuenta, banco_routing, banco_titular')
-    .limit(1)
-    .maybeSingle()
+  // picks Zelle / bank transfer / cheque, so they know where to send the money.
+  // Falls back gracefully if direccion_envio_cheques (checkout_v2) hasn't
+  // been added to the column list yet.
+  let empresaPayment: any = null
+  {
+    const { data, error } = await supabase
+      .from('empresa_config')
+      .select('zelle_numero, zelle_titular, banco_nombre, banco_cuenta, banco_routing, banco_titular, direccion_envio_cheques')
+      .limit(1)
+      .maybeSingle()
+    if (error && /direccion_envio_cheques/i.test(error.message || '')) {
+      const retry = await supabase
+        .from('empresa_config')
+        .select('zelle_numero, zelle_titular, banco_nombre, banco_cuenta, banco_routing, banco_titular')
+        .limit(1)
+        .maybeSingle()
+      empresaPayment = retry.data
+    } else {
+      empresaPayment = data
+    }
+  }
 
   return (
     <TiendaClient

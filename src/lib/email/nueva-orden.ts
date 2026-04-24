@@ -80,9 +80,27 @@ function itemsTableHtml(items: Array<{ descripcion: string; cantidad: number; pr
   `).join('')
 }
 
+/** Human-friendly label for the payment method, used in subject lines. */
+function metodoPagoLabel(tipo: string | null | undefined): string {
+  if (!tipo) return 'Sin método'
+  const t = tipo.toLowerCase()
+  const map: Record<string, string> = {
+    stripe: 'Stripe',
+    zelle: 'Zelle',
+    transferencia: 'Transferencia',
+    cheque: 'Cheque',
+    efectivo: 'Efectivo',
+    credito: 'Crédito',
+    pendiente: 'Sin método',
+  }
+  return map[t] ?? tipo
+}
+
 function buildAdminEmail(orden: any, cliente: any, items: any[], panelUrl: string) {
   const badge = paymentBadge(orden.tipo_pago, orden.pago_confirmado, orden.payment_proof_url, orden.numero_referencia)
-  const subject = `🛒 Nuevo pedido ${orden.numero} · ${cliente?.nombre ?? 'Cliente'} · ${fmt(orden.total)}`
+  const metodo = metodoPagoLabel(orden.tipo_pago)
+  // Subject format: "🛒 Nuevo pedido #N - Cliente - $Total - Método"
+  const subject = `🛒 Nuevo pedido ${orden.numero} · ${cliente?.nombre ?? 'Cliente'} · ${fmt(orden.total)} · ${metodo}`
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -246,7 +264,7 @@ export async function sendNuevaOrdenEmail(
       return { ok: false, admin_sent: false, cliente_sent: false, error: 'orden_not_found' }
     }
 
-    const [{ data: cliente }, { data: itemsRaw }, { data: empresa }] = await Promise.all([
+    const [{ data: cliente }, { data: itemsRaw }, empresaRes] = await Promise.all([
       supabase
         .from('clientes')
         .select('nombre, email, telefono')
@@ -256,12 +274,22 @@ export async function sendNuevaOrdenEmail(
         .from('orden_items')
         .select('cantidad, precio_unitario, subtotal, presentacion:presentaciones(nombre, producto:productos(nombre))')
         .eq('orden_id', orden.id),
-      supabase
-        .from('empresa_config')
-        .select('nombre')
-        .limit(1)
-        .maybeSingle(),
+      // checkout_v2: SELECT email_admin too so admins can override the destination
+      // from the /configuracion page without redeploying. Retry without it if
+      // the migration hasn't been applied yet.
+      (async () => {
+        const first = await supabase
+          .from('empresa_config')
+          .select('nombre, email_admin')
+          .limit(1)
+          .maybeSingle()
+        if (first.error && /email_admin/i.test(first.error.message || '')) {
+          return supabase.from('empresa_config').select('nombre').limit(1).maybeSingle()
+        }
+        return first
+      })(),
     ])
+    const empresa = empresaRes?.data
 
     const items = (itemsRaw ?? []).map((i: any) => ({
       descripcion:
@@ -273,7 +301,11 @@ export async function sendNuevaOrdenEmail(
     }))
 
     const empresaNombre = (empresa?.nombre as string) || 'Emporium'
-    const adminEmail = process.env.ADMIN_EMAIL || 'empoinc.25@gmail.com'
+    // Resolution order: empresa_config.email_admin → ADMIN_EMAIL env → hardcoded fallback
+    const adminEmail =
+      (empresa as any)?.email_admin?.trim() ||
+      process.env.ADMIN_EMAIL ||
+      'empoinc.25@gmail.com'
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
     const panelUrl = siteUrl ? `${siteUrl}/ordenes` : 'https://emporium.vercel.app/ordenes'
 

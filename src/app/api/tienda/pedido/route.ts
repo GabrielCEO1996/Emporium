@@ -92,6 +92,7 @@ export async function POST(req: Request) {
       tipo_pago,
       numero_referencia,
       payment_proof_url,
+      banco_nombre,         // cheque only — issuing bank name (optional)
     } = body ?? {}
     // NOTE: Stripe verification happens at /api/webhook/stripe on
     // `checkout.session.completed` — the signed payload tells us the intent
@@ -374,15 +375,26 @@ export async function POST(req: Request) {
     const ordenNumero = await nextNumero('ordenes', 'ORD', 'ordenes')
 
     // Build the insert payload. payment_proof_url + payment_reference are new
-    // columns (see supabase/payment_proofs.sql). If the user runs the code
-    // before applying the migration we silently retry without them.
-    const buildOrdenPayload = (includeProofCols: boolean) => {
+    // columns (see supabase/payment_proofs.sql). estado_pago is from the
+    // checkout_v2 migration. If the user runs the code before applying the
+    // migration(s) we silently retry without them.
+    // Extended notas: for cheque payments we append the issuing bank name
+    // (if provided) to the notas field since it's not worth its own column.
+    const chequeBanco = typeof banco_nombre === 'string' ? banco_nombre.trim() : ''
+    const augmentedNotas = (() => {
+      const userNotas = notas?.trim() || ''
+      if (tipoPago !== 'cheque' || !chequeBanco) return userNotas || null
+      const banco = `Banco del cheque: ${chequeBanco}`
+      return userNotas ? `${userNotas}\n\n${banco}` : banco
+    })()
+
+    const buildOrdenPayload = (includeProofCols: boolean, includeV2Cols: boolean) => {
       const base: Record<string, any> = {
         numero: ordenNumero,
         cliente_id,
         user_id: user.id,
         estado: 'pendiente',
-        notas: notas?.trim() || null,
+        notas: augmentedNotas,
         direccion_entrega: direccion_entrega?.trim() || null,
         total,
         tipo_pago: tipoPago,
@@ -395,15 +407,32 @@ export async function POST(req: Request) {
         base.payment_proof_url = proofUrl || null
         base.payment_reference = referencia || null
       }
+      if (includeV2Cols) {
+        // Stripe orders stay pendiente_verificacion until the webhook flips
+        // them to verificado. Zelle/cheque/efectivo stay pending until an
+        // admin hits "Confirmar pago recibido".
+        base.estado_pago = 'pendiente_verificacion'
+      }
       return base
     }
 
     let { data: orden, error: ordenInsertErr } = await supabase
       .from('ordenes')
-      .insert(buildOrdenPayload(true))
+      .insert(buildOrdenPayload(true, true))
       .select()
       .single()
 
+    // Cascade retry: drop estado_pago first, then proof cols if still failing.
+    if (ordenInsertErr && isMissingColumn(ordenInsertErr, 'estado_pago')) {
+      console.warn('[tienda/pedido] ordenes.estado_pago missing — retrying without checkout_v2 cols')
+      const retry = await supabase
+        .from('ordenes')
+        .insert(buildOrdenPayload(true, false))
+        .select()
+        .single()
+      orden = retry.data
+      ordenInsertErr = retry.error
+    }
     if (ordenInsertErr && (
       isMissingColumn(ordenInsertErr, 'payment_proof_url') ||
       isMissingColumn(ordenInsertErr, 'payment_reference')
@@ -411,7 +440,7 @@ export async function POST(req: Request) {
       console.warn('[tienda/pedido] ordenes.payment_proof_url missing — retrying without it')
       const retry = await supabase
         .from('ordenes')
-        .insert(buildOrdenPayload(false))
+        .insert(buildOrdenPayload(false, false))
         .select()
         .single()
       orden = retry.data

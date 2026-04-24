@@ -44,16 +44,29 @@ export async function POST(req: Request, { params }: RouteContext) {
     )
   }
 
-  const { data, error } = await supabase
-    .from('ordenes')
-    .update({
+  // Rejection also flags the payment as rechazado so the admin badge flips
+  // to the red "❌ Rechazado" state. Column may not exist on unmigrated DBs —
+  // retry without it in that case.
+  const nowIso = new Date().toISOString()
+  const buildUpdate = (includeV2Cols: boolean) => {
+    const base: Record<string, any> = {
       estado: 'rechazada',
       motivo_rechazo: motivo,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.id)
-    .select()
-    .single()
+      updated_at: nowIso,
+    }
+    if (includeV2Cols) base.estado_pago = 'rechazado'
+    return base
+  }
+
+  let { data, error } = await supabase
+    .from('ordenes').update(buildUpdate(true)).eq('id', params.id).select().single()
+  if (error && /estado_pago/i.test(error.message || '')) {
+    console.warn('[ordenes/rechazar] estado_pago column missing — retrying without')
+    const retry = await supabase
+      .from('ordenes').update(buildUpdate(false)).eq('id', params.id).select().single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

@@ -210,15 +210,32 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       console.error('[webhook/stripe] factura/transaccion threw (non-fatal):', facOuter)
     }
 
-    // ── 4. Mark orden as aprobada + pago_confirmado ─────────────────────
-    const { error: ordenUpdErr } = await supabase
-      .from('ordenes')
-      .update({
+    // ── 4. Mark orden as aprobada + pago_confirmado + estado_pago=verificado
+    // Stripe-verified payments go straight to estado_pago='verificado' (no
+    // admin review needed — the webhook signature IS the verification).
+    // Retry without v2 columns if the migration hasn't been applied yet.
+    const nowIsoStripe = new Date().toISOString()
+    const buildStripeUpdate = (includeV2Cols: boolean) => {
+      const base: Record<string, any> = {
         estado: 'aprobada',
         pago_confirmado: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orden.id)
+        updated_at: nowIsoStripe,
+      }
+      if (includeV2Cols) {
+        base.estado_pago = 'verificado'
+        base.verificado_at = nowIsoStripe
+      }
+      return base
+    }
+
+    let { error: ordenUpdErr } = await supabase
+      .from('ordenes').update(buildStripeUpdate(true)).eq('id', orden.id)
+    if (ordenUpdErr && /estado_pago|verificado_at/i.test(ordenUpdErr.message || '')) {
+      console.warn('[webhook/stripe] estado_pago columns missing — retrying without')
+      const retry = await supabase
+        .from('ordenes').update(buildStripeUpdate(false)).eq('id', orden.id)
+      ordenUpdErr = retry.error
+    }
     if (ordenUpdErr) {
       console.error('[webhook/stripe] orden update failed:', ordenUpdErr)
     }

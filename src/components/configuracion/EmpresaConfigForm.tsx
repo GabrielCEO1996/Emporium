@@ -29,6 +29,9 @@ interface EmpresaConfig {
   banco_cuenta?: string
   banco_routing?: string
   banco_titular?: string
+  // checkout_v2: admin notification routing + cheque mailing address
+  email_admin?: string
+  direccion_envio_cheques?: string
 }
 
 interface Props {
@@ -455,6 +458,64 @@ export default function EmpresaConfigForm({ initial, isAdmin }: Props) {
               className={inputClass}
             />
           </div>
+
+          {/* Cheque mailing address — shown to comprador on cheque checkout */}
+          <div className="sm:col-span-2 mt-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 text-amber-600">
+                <FileText className="h-3.5 w-3.5" />
+              </span>
+              Cheques — dirección de envío
+            </h3>
+            <p className="mb-3 text-xs text-slate-500">
+              Se mostrará a los compradores que eligen pagar con cheque en la tienda.
+            </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Dirección para envío de cheques</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={form.direccion_envio_cheques ?? ''}
+                onChange={e => set('direccion_envio_cheques', e.target.value)}
+                disabled={!isAdmin}
+                placeholder="Emporium LLC, 123 Main St, Miami FL 33101"
+                className={cn(inputClass, 'pl-9')}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Notificaciones */}
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <Mail className="h-4 w-4 text-teal-600" />
+            Notificaciones de pedidos
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Email al que llegan las alertas de nuevos pedidos y pagos por verificar.
+          </p>
+        </div>
+        <div className="p-6">
+          <label className={labelClass}>Email para notificaciones administrativas</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="email"
+              value={form.email_admin ?? ''}
+              onChange={e => set('email_admin', e.target.value)}
+              disabled={!isAdmin}
+              placeholder="pedidos@empoinc.com"
+              className={cn(inputClass, 'pl-9')}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Si se deja vacío, se usará el valor de la variable de entorno ADMIN_EMAIL.
+          </p>
         </div>
       </section>
 
