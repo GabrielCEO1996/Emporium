@@ -83,8 +83,10 @@ export default async function FinanzasPage() {
     supabase.from('factura_items')
       .select('presentacion_id, cantidad, subtotal')
       .gte('created_at', startOf30Days),
+    // Ledger rows for the current month — tipo now splits into
+    // 'ingreso' / 'costo' (compras = inventory asset) / 'gasto' (opex)
     supabase.from('transacciones')
-      .select('tipo, monto, fecha')
+      .select('tipo, monto, fecha, categoria_gasto')
       .gte('fecha', startOfMonth),
     supabase.from('transacciones')
       .select('tipo, monto, fecha')
@@ -119,14 +121,44 @@ export default async function FinanzasPage() {
   ).length
   const tasaConversion = totalPedidos > 0 ? (pedidosFacturados / totalPedidos) * 100 : 0
 
-  // ── 5b. Transacciones (ledger) ────────────────────────────────────────────
+  // ── 5b. Transacciones (ledger) — separated into three legs ────────────────
   const ingresosMes = (transaccionesMes ?? [])
     .filter(t => t.tipo === 'ingreso')
     .reduce((s, t) => s + (t.monto ?? 0), 0)
-  const gastosMes = (transaccionesMes ?? [])
+  // 'costo' tipo tracks compra spending (inventory asset), NOT COGS. It's
+  // shown as an informational metric — it does not reduce utilidad directly.
+  const costoInventarioMes = (transaccionesMes ?? [])
+    .filter(t => t.tipo === 'costo')
+    .reduce((s, t) => s + (t.monto ?? 0), 0)
+  // 'gasto' = operational expenses (rent, payroll, marketing, utilities...)
+  const gastosOperativosMes = (transaccionesMes ?? [])
     .filter(t => t.tipo === 'gasto')
     .reduce((s, t) => s + (t.monto ?? 0), 0)
-  const utilidadNeta = ingresosMes - gastosMes
+
+  // ── 5c. COGS (Cost of Goods Sold) for this month ──────────────────────────
+  // factura_items has no costo_unitario column, so we join presentaciones
+  // and use its current `costo` as a best-effort unit cost. The backing
+  // query is keyed on the month's facturas (non-anulada).
+  const facturasMesIds = (facturasEsteMes ?? []).map(f => f.id)
+  const { data: factItemsMes } = facturasMesIds.length
+    ? await supabase
+        .from('factura_items')
+        .select('factura_id, cantidad, presentacion:presentaciones(costo)')
+        .in('factura_id', facturasMesIds)
+    : { data: [] as any[] }
+
+  const cogsMes = (factItemsMes ?? []).reduce((s: number, it: any) => {
+    const unitCost = Number(it.presentacion?.costo ?? 0)
+    return s + Number(it.cantidad ?? 0) * unitCost
+  }, 0)
+
+  // Income statement:
+  //   Utilidad bruta = Ingresos − COGS
+  //   Utilidad neta  = Utilidad bruta − Gastos operativos
+  const utilidadBruta = ingresosMes - cogsMes
+  const utilidadNeta = utilidadBruta - gastosOperativosMes
+  const margenBrutoPct = ingresosMes > 0 ? (utilidadBruta / ingresosMes) * 100 : 0
+  const margenNetoPct = ingresosMes > 0 ? (utilidadNeta / ingresosMes) * 100 : 0
 
   // ── 6. Margen bruto por producto ──────────────────────────────────────────
   // Ventas recientes por presentacion_id
@@ -188,8 +220,9 @@ export default async function FinanzasPage() {
     let ingresos = (transacciones6m ?? [])
       .filter(t => t.tipo === 'ingreso' && t.fecha >= from && t.fecha < to)
       .reduce((s, t) => s + (t.monto ?? 0), 0)
-    const gastos = (transacciones6m ?? [])
-      .filter(t => t.tipo === 'gasto' && t.fecha >= from && t.fecha < to)
+    // Cash-flow egresos = inventory spending ('costo') + operational expenses ('gasto')
+    const egresos = (transacciones6m ?? [])
+      .filter(t => (t.tipo === 'gasto' || t.tipo === 'costo') && t.fecha >= from && t.fecha < to)
       .reduce((s, t) => s + (t.monto ?? 0), 0)
 
     // Fallback to facturas if ledger empty for this month
@@ -202,8 +235,8 @@ export default async function FinanzasPage() {
     cashFlowData.push({
       mes: MESES[d.getMonth()],
       ingresos,
-      gastos,
-      utilidad: ingresos - gastos,
+      gastos: egresos,
+      utilidad: ingresos - egresos,
     })
   }
 
@@ -248,31 +281,58 @@ export default async function FinanzasPage() {
         </p>
       </div>
 
-      {/* ── Resumen del mes (ledger) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard
-          title="Ingresos del mes"
-          value={formatCurrency(ingresosMes)}
-          subtitle="Pagos registrados en transacciones"
-          icon={ArrowUpRight}
-          color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-        />
-        <MetricCard
-          title="Gastos del mes"
-          value={formatCurrency(gastosMes)}
-          subtitle="Compras recibidas en transacciones"
-          icon={ArrowDownRight}
-          color="bg-red-100 dark:bg-red-900/30 text-red-500"
-        />
-        <MetricCard
-          title="Utilidad Neta"
-          value={formatCurrency(utilidadNeta)}
-          subtitle={utilidadNeta >= 0 ? 'Mes en positivo' : 'Mes en negativo'}
-          icon={Wallet}
-          color={utilidadNeta >= 0
-            ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
-            : 'bg-red-100 dark:bg-red-900/30 text-red-500'}
-        />
+      {/* ── Estado de resultados del mes (income statement) ── */}
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Estado de resultados — {MESES[now.getMonth()]} {now.getFullYear()}</h2>
+          <p className="text-xs text-slate-400">Ingresos − Costo de lo vendido (COGS) − Gastos operativos</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <MetricCard
+            title="Ingresos"
+            value={formatCurrency(ingresosMes)}
+            subtitle="Cobros registrados en el mes"
+            icon={ArrowUpRight}
+            color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+          />
+          <MetricCard
+            title="Costo de lo vendido (COGS)"
+            value={formatCurrency(cogsMes)}
+            subtitle="Costo de productos facturados"
+            icon={Package}
+            color="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+          />
+          <MetricCard
+            title="Gastos operativos"
+            value={formatCurrency(gastosOperativosMes)}
+            subtitle="Sueldos, servicios, marketing…"
+            icon={ArrowDownRight}
+            color="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+          />
+          <MetricCard
+            title="Utilidad bruta"
+            value={formatCurrency(utilidadBruta)}
+            subtitle={ingresosMes > 0 ? `Margen ${margenBrutoPct.toFixed(1)}%` : 'Sin ventas este mes'}
+            icon={TrendingUp}
+            color={utilidadBruta >= 0
+              ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400'
+              : 'bg-red-100 dark:bg-red-900/30 text-red-500'}
+          />
+          <MetricCard
+            title="Utilidad neta"
+            value={formatCurrency(utilidadNeta)}
+            subtitle={ingresosMes > 0
+              ? `Margen ${margenNetoPct.toFixed(1)}%`
+              : utilidadNeta >= 0 ? 'Mes en positivo' : 'Mes en negativo'}
+            icon={Wallet}
+            color={utilidadNeta >= 0
+              ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
+              : 'bg-red-100 dark:bg-red-900/30 text-red-500'}
+          />
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">
+          Costo de inventario adquirido este mes (compras): <span className="font-semibold text-slate-500 dark:text-slate-300">{formatCurrency(costoInventarioMes)}</span> — capital movido a stock, no afecta utilidad hasta que se venda.
+        </p>
       </div>
 
       {/* ── 8 KPIs ── */}
@@ -415,7 +475,7 @@ export default async function FinanzasPage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
             <h2 className="font-semibold text-sm text-slate-800 dark:text-white">Flujo de Caja — Últimos 6 meses</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Ingresos y gastos por mes (transacciones)</p>
+            <p className="text-xs text-slate-400 mt-0.5">Ingresos vs egresos (compras + gastos operativos)</p>
           </div>
           <div className="p-4">
             <CashFlowChart data={cashFlowData} />

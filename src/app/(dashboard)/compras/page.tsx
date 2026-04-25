@@ -46,9 +46,12 @@ export default async function ComprasPage() {
             <ShoppingBag className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Compras</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Compras a proveedores</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {(compras ?? []).length} compras registradas
+              Costo de inventario adquirido — {(compras ?? []).length} compras registradas
+              <span className="block text-xs text-slate-400">
+                No es un gasto operativo: capital movido a stock hasta su venta (entonces se vuelve COGS).
+              </span>
             </p>
           </div>
         </div>
@@ -71,8 +74,9 @@ export default async function ComprasPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
-          <p className="text-xs text-slate-500 font-medium">Total recibido</p>
+          <p className="text-xs text-slate-500 font-medium">Total invertido en inventario</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(totalComprado)}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Capital en mercancía por vender</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
           <p className="text-xs text-slate-500 font-medium">Compras totales</p>

@@ -532,8 +532,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/pedidos/[id]
 //   vendedor: only own borrador
-//   admin:    any state except entregada/entregado (hard delete + cleanup)
-//             if inventory was reserved/deducted, reverses it first
+//   admin:    any state (including entregada) — hard delete with full reversal
+//
+//   Reversal cascade by state:
+//     entregada    → add stock_total back (tipo='entrada'); clean facturas/pagos/transacciones
+//     despachada   → release stock_reservado; clean facturas/pagos/transacciones
+//     aprobada/...  → release stock_reservado only
+//     borrador/cancelada → plain delete (no reversal needed)
+//
+//   Cliente deuda_total: subtract the outstanding balance (factura.total − monto_pagado)
+//   of every deleted factura, since paid portions already reduced deuda via pagos and the
+//   unpaid portion should vanish along with the pedido.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -548,7 +557,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const { data: pedido } = await supabase
     .from('pedidos')
-    .select('id, estado, vendedor_id')
+    .select('id, numero, estado, vendedor_id, cliente_id, total')
     .eq('id', params.id)
     .single()
 
@@ -556,7 +565,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const estadoActual: string = pedido.estado
   const estadoEntregada = ['entregada', 'entregado'].includes(estadoActual)
+  const requiereLiberacion = ['aprobada', 'despachada', 'despachado', 'en_ruta', 'preparando', 'confirmado'].includes(estadoActual)
 
+  // ── Auth ────────────────────────────────────────────────────────────────
   if (isVendedor) {
     if (pedido.vendedor_id !== user.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -567,63 +578,159 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
         { status: 403 }
       )
     }
-  } else if (isAdmin) {
-    if (estadoEntregada) {
-      return NextResponse.json(
-        { error: 'No se puede eliminar un pedido ya entregado' },
-        { status: 400 }
-      )
-    }
-  } else {
+  } else if (!isAdmin) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  // Reverse inventory reservation if applicable
-  const requiereLiberacion = ['aprobada', 'despachada', 'despachado', 'en_ruta', 'preparando', 'confirmado'].includes(estadoActual)
+  // Fetch items once — needed for both inventory paths.
+  const { data: items } = await supabase
+    .from('pedido_items')
+    .select('presentacion_id, cantidad, presentaciones(producto_id)')
+    .eq('pedido_id', params.id)
 
-  if (requiereLiberacion) {
-    const { data: items } = await supabase
-      .from('pedido_items')
-      .select('presentacion_id, cantidad, presentaciones(producto_id)')
-      .eq('pedido_id', params.id)
+  // ── Inventory reversal ──────────────────────────────────────────────────
+  if (estadoEntregada && items && items.length > 0) {
+    // entregada deducted stock_total → ADD BACK
+    await Promise.all(items.map(async (item: any) => {
+      const { data: inv } = await supabase
+        .from('inventario')
+        .select('id, stock_total, producto_id')
+        .eq('presentacion_id', item.presentacion_id)
+        .maybeSingle()
 
-    if (items && items.length > 0) {
-      await Promise.all(items.map(async (item: any) => {
-        const { data: inv } = await supabase
+      if (inv) {
+        const nuevoTotal = (inv.stock_total ?? 0) + item.cantidad
+        await supabase
           .from('inventario')
-          .select('id, stock_reservado, producto_id')
-          .eq('presentacion_id', item.presentacion_id)
-          .maybeSingle()
+          .update({ stock_total: nuevoTotal })
+          .eq('id', inv.id)
 
-        if (inv) {
-          const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
+        await supabase
+          .from('presentaciones')
+          .update({ stock: nuevoTotal, updated_at: new Date().toISOString() })
+          .eq('id', item.presentacion_id)
+
+        await supabase.from('inventario_movimientos').insert({
+          producto_id: inv.producto_id,
+          presentacion_id: item.presentacion_id,
+          tipo: 'entrada',
+          cantidad: item.cantidad,
+          stock_anterior: inv.stock_total ?? 0,
+          stock_nuevo: nuevoTotal,
+          referencia_tipo: 'pedido_eliminado',
+          referencia_id: params.id,
+          usuario_id: user.id,
+          notas: 'Pedido entregado eliminado — reversión de salida',
+        })
+      }
+    }))
+  } else if (requiereLiberacion && items && items.length > 0) {
+    await Promise.all(items.map(async (item: any) => {
+      const { data: inv } = await supabase
+        .from('inventario')
+        .select('id, stock_reservado, producto_id')
+        .eq('presentacion_id', item.presentacion_id)
+        .maybeSingle()
+
+      if (inv) {
+        const nuevoReservado = Math.max(0, (inv.stock_reservado ?? 0) - item.cantidad)
+        await supabase
+          .from('inventario')
+          .update({ stock_reservado: nuevoReservado })
+          .eq('id', inv.id)
+
+        await supabase.from('inventario_movimientos').insert({
+          producto_id: inv.producto_id,
+          presentacion_id: item.presentacion_id,
+          tipo: 'liberacion',
+          cantidad: item.cantidad,
+          stock_anterior: inv.stock_reservado ?? 0,
+          stock_nuevo: nuevoReservado,
+          referencia_tipo: 'pedido_eliminado',
+          referencia_id: params.id,
+          usuario_id: user.id,
+          notas: 'Pedido eliminado — liberación de reserva',
+        })
+      }
+    }))
+  }
+
+  // ── Factura → pagos → transacciones cleanup ─────────────────────────────
+  // Applies whenever the pedido reached despachada/entregada (factura exists).
+  const { data: facturas } = await supabase
+    .from('facturas')
+    .select('id, total, monto_pagado')
+    .eq('pedido_id', params.id)
+
+  let saldoPendienteRevertido = 0
+  let pagosRevertidos = 0
+
+  if (facturas && facturas.length > 0) {
+    for (const f of facturas) {
+      saldoPendienteRevertido += Math.max(0, Number(f.total ?? 0) - Number(f.monto_pagado ?? 0))
+
+      const { data: pagosArr } = await supabase
+        .from('pagos')
+        .select('id, monto')
+        .eq('factura_id', f.id)
+
+      if (pagosArr && pagosArr.length > 0) {
+        for (const pg of pagosArr) {
+          pagosRevertidos += Number(pg.monto ?? 0)
           await supabase
-            .from('inventario')
-            .update({ stock_reservado: nuevoReservado })
-            .eq('id', inv.id)
-
-          await supabase.from('inventario_movimientos').insert({
-            producto_id: inv.producto_id,
-            presentacion_id: item.presentacion_id,
-            tipo: 'liberacion',
-            cantidad: item.cantidad,
-            stock_anterior: inv.stock_reservado ?? 0,
-            stock_nuevo: nuevoReservado,
-            referencia_tipo: 'pedido_eliminado',
-            referencia_id: params.id,
-            usuario_id: user.id,
-            notas: 'Pedido eliminado — liberación de reserva',
-          })
+            .from('transacciones')
+            .delete()
+            .eq('referencia_tipo', 'pago')
+            .eq('referencia_id', pg.id)
         }
-      }))
+        await supabase.from('pagos').delete().eq('factura_id', f.id)
+      }
+
+      await supabase.from('factura_items').delete().eq('factura_id', f.id)
+    }
+    await supabase.from('facturas').delete().eq('pedido_id', params.id)
+  }
+
+  // ── Cliente deuda_total adjustment ──────────────────────────────────────
+  // Remove the outstanding balance so deuda_total returns to its pre-pedido value.
+  if (pedido.cliente_id && saldoPendienteRevertido > 0) {
+    try {
+      const { data: c } = await supabase
+        .from('clientes')
+        .select('deuda_total')
+        .eq('id', pedido.cliente_id)
+        .maybeSingle()
+      if (c) {
+        const nueva = Math.max(0, Number(c.deuda_total ?? 0) - saldoPendienteRevertido)
+        await supabase.from('clientes').update({ deuda_total: nueva }).eq('id', pedido.cliente_id)
+      }
+    } catch (err) {
+      console.error('[pedidos/delete] deuda_total adjust non-fatal:', err)
     }
   }
 
-  // Delete any factura associated (only possible if not paid)
-  await supabase.from('facturas').delete().eq('pedido_id', params.id)
+  // ── Delete pedido_items + pedido ────────────────────────────────────────
   await supabase.from('pedido_items').delete().eq('pedido_id', params.id)
-
   const { error } = await supabase.from('pedidos').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Activity snapshot ───────────────────────────────────────────────────
+  void logActivity(supabase, {
+    user_id: user.id,
+    action: estadoEntregada ? 'eliminar_pedido_entregado' : 'eliminar_pedido',
+    resource: 'pedidos',
+    resource_id: params.id,
+    estado_anterior: estadoActual,
+    estado_nuevo: 'eliminado',
+    details: {
+      numero: pedido.numero,
+      total: pedido.total,
+      items_count: items?.length ?? 0,
+      facturas_count: facturas?.length ?? 0,
+      saldo_pendiente_revertido: saldoPendienteRevertido,
+      pagos_revertidos: pagosRevertidos,
+    },
+  })
+
   return NextResponse.json({ success: true })
 }

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
-import { BarChart2, TrendingUp, Users, Package } from 'lucide-react'
+import { BarChart2, TrendingUp, Users, Package, ArrowUpRight, ArrowDownRight, Wallet, Layers } from 'lucide-react'
 import VentasMensualesChart from '@/components/dashboard/VentasMensualesChart'
 import TopProductosChart from '@/components/dashboard/TopProductosChart'
 
@@ -18,9 +18,11 @@ export default async function ReportesPage() {
     { data: facturasAnio },
     { data: facturaItems },
     { data: topClientesRaw },
+    { data: transaccionesAnio },
+    { data: factItemsAnioCogs },
   ] = await Promise.all([
     supabase.from('facturas')
-      .select('total, fecha_emision')
+      .select('id, total, fecha_emision')
       .gte('fecha_emision', yearStart)
       .neq('estado', 'anulada'),
     // Scoped to current year only — prevents full table scan at scale
@@ -32,6 +34,15 @@ export default async function ReportesPage() {
       .select('total, clientes(id, nombre)')
       .gte('fecha_emision', yearStart)
       .neq('estado', 'anulada'),
+    // Income statement source — three legs (ingreso / costo / gasto)
+    supabase.from('transacciones')
+      .select('tipo, monto')
+      .gte('fecha', yearStart.split('T')[0]),
+    // For COGS: items linked to non-anulada facturas this year
+    supabase.from('factura_items')
+      .select('cantidad, fecha:created_at, presentacion:presentaciones(costo)')
+      .gte('created_at', yearStart)
+      .limit(5000),
   ])
 
   // ── Monthly sales ─────────────────────────────────────────────────────────
@@ -76,6 +87,25 @@ export default async function ReportesPage() {
   const mesActual = ventasMensuales[now.getMonth()].total
   const mesAnterior = ventasMensuales[Math.max(0, now.getMonth() - 1)].total
   const variacion = mesAnterior > 0 ? ((mesActual - mesAnterior) / mesAnterior) * 100 : 0
+
+  // ── Income statement (year-to-date) ───────────────────────────────────────
+  const ingresosAnio = (transaccionesAnio ?? [])
+    .filter((t: any) => t.tipo === 'ingreso')
+    .reduce((s: number, t: any) => s + Number(t.monto ?? 0), 0)
+  const costoInventarioAnio = (transaccionesAnio ?? [])
+    .filter((t: any) => t.tipo === 'costo')
+    .reduce((s: number, t: any) => s + Number(t.monto ?? 0), 0)
+  const gastosOperativosAnio = (transaccionesAnio ?? [])
+    .filter((t: any) => t.tipo === 'gasto')
+    .reduce((s: number, t: any) => s + Number(t.monto ?? 0), 0)
+  const cogsAnio = (factItemsAnioCogs ?? []).reduce((s: number, it: any) => {
+    const unitCost = Number(it.presentacion?.costo ?? 0)
+    return s + Number(it.cantidad ?? 0) * unitCost
+  }, 0)
+  const utilidadBrutaAnio = ingresosAnio - cogsAnio
+  const utilidadNetaAnio = utilidadBrutaAnio - gastosOperativosAnio
+  const margenBrutoAnio = ingresosAnio > 0 ? (utilidadBrutaAnio / ingresosAnio) * 100 : 0
+  const margenNetoAnio = ingresosAnio > 0 ? (utilidadNetaAnio / ingresosAnio) * 100 : 0
 
   return (
     <div className="p-4 lg:p-8 space-y-6">
@@ -128,6 +158,74 @@ export default async function ReportesPage() {
             </div>
           </div>
           <p className="text-2xl font-bold text-slate-800 dark:text-white">{topClientes.length}</p>
+        </div>
+      </div>
+
+      {/* ── Estado de resultados (año) ── */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-slate-500" />
+            <h2 className="font-semibold text-slate-800 dark:text-white text-sm">
+              Estado de resultados — {now.getFullYear()}
+            </h2>
+          </div>
+          <span className="text-xs text-slate-400">Año en curso</span>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-slate-100 dark:divide-slate-700/50">
+          <div className="p-5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <ArrowUpRight className="w-3 h-3 text-emerald-500" /> Ingresos
+            </div>
+            <p className="text-lg font-bold text-emerald-600">{formatCurrency(ingresosAnio)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Cobros del año</p>
+          </div>
+          <div className="p-5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <Package className="w-3 h-3 text-orange-500" /> Costo de lo vendido (COGS)
+            </div>
+            <p className="text-lg font-bold text-orange-600">{formatCurrency(cogsAnio)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Costo de productos facturados</p>
+          </div>
+          <div className="p-5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <ArrowDownRight className="w-3 h-3 text-rose-500" /> Gasto operativo
+            </div>
+            <p className="text-lg font-bold text-rose-600">{formatCurrency(gastosOperativosAnio)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Sueldos, servicios, marketing…</p>
+          </div>
+          <div className="p-5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <TrendingUp className="w-3 h-3 text-sky-500" /> Utilidad bruta
+            </div>
+            <p className={`text-lg font-bold ${utilidadBrutaAnio >= 0 ? 'text-sky-600' : 'text-red-600'}`}>
+              {formatCurrency(utilidadBrutaAnio)}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {ingresosAnio > 0 ? `Margen ${margenBrutoAnio.toFixed(1)}%` : 'Sin ventas'}
+            </p>
+          </div>
+          <div className="p-5 col-span-2 lg:col-span-1 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5">
+              <Wallet className="w-3 h-3 text-teal-500" /> Utilidad neta
+            </div>
+            <p className={`text-lg font-bold ${utilidadNetaAnio >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+              {formatCurrency(utilidadNetaAnio)}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {ingresosAnio > 0 ? `Margen ${margenNetoAnio.toFixed(1)}%` : ''}
+            </p>
+          </div>
+        </div>
+        <div className="px-5 py-3 bg-slate-50/70 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700/50">
+          <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+            <Layers className="w-3 h-3" />
+            <span>
+              <strong>Costo de inventario adquirido en {now.getFullYear()} (compras):</strong>{' '}
+              <span className="text-slate-700 dark:text-slate-200 font-semibold">{formatCurrency(costoInventarioAnio)}</span>
+              {' '}— capital aplicado a stock; impacta utilidad solo cuando el producto se vende (COGS).
+            </span>
+          </p>
         </div>
       </div>
 

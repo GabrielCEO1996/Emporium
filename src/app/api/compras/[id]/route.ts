@@ -213,10 +213,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Ledger: insert gasto when compra is received
+  // Ledger: compras are COSTOS (inventory asset / COGS when sold), not opex.
+  // Keeping them separate from 'gasto' lets the income statement show gross
+  // margin. Historical rows are backfilled by supabase/contabilidad_v1.sql.
   if (estado === 'recibida') {
     await supabase.from('transacciones').insert({
-      tipo: 'gasto',
+      tipo: 'costo',
       monto: data.total ?? 0,
       fecha: new Date().toISOString().split('T')[0],
       concepto: `Compra recibida${data.numero ? ` — ${data.numero}` : ''}`,
@@ -295,6 +297,13 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       }
     }
   }))
+
+  // Reverse the ledger entry (tipo='costo') so deleted compras don't inflate COGS.
+  await supabase
+    .from('transacciones')
+    .delete()
+    .eq('referencia_tipo', 'compra')
+    .eq('referencia_id', params.id)
 
   const { error } = await supabase.from('compras').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

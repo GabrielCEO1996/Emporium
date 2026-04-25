@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { EstadoPedido } from '@/lib/types'
 import {
   Loader2, CheckCircle2, Truck, Package, Lock,
-  XCircle, FileText, Trash2, X, ShieldCheck,
+  XCircle, FileText, Trash2, X, ShieldCheck, AlertTriangle,
 } from 'lucide-react'
 
 interface Conductor {
@@ -42,6 +42,10 @@ export default function PedidoActions({
   // Cancelar modal state
   const [showCancelarModal, setShowCancelarModal] = useState(false)
   const [motivoCancelacion, setMotivoCancelacion] = useState('')
+
+  // Eliminar-entregada modal state — heavier warning because it reverses
+  // inventory deductions, deletes the factura, and rolls back pagos/deuda.
+  const [showEliminarEntregadaModal, setShowEliminarEntregadaModal] = useState(false)
 
   const setLoad = (key: LoadingKey) => setLoading(key)
   const clearLoad = () => setLoading(null)
@@ -128,6 +132,18 @@ export default function PedidoActions({
     } catch (e: any) { toast.error(e.message); clearLoad() }
   }
 
+  const handleEliminarEntregada = async () => {
+    setLoad('eliminar')
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoId}`, { method: 'DELETE', cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error')
+      toast.success('Pedido eliminado — inventario y facturas revertidos')
+      setShowEliminarEntregadaModal(false)
+      router.push('/pedidos')
+    } catch (e: any) { toast.error(e.message); clearLoad() }
+  }
+
   const handleGuardarConductor = async () => {
     setLoad('guardar')
     try {
@@ -156,8 +172,10 @@ export default function PedidoActions({
   const isCancelada = currentEstado === 'cancelada' || currentEstado === 'cancelado'
   const isFacturadoLegacy = currentEstado === 'facturado'
 
-  // Delete button visibility: admin any except entregada; (vendedor own borrador handled in parent)
-  const canAdminDelete = isAdmin && !isEntregada
+  // Delete button visibility:
+  //   - Admin: any state (entregada uses a stronger warning modal)
+  //   - Vendedor own borrador: handled by the borrador branch below
+  const canAdminDelete = isAdmin
 
   return (
     <>
@@ -355,6 +373,16 @@ export default function PedidoActions({
                 Ver Factura
               </Link>
             )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowEliminarEntregadaModal(true)}
+                disabled={loading === 'eliminar'}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+              >
+                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Eliminar Pedido
+              </button>
+            )}
           </div>
         )}
 
@@ -440,6 +468,62 @@ export default function PedidoActions({
               >
                 {loading === 'cancelar' && <Loader2 className="h-4 w-4 animate-spin" />}
                 Cancelar Pedido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Eliminar pedido entregado modal ─────────────────────────────────── */}
+      {showEliminarEntregadaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-red-100 bg-red-50/60 px-6 py-4 rounded-t-2xl">
+              <h2 className="flex items-center gap-2 text-base font-bold text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar pedido entregado
+              </h2>
+              <button
+                onClick={() => setShowEliminarEntregadaModal(false)}
+                disabled={loading === 'eliminar'}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-white transition-colors disabled:opacity-40"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm font-semibold text-slate-900">
+                Este pedido ya fue entregado.
+              </p>
+              <p className="text-sm text-slate-600">
+                Eliminar revertirá:
+              </p>
+              <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
+                <li>Inventario — se restaura el stock descontado</li>
+                <li>Factura asociada y sus líneas</li>
+                <li>Pagos registrados y sus transacciones contables</li>
+                <li>Deuda del cliente (saldo pendiente)</li>
+              </ul>
+              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                Esta acción no se puede deshacer. Queda registrada en el historial de actividad.
+              </div>
+              <p className="pt-1 text-sm font-semibold text-slate-800">¿Continuar?</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => setShowEliminarEntregadaModal(false)}
+                disabled={loading === 'eliminar'}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleEliminarEntregada}
+                disabled={loading === 'eliminar'}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Sí, eliminar
               </button>
             </div>
           </div>

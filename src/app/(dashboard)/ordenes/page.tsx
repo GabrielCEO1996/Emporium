@@ -47,25 +47,42 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
     return q
   }
 
+  // Cascade retries — each attempt drops a different set of optional columns
+  // so we never get stuck when the error surfaces in a different order than
+  // our regex expects. Try richest → leanest.
   let ordenesRes = await buildQuery(true, true)
-  // Cascade: drop v2 cols first, then proof col if still missing
-  if (ordenesRes.error && /estado_pago|verificado_(por|at)/i.test(ordenesRes.error.message || '')) {
-    console.warn('[ordenes/page] checkout_v2 columns missing — retrying without them')
-    ordenesRes = await buildQuery(true, false)
+  if (ordenesRes.error) {
+    console.warn('[ordenes/page] full query failed:', ordenesRes.error.message)
+    ordenesRes = await buildQuery(false, true)   // drop proof col
   }
-  if (ordenesRes.error && /payment_proof_url/.test(ordenesRes.error.message || '')) {
-    console.warn('[ordenes/page] payment_proof_url column missing — retrying without it')
-    ordenesRes = await buildQuery(false, false)
+  if (ordenesRes.error) {
+    console.warn('[ordenes/page] (no-proof) failed:', ordenesRes.error.message)
+    ordenesRes = await buildQuery(true, false)   // drop v2 cols
+  }
+  if (ordenesRes.error) {
+    console.warn('[ordenes/page] (no-v2) failed:', ordenesRes.error.message)
+    ordenesRes = await buildQuery(false, false)  // drop both
+  }
+  if (ordenesRes.error) {
+    console.error('[ordenes/page] list query failed after all retries:', ordenesRes.error)
   }
   const ordenes = ordenesRes.data
 
-  // Count for tab badges
-  const { data: counts } = await supabase.from('ordenes').select('estado')
-  const countBy = (e: string) =>
-    (counts ?? []).filter((r: any) => r.estado === e).length
-  const pendientes = countBy('pendiente')
-  const aprobadas = countBy('aprobada')
-  const rechazadas = countBy('rechazada')
+  // Filtered counts — use COUNT queries with the same estado filter so the
+  // tab badges and the list can never disagree (previously the count query
+  // pulled ALL rows with no join, while the list used nested joins which
+  // could silently drop rows — producing "Aprobadas: 1" + empty list).
+  const [
+    { count: pendientes },
+    { count: aprobadas },
+    { count: rechazadas },
+    { count: totalCount },
+  ] = await Promise.all([
+    supabase.from('ordenes').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
+    supabase.from('ordenes').select('id', { count: 'exact', head: true }).eq('estado', 'aprobada'),
+    supabase.from('ordenes').select('id', { count: 'exact', head: true }).eq('estado', 'rechazada'),
+    supabase.from('ordenes').select('id', { count: 'exact', head: true }),
+  ])
 
   return (
     <div className="p-6 space-y-6">
@@ -84,13 +101,13 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 text-sm">
         <TabLink href="/ordenes?estado=pendiente"  active={estadoFilter === 'pendiente'}
-          icon={<Clock className="w-3.5 h-3.5" />} label="Pendientes" count={pendientes} tone="amber" />
+          icon={<Clock className="w-3.5 h-3.5" />} label="Pendientes" count={pendientes ?? 0} tone="amber" />
         <TabLink href="/ordenes?estado=aprobada"   active={estadoFilter === 'aprobada'}
-          icon={<CheckCircle2 className="w-3.5 h-3.5" />} label="Aprobadas" count={aprobadas} tone="emerald" />
+          icon={<CheckCircle2 className="w-3.5 h-3.5" />} label="Aprobadas" count={aprobadas ?? 0} tone="emerald" />
         <TabLink href="/ordenes?estado=rechazada"  active={estadoFilter === 'rechazada'}
-          icon={<XCircle className="w-3.5 h-3.5" />} label="Rechazadas" count={rechazadas} tone="rose" />
+          icon={<XCircle className="w-3.5 h-3.5" />} label="Rechazadas" count={rechazadas ?? 0} tone="rose" />
         <TabLink href="/ordenes?estado=todas"      active={estadoFilter === 'todas'}
-          icon={null} label="Todas" count={(counts ?? []).length} tone="slate" />
+          icon={null} label="Todas" count={totalCount ?? 0} tone="slate" />
       </div>
 
       <OrdenesClient

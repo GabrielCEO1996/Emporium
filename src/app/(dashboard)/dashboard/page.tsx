@@ -15,6 +15,9 @@ import {
   Calendar,
   Star,
   Target,
+  Wallet,
+  DollarSign,
+  CreditCard,
 } from 'lucide-react'
 import Link from 'next/link'
 import VentasChart from '@/components/dashboard/VentasChart'
@@ -47,6 +50,11 @@ const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 export default async function DashboardPage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: currentProfile } = user
+    ? await supabase.from('profiles').select('rol').eq('id', user.id).single()
+    : { data: null as { rol?: string } | null }
+  const isAdmin = (currentProfile as any)?.rol === 'admin'
 
   const startDay   = startOf('day').toISOString()
   const startWeek  = startOf('week').toISOString()
@@ -140,6 +148,47 @@ export default async function DashboardPage() {
       .gt('stock_minimo', 0)
       .eq('activo', true),
   ])
+
+  // ── Capital total (admin only) ────────────────────────────────────────────
+  // Capital total = Efectivo + Inventario al costo + CxC − CxP
+  //   • Efectivo = ingresos cobrados − gastos operativos − costos (compras pagadas)
+  //   • Inventario al costo = SUM(presentaciones.stock × costo)
+  //   • CxC = facturas emitidas/con_nota_credito (saldo pendiente)
+  //   • CxP = no se rastrea (compras se registran ya pagadas)
+  let capital = {
+    efectivo: 0,
+    inventario: 0,
+    cxc: 0,
+    cxp: 0,
+    total: 0,
+  }
+  if (isAdmin) {
+    const [
+      { data: ledgerTotals },
+      { data: presentacionesAll },
+      { data: facturasAbiertas },
+    ] = await Promise.all([
+      supabase.from('transacciones').select('tipo, monto'),
+      supabase.from('presentaciones').select('stock, costo').eq('activo', true),
+      supabase.from('facturas')
+        .select('total, monto_pagado')
+        .in('estado', ['emitida', 'con_nota_credito']),
+    ])
+
+    capital.efectivo = (ledgerTotals ?? []).reduce((s: number, t: any) => {
+      if (t.tipo === 'ingreso') return s + Number(t.monto ?? 0)
+      if (t.tipo === 'gasto' || t.tipo === 'costo') return s - Number(t.monto ?? 0)
+      return s
+    }, 0)
+    capital.inventario = (presentacionesAll ?? []).reduce(
+      (s: number, p: any) => s + Number(p.stock ?? 0) * Number(p.costo ?? 0), 0
+    )
+    capital.cxc = (facturasAbiertas ?? []).reduce(
+      (s: number, f: any) => s + (Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)), 0
+    )
+    capital.cxp = 0
+    capital.total = capital.efectivo + capital.inventario + capital.cxc - capital.cxp
+  }
 
   // ── Lot expiration + stock_minimo KPIs ────────────────────────────────────
   const vencePronto = new Set<string>(
@@ -270,6 +319,61 @@ export default async function DashboardPage() {
           )
         })}
       </div>
+
+      {/* ── Capital total (admin only) ── */}
+      {isAdmin && (
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 shadow-lg border border-slate-700 text-white">
+          <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                <Wallet className="w-5 h-5 text-emerald-300" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">Capital total del negocio</p>
+                <p className="text-3xl font-bold mt-0.5">{formatCurrency(capital.total)}</p>
+              </div>
+            </div>
+            <Link
+              href="/finanzas"
+              className="text-xs text-emerald-300 hover:text-emerald-200 font-medium flex items-center gap-1"
+            >
+              Ver estado financiero <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
+                <DollarSign className="w-3 h-3" /> Efectivo
+              </div>
+              <p className={`font-bold ${capital.efectivo >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                {formatCurrency(capital.efectivo)}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Cobros − pagos (ledger)</p>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
+                <Package className="w-3 h-3" /> Inventario al costo
+              </div>
+              <p className="font-bold text-violet-300">{formatCurrency(capital.inventario)}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Stock × costo unitario</p>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
+                <CreditCard className="w-3 h-3" /> Cuentas por cobrar
+              </div>
+              <p className="font-bold text-sky-300">{formatCurrency(capital.cxc)}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Saldo facturas abiertas</p>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
+                <ArrowDownRight className="w-3 h-3" /> Cuentas por pagar
+              </div>
+              <p className="font-bold text-slate-300">{formatCurrency(capital.cxp)}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Sin deuda registrada</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Meta mensual de ventas ── */}
       {metaMensual > 0 && (
