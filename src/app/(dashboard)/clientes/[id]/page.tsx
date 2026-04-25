@@ -24,8 +24,6 @@ import {
   AlertTriangle,
   Tag,
   History,
-  User,
-  FileText,
   Plus,
   ReceiptText,
 } from 'lucide-react'
@@ -39,19 +37,24 @@ import ClienteTabBar from '@/components/clientes/ClienteTabBar'
  * The page renders with whatever data IS available — that's a better UX than
  * a full server error boundary for a tab detail view.
  */
-async function safeArray<T = any>(
-  promise: Promise<{ data: T[] | null; error: any }>,
+// Supabase query builders are PromiseLike (thenables), not real Promises.
+// Accept the broadest input type so we can pass `.from(...).select(...)`
+// directly without a wrapping `.then()`.
+async function safeArray<T = unknown>(
+  promise: PromiseLike<{ data: T[] | null; error: unknown }>,
   context: string
 ): Promise<T[]> {
   try {
     const { data, error } = await promise
     if (error) {
-      console.warn(`[clientes/[id]] ${context}: ${error.message ?? error.code ?? 'unknown'}`)
+      const e = error as { message?: string; code?: string }
+      console.warn(`[clientes/[id]] ${context}: ${e?.message ?? e?.code ?? 'unknown'}`)
       return []
     }
     return data ?? []
-  } catch (err: any) {
-    console.warn(`[clientes/[id]] ${context} threw:`, err?.message ?? err)
+  } catch (err) {
+    const e = err as { message?: string }
+    console.warn(`[clientes/[id]] ${context} threw:`, e?.message ?? err)
     return []
   }
 }

@@ -17,6 +17,20 @@ function fmtDate(d?: string | null) {
   return new Intl.DateTimeFormat('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(d))
 }
 
+// HTML-escape user-supplied content before interpolating into the email
+// template. Email clients render HTML, so an unescaped <script>/<img onerror>
+// in factura.notas or item.descripcion is a real XSS vector for whoever opens
+// the email — mirrors lib/email/nueva-orden.ts.
+function escHtml(s: unknown): string {
+  if (s === null || s === undefined) return ''
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function buildHtml(factura: any, empresa: any): string {
   const emp = {
     nombre: empresa?.nombre ?? 'Emporium',
@@ -30,7 +44,7 @@ function buildHtml(factura: any, empresa: any): string {
 
   const itemRows = (factura.items ?? []).map((item: any, i: number) => `
     <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
-      <td style="padding:10px 14px;color:#1e293b;font-size:13px">${item.descripcion}</td>
+      <td style="padding:10px 14px;color:#1e293b;font-size:13px">${escHtml(item.descripcion)}</td>
       <td style="padding:10px 14px;text-align:center;color:#475569;font-size:13px">${item.cantidad}</td>
       <td style="padding:10px 14px;text-align:right;color:#475569;font-size:13px">${fmt(item.precio_unitario)}</td>
       <td style="padding:10px 14px;text-align:right;color:#475569;font-size:13px">${item.descuento > 0 ? item.descuento + '%' : '—'}</td>
@@ -111,10 +125,10 @@ function buildHtml(factura: any, empresa: any): string {
         </td>
         <td width="50%" style="vertical-align:top;padding-left:12px;border-left:1px solid #f1f5f9">
           <div style="font-size:10px;font-weight:700;color:#0D9488;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #CCFBF1;padding-bottom:6px;margin-bottom:10px">Cliente</div>
-          <div style="font-size:14px;font-weight:700;color:#0D9488;margin-bottom:4px">${factura.cliente?.nombre ?? '—'}</div>
-          ${factura.cliente?.rif ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">RIF: ${factura.cliente.rif}</div>` : ''}
-          ${factura.cliente?.telefono ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">${factura.cliente.telefono}</div>` : ''}
-          ${factura.cliente?.direccion ? `<div style="font-size:12px;color:#64748b">${factura.cliente.direccion}${factura.cliente.ciudad ? ', ' + factura.cliente.ciudad : ''}</div>` : ''}
+          <div style="font-size:14px;font-weight:700;color:#0D9488;margin-bottom:4px">${escHtml(factura.cliente?.nombre ?? '—')}</div>
+          ${factura.cliente?.rif ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">RIF: ${escHtml(factura.cliente.rif)}</div>` : ''}
+          ${factura.cliente?.telefono ? `<div style="font-size:12px;color:#64748b;margin-bottom:2px">${escHtml(factura.cliente.telefono)}</div>` : ''}
+          ${factura.cliente?.direccion ? `<div style="font-size:12px;color:#64748b">${escHtml(factura.cliente.direccion)}${factura.cliente.ciudad ? ', ' + escHtml(factura.cliente.ciudad) : ''}</div>` : ''}
         </td>
       </tr>
     </table>
@@ -154,7 +168,7 @@ function buildHtml(factura: any, empresa: any): string {
   <tr><td style="background:#ffffff;padding:0 32px 24px">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
       <div style="font-size:10px;font-weight:700;color:#0D9488;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">Observaciones</div>
-      <div style="font-size:13px;color:#475569;line-height:1.5">${factura.notas}</div>
+      <div style="font-size:13px;color:#475569;line-height:1.5">${escHtml(factura.notas)}</div>
     </div>
   </td></tr>` : ''}
 

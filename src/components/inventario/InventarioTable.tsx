@@ -175,7 +175,7 @@ function groupByProducto(rows: InventarioRow[]): ProductoGroup[] {
       g.precioVenta = g.producto.precio_venta_sugerido
     }
     // Sort lots by fecha_vencimiento ASC NULLS LAST, then by numero_lote
-    g.rows.sort((a, b) => {
+    g.rows.sort((a: InventarioRow, b: InventarioRow) => {
       const ad = a.fecha_vencimiento
       const bd = b.fecha_vencimiento
       if (ad && bd) return ad.localeCompare(bd)

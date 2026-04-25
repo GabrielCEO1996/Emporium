@@ -37,10 +37,10 @@ export const metadata: Metadata = {
     title: 'Emporium',
     startupImage: [],
   },
-  other: {
-    'mobile-web-app-capable': 'yes',
-    'apple-touch-fullscreen': 'yes',
-  },
+  // `appleWebApp.capable: true` already emits both
+  // `apple-mobile-web-app-capable` and `mobile-web-app-capable` meta tags;
+  // the `apple-touch-fullscreen` tag is deprecated by Apple. Both were
+  // previously duplicated under `other`, which Next 15 typings reject.
 };
 
 export default function RootLayout({

@@ -30,6 +30,10 @@ export async function GET(
     if (!gate.ok) return gate.response
 
     const paramId = params.id
+    // Reject non-UUID input to keep our id|user_id lookup safe.
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(paramId)) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
 
     // Resolve cliente by id first, fall back to user_id so legacy / app-user
     // routes still find the right row.

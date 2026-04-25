@@ -184,6 +184,8 @@ export function logActivity(
     ipAddress?: string
   },
 ): void {
+  // Two-arg .then handles both fulfilled and rejected cases without needing
+  // .catch (Supabase's PostgrestBuilder is a PromiseLike, not a real Promise).
   supabase
     .from('activity_logs')
     .insert({
@@ -194,6 +196,5 @@ export function logActivity(
       details:     params.details ?? null,
       ip_address:  params.ipAddress ?? null,
     })
-    .then(() => null)
-    .catch(() => null)
+    .then(() => null, () => null)
 }

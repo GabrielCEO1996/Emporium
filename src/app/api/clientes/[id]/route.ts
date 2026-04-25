@@ -6,6 +6,13 @@ import { requireAdmin, requireAdminOrVendedor } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// PostgREST `.or()` parses commas as separators; if the UUID we interpolate
+// contains commas/periods or other operator chars, the filter expression
+// breaks. UUIDs are well-formed, so we defensively validate before building
+// any string-templated filter.
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+function isUuid(s: string): boolean { return UUID_RE.test(s) }
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
@@ -16,6 +23,10 @@ export async function GET(
     // Staff-only — non-staff have no business reading arbitrary cliente rows.
     const gate = await requireAdminOrVendedor(supabase)
     if (!gate.ok) return gate.response
+
+    if (!isUuid(params.id)) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
 
     // Resolve by id first; if missing, retry by user_id so app-user routes
     // still find the cliente row.
@@ -37,7 +48,7 @@ export async function GET(
 
     if (error) {
       console.error('[GET /api/clientes/[id]]', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Error al cargar cliente' }, { status: 500 })
     }
     if (!data) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
@@ -97,6 +108,11 @@ export async function PUT(
 
     // Resolve to canonical cliente.id (param may be id or user_id) before
     // updating, so legacy app-user URLs still write to the correct row.
+    // We validate UUID shape first to keep the .or() filter expression safe
+    // from injection (PostgREST .or() is comma-separated string-templated).
+    if (!isUuid(params.id)) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
     let canonicalId: string | null = null
     {
       const lookup = await supabase
@@ -144,6 +160,10 @@ export async function DELETE(
     const gate = await requireAdmin(supabase)
     if (!gate.ok) return gate.response
 
+    // Validate UUID shape before string-templated .or() — see comment in PUT.
+    if (!isUuid(params.id)) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+    }
     // Resolve canonical cliente.id (param may be id or user_id).
     const lookup = await supabase
       .from('clientes')

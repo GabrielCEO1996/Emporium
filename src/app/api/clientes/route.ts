@@ -28,9 +28,16 @@ export async function GET(request: Request) {
       .range(offset, offset + limit - 1)
 
     if (search) {
-      query = query.or(
-        `nombre.ilike.%${search}%,rif.ilike.%${search}%,ciudad.ilike.%${search}%,email.ilike.%${search}%`
-      )
+      // Sanitize: PostgREST .or() uses commas as condition separators and
+      // periods as field/operator separators. A search term like "foo,1=1"
+      // would break the filter expression. Strip those chars + control bytes
+      // and cap length so a malicious caller can't craft a giant filter.
+      const safe = search.replace(/[,.()%*"'\\]/g, ' ').trim().slice(0, 100)
+      if (safe) {
+        query = query.or(
+          `nombre.ilike.%${safe}%,rif.ilike.%${safe}%,ciudad.ilike.%${safe}%,email.ilike.%${safe}%,telefono.ilike.%${safe}%`
+        )
+      }
     }
 
     if (activo !== null && activo !== '') {
@@ -40,7 +47,9 @@ export async function GET(request: Request) {
     const { data, error, count } = await query
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      // Don't echo Supabase error.message to clients — leaks schema info.
+      console.error('[GET /api/clientes]', error)
+      return NextResponse.json({ error: 'Error al cargar clientes' }, { status: 500 })
     }
 
     return NextResponse.json({ data, total: count ?? 0, page, limit })

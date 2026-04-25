@@ -162,7 +162,12 @@ export async function POST(request: Request) {
     })
 
     const subtotal = itemsWithSubtotals.reduce((sum: number, i: any) => sum + i.subtotal, 0)
-    const safeGlobalDescuento = Math.max(0, Number(globalDescuento) || 0)
+    // Clamp the global discount to [0, subtotal] so a tampered request can't
+    // create a factura with negative base_imponible / total.
+    const safeGlobalDescuento = Math.min(
+      subtotal,
+      Math.max(0, Number(globalDescuento) || 0)
+    )
     const base_imponible = Math.max(0, subtotal - safeGlobalDescuento)
     const impuesto = 0
     const total = base_imponible
@@ -170,7 +175,10 @@ export async function POST(request: Request) {
     // Generate invoice number atomically via PostgreSQL sequence (no race condition)
     const { data: seqData, error: seqError } = await supabase
       .rpc('get_next_sequence', { seq_name: 'facturas' })
-    if (seqError) return NextResponse.json({ error: seqError.message }, { status: 500 })
+    if (seqError) {
+      console.error('[POST /api/facturas] sequence:', seqError)
+      return NextResponse.json({ error: 'No se pudo generar el número de factura' }, { status: 500 })
+    }
     const numero = seqData
 
     // Create factura
