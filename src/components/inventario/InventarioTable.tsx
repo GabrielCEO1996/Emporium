@@ -461,8 +461,8 @@ export default function InventarioTable({
                         {isExpanded && (
                           <tr className="bg-slate-50/40">
                             <td colSpan={8} className="p-0">
-                              <div className="px-6 py-4">
-                                <table className="w-full text-xs">
+                              <div className="px-6 py-4 overflow-x-auto">
+                                <table className="w-full text-xs min-w-[640px]">
                                   <thead>
                                     <tr className="text-slate-500">
                                       <th className="text-left py-2 font-semibold">Presentación</th>
