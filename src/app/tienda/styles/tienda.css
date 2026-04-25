@@ -156,3 +156,235 @@
 @keyframes tiendaLoaderProgress {
   to { transform: scaleX(1); }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * HERO + GLOBO + PIN OVERLAY (Fase 4)
+ * El hero section es position:relative y altura 100vh. Dentro:
+ *   - canvas del Globe (Fase 4)
+ *   - SVG pin overlay (Fase 4)
+ *   - texto eyebrow + title + subtitle + CTAs (Fase 5 enriquece con stats)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-hero {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-cream);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: center;
+  padding: 0 8vw;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.tienda-hero-content {
+  position: relative;
+  z-index: 3;
+  max-width: 600px;
+  pointer-events: none;
+}
+
+.tienda-hero-content > * {
+  pointer-events: auto;
+}
+
+.tienda-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--brand-teal);
+  margin-bottom: 24px;
+}
+
+.tienda-hero-eyebrow::before {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 0.5px;
+  background: var(--brand-teal);
+}
+
+.tienda-hero-title {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-weight: 300;
+  font-size: clamp(48px, 6.5vw, 104px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: var(--brand-navy);
+  margin-bottom: 24px;
+}
+
+.tienda-hero-title em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--brand-teal);
+}
+
+.tienda-hero-subtitle {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 440px;
+  margin-bottom: 36px;
+}
+
+.tienda-hero-subtitle strong {
+  color: var(--brand-navy);
+  font-weight: 500;
+}
+
+.tienda-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.tienda-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 26px;
+  background: var(--brand-navy);
+  color: var(--bg-cream);
+  border: none;
+  border-radius: 100px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
+  text-decoration: none;
+}
+
+.tienda-cta-primary:hover {
+  background: var(--brand-teal);
+  transform: translateY(-1px);
+}
+
+.tienda-cta-primary .arrow {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.5s var(--ease-out-expo);
+}
+
+.tienda-cta-primary:hover .arrow {
+  transform: translateX(4px);
+}
+
+.tienda-cta-secondary {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 0.5px solid var(--border-subtle);
+  padding-bottom: 4px;
+  transition: color 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
+}
+
+.tienda-cta-secondary:hover {
+  color: var(--brand-navy);
+  border-color: var(--brand-navy);
+}
+
+.tienda-hero-meta {
+  position: relative;
+  z-index: 3;
+  align-self: end;
+  justify-self: end;
+  text-align: right;
+  padding-bottom: 80px;
+  pointer-events: auto;
+}
+
+.tienda-hero-meta-label {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.tienda-hero-meta-value {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--brand-navy);
+  line-height: 1.2;
+}
+
+.tienda-hero-meta-value em {
+  font-size: 14px;
+  color: var(--text-faint);
+  font-style: normal;
+}
+
+.tienda-hero-meta-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-subtle);
+  margin: 16px 0 16px auto;
+}
+
+/* ─── PIN OVERLAY (envuelve el globo, contorno SVG) ────────────────────── */
+.tienda-pin-overlay {
+  position: absolute;
+  top: 50%;
+  left: 70%;
+  transform: translate(-50%, -50%);
+  width: 520px;
+  height: 620px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.tienda-pin-overlay svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── MOBILE GLOBE FALLBACK (static SVG, no GPU) ───────────────────────── */
+.tienda-globe-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tienda-globe-fallback svg {
+  width: min(70vw, 420px);
+  height: auto;
+  opacity: 0.95;
+}
+
+/* ─── Mobile breakpoint — hero stacks, pin shrinks, meta hides ─────────── */
+@media (max-width: 768px) {
+  .tienda-hero {
+    grid-template-columns: 1fr;
+    padding: 100px 6vw 80px;
+    align-items: start;
+  }
+  .tienda-hero-meta { display: none; }
+  .tienda-pin-overlay {
+    width: 320px;
+    height: 380px;
+    left: 50%;
+    top: 60%;
+  }
+  .tienda-hero-title {
+    font-size: clamp(40px, 8vw, 60px);
+  }
+}
