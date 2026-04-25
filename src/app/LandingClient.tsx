@@ -53,8 +53,10 @@ const CATEGORIES = [
     img: 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400',
   },
   {
+    // Previous URL (1583947215259-38e31be8751f) was 404 on the Unsplash
+    // CDN — replaced with a verified household-cleaning still life.
     name: 'Higiene del Hogar',
-    img: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400',
+    img: 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=400',
   },
   {
     name: 'Bebés y Maternidad',

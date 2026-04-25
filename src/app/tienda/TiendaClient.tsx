@@ -2044,11 +2044,14 @@ function Hero({ nombre }: { nombre: string }) {
           transition={{ duration: 1, delay: 0.2 }}
           className="relative aspect-[4/5] lg:aspect-[4/5] rounded-[32px] overflow-hidden bg-gradient-to-br from-stone-100 via-brand-stone to-amber-50 shadow-2xl shadow-brand-navy/10"
         >
+          {/* Wellness oils + botanicals in warm natural light. URL verified
+              with HEAD curl — previous pick (1611243705758-5f47fa8dafdf)
+              was 404 on the Unsplash CDN. */}
           <img
-            src="https://images.unsplash.com/photo-1611243705758-5f47fa8dafdf?auto=format&fit=crop&w=1200&q=85"
-            srcSet="https://images.unsplash.com/photo-1611243705758-5f47fa8dafdf?auto=format&fit=crop&w=600&q=85 600w, https://images.unsplash.com/photo-1611243705758-5f47fa8dafdf?auto=format&fit=crop&w=1200&q=85 1200w"
+            src="https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=1200&q=85"
+            srcSet="https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=85 600w, https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=1200&q=85 1200w"
             sizes="(max-width: 1024px) 100vw, 600px"
-            alt="Apothecary shelf with curated wellness products in warm natural light"
+            alt="Wellness oils and botanicals in warm natural light"
             loading="eager"
             className="w-full h-full object-cover"
           />
