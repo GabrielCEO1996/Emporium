@@ -1,19 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Playfair_Display, Inter } from 'next/font/google'
+import { Cormorant_Garamond, Inter } from 'next/font/google'
+import './styles/tienda.css'
 
-// Luxury typography: editorial serif for headers, humanist sans for body.
-// Exposed as CSS variables so Tailwind can consume them via the theme
-// extension in tailwind.config.ts (fontFamily.serif / fontFamily.sans).
-const playfair = Playfair_Display({
+// Editorial serif (display) + humanist sans (body/UI). Pesos según el HTML
+// de referencia: Cormorant 300/400/500 normal+italic; Inter 300/400/500/600.
+// Exposed via CSS vars so the existing Tailwind theme.fontFamily mapping
+// (serif → var(--font-serif), sans → var(--font-sans)) sigue funcionando.
+const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  style: ['normal', 'italic'],
   variable: '--font-serif',
   display: 'swap',
-  weight: ['400', '500', '600', '700'],
 })
 
 const inter = Inter({
   subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
   variable: '--font-sans',
   display: 'swap',
 })
@@ -40,7 +44,9 @@ export default async function TiendaLayout({ children }: { children: React.React
   if (rol === 'pendiente') redirect('/pendiente')
 
   return (
-    <div className={`${playfair.variable} ${inter.variable} font-sans bg-brand-cream min-h-screen text-brand-navy`}>
+    <div
+      className={`${cormorant.variable} ${inter.variable} tienda-screen font-sans bg-brand-cream min-h-screen text-brand-navy`}
+    >
       {children}
     </div>
   )

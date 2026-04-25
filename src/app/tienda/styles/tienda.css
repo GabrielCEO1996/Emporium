@@ -1,3 +1,79 @@
-/* CSS variables y utilities específicas de /tienda
- * Populated en Fase 2.
+/* ════════════════════════════════════════════════════════════════════════════
+ * /tienda — Sistema de diseño visual
+ *
+ * Paleta única, coherente con el logo (pin + globo terráqueo):
+ *   - cream + cream-deep:  fondos claros (papel editorial)
+ *   - brand-navy + deep:   color primario, oceános del globo, texto principal
+ *   - brand-teal + soft:   acento, halos, líneas activas, luces
+ *
+ * Cargado por src/app/tienda/layout.tsx para el subárbol de la tienda.
+ * NO cambia tailwind.config — convive con la paleta `brand.*` previa.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Backgrounds */
+  --bg-cream:        #fafaf7;
+  --bg-cream-deep:   #f3f1ea;
+
+  /* Brand */
+  --brand-navy:      #1E3A5F;
+  --brand-navy-deep: #0F2238;
+  --brand-teal:      #0D9488;
+  --brand-teal-soft: #5EBFB6;
+
+  /* Text */
+  --text-primary: #0F2238;
+  --text-muted:   rgba(15, 34, 56, 0.55);
+  --text-faint:   rgba(15, 34, 56, 0.32);
+
+  /* Lines */
+  --border-subtle: rgba(15, 34, 56, 0.10);
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Tienda screen wrapper ──────────────────────────────────────────────────
+ * Aplicado por layout.tsx. Estamos co-existiendo con clases Tailwind del
+ * wrapper viejo (font-sans bg-brand-cream text-brand-navy) durante el
+ * período transición (Fases 2-3). En Fase 4 el landing se reescribe a la
+ * paleta nueva y este selector se vuelve la fuente única de verdad.
  */
+.tienda-screen {
+  font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tienda-screen ::selection {
+  background: var(--brand-teal);
+  color: var(--bg-cream);
+}
+
+/* ─── Cursor: none cuando el CustomCursor está montado ───────────────────────
+ * El CustomCursor (Fase 8) agrega .has-custom-cursor al body al montarse, y
+ * lo quita al desmontarse. Eso garantiza que en mobile (sin custom cursor),
+ * el cursor del sistema se preserva. También respetamos hover/pointer.
+ */
+@media (hover: hover) and (pointer: fine) {
+  body.has-custom-cursor,
+  body.has-custom-cursor a,
+  body.has-custom-cursor button,
+  body.has-custom-cursor input,
+  body.has-custom-cursor textarea,
+  body.has-custom-cursor [role="button"] {
+    cursor: none;
+  }
+}
+
+/* ─── Reduce motion: el globo + arcos se desactivan en Fase 10 ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tienda-screen *,
+  .tienda-screen *::before,
+  .tienda-screen *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
