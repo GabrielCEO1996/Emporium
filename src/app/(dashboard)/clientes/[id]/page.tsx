@@ -258,13 +258,15 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     else aging.mas_90 += saldo
   }
 
-  // Tab defs for the tab bar.
+  // Tab defs for the tab bar — pass icon NAMES (strings), not component
+  // references. The ClienteTabBar is a client component and component
+  // refs are not serializable across the RSC boundary (= React #419).
   const tabs = [
-    { id: 'info',     label: 'Información',           icon: User },
-    { id: 'pedidos',  label: 'Historial de pedidos',  icon: ShoppingCart, count: totalPedidos },
-    { id: 'cuenta',   label: 'Estado de cuenta',      icon: CreditCard, count: facturasUnpaid.length, tone: facturasUnpaid.length > 0 ? 'danger' as const : undefined },
-    { id: 'precios',  label: 'Historial de precios',  icon: History, count: historial.length, tone: historial.length > 0 ? 'violet' as const : undefined },
-    { id: 'notas',    label: 'Notas',                 icon: StickyNote, tone: undefined },
+    { id: 'info',     label: 'Información',           iconName: 'user' as const },
+    { id: 'pedidos',  label: 'Historial de pedidos',  iconName: 'shoppingCart' as const, count: totalPedidos },
+    { id: 'cuenta',   label: 'Estado de cuenta',      iconName: 'creditCard' as const,   count: facturasUnpaid.length, tone: facturasUnpaid.length > 0 ? 'danger' as const : undefined },
+    { id: 'precios',  label: 'Historial de precios',  iconName: 'history' as const,      count: historial.length, tone: historial.length > 0 ? 'violet' as const : undefined },
+    { id: 'notas',    label: 'Notas',                 iconName: 'stickyNote' as const,   tone: undefined },
   ]
 
   return (

@@ -3,12 +3,38 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import type { LucideIcon } from 'lucide-react'
+import {
+  User,
+  ShoppingCart,
+  CreditCard,
+  History,
+  StickyNote,
+  type LucideIcon,
+} from 'lucide-react'
+
+/**
+ * Icon registry — keeps the actual component references on the client
+ * side. We MUST NOT accept a raw component reference as a prop from a
+ * server component because functions can't be serialized across the RSC
+ * boundary (manifests as React error #419 / "An error occurred in the
+ * Server Components render").
+ *
+ * Server callers pass `iconName: 'user' | 'shoppingCart' | ...` instead.
+ */
+const ICONS: Record<string, LucideIcon> = {
+  user: User,
+  shoppingCart: ShoppingCart,
+  creditCard: CreditCard,
+  history: History,
+  stickyNote: StickyNote,
+}
+
+export type TabIconName = keyof typeof ICONS
 
 export interface TabDef {
   id: string
   label: string
-  icon: LucideIcon
+  iconName: TabIconName
   count?: number
   tone?: 'default' | 'danger' | 'violet' | 'amber'
 }
@@ -43,7 +69,7 @@ export default function ClienteTabBar({
       >
         {tabs.map((t) => {
           const active = t.id === activeTab
-          const Icon = t.icon
+          const Icon = ICONS[t.iconName] ?? User
           const badgeCls =
             t.tone === 'danger'  ? 'bg-red-100 text-red-700' :
             t.tone === 'violet'  ? 'bg-violet-100 text-violet-700' :

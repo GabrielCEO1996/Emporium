@@ -20,9 +20,27 @@ export default function ClienteDetailError({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log to console so the dev tools show what actually broke; in prod
-    // the digest hash is the only thing exposed to the user.
-    console.error('[clientes/[id]] segment error:', error)
+    // Log everything we can — in prod React mangles the message but we
+    // still get the stack, name, digest, and the toString form of the
+    // error object. This goes to the BROWSER console (not Vercel
+    // server logs) since error.tsx is a client component, so anyone
+    // debugging valen's profile can paste this into a bug report.
+    try {
+      console.group('[clientes/[id]] segment error')
+      console.error('error:', error)
+      console.error('error.message:', error?.message)
+      console.error('error.name:', error?.name)
+      console.error('error.stack:', error?.stack)
+      console.error('error.digest:', error?.digest)
+      console.error('error.toString:', String(error))
+      console.error('JSON:', (() => {
+        try { return JSON.stringify(error, Object.getOwnPropertyNames(error ?? {})) }
+        catch { return '<not JSON-serializable>' }
+      })())
+      console.groupEnd()
+    } catch (_ignored) {
+      console.error('[clientes/[id]] segment error (logging itself failed):', error)
+    }
   }, [error])
 
   return (
