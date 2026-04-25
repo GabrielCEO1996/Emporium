@@ -77,3 +77,82 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * LOADER — cinematic curtain (Fase 3)
+ * Mounted by tienda/layout.tsx, plays once per sessionStorage flag.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg-cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  pointer-events: all;
+  transition: opacity 1.2s var(--ease-out-expo), visibility 1.2s var(--ease-out-expo);
+}
+
+.tienda-loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.tienda-loader-logo {
+  width: 64px;
+  height: auto;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: tiendaLoaderLogoIn 1.4s var(--ease-out-expo) 0.2s forwards;
+}
+
+.tienda-loader-name {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.42em;
+  color: var(--brand-navy);
+  opacity: 0;
+  transform: translateY(8px);
+  animation: tiendaLoaderLogoIn 1.2s var(--ease-out-expo) 0.6s forwards;
+}
+
+.tienda-loader-progress {
+  width: 80px;
+  height: 0.5px;
+  background: var(--border-subtle);
+  position: relative;
+  margin-top: 8px;
+  opacity: 0;
+  animation: tiendaLoaderFadeIn 0.6s var(--ease-out-expo) 1s forwards;
+  overflow: hidden;
+}
+
+.tienda-loader-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--brand-teal);
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: tiendaLoaderProgress 1.4s var(--ease-out-expo) 1s forwards;
+}
+
+@keyframes tiendaLoaderLogoIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tiendaLoaderFadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes tiendaLoaderProgress {
+  to { transform: scaleX(1); }
+}

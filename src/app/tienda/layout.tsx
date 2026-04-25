@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Cormorant_Garamond, Inter } from 'next/font/google'
+import Loader from './components/Loader'
 import './styles/tienda.css'
 
 // Editorial serif (display) + humanist sans (body/UI). Pesos según el HTML
@@ -47,6 +48,7 @@ export default async function TiendaLayout({ children }: { children: React.React
     <div
       className={`${cormorant.variable} ${inter.variable} tienda-screen font-sans bg-brand-cream min-h-screen text-brand-navy`}
     >
+      <Loader />
       {children}
     </div>
   )
