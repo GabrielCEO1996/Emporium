@@ -123,11 +123,15 @@ export async function POST(req: Request) {
     }
 
     // ── ROL-BASED METHOD RESTRICTIONS (SECURITY) ───────────────────────────
-    // comprador can ONLY pay with: stripe, zelle, cheque.
-    //   - efectivo / tarjeta (in-person) are admin/vendedor-only in-store sales.
-    //   - credito requires authorized cliente account.
-    // cliente (authorized) can use anything except in-person efectivo.
-    // admin / vendedor can use anything (they're on-site).
+    // comprador (online buyer): stripe, zelle, cheque only.
+    //   No efectivo or in-person tarjeta — those flows require staff present.
+    //   No credito unless the account has been authorized (separately gated below).
+    // cliente (authorized B2B): everything in COMPRADOR_ALLOWED + efectivo + credito.
+    //   Efectivo here means "pago contra entrega" — Mache (or her conductor)
+    //   delivers and collects cash; the orden is created in
+    //   estado_pago='pendiente_verificacion' and flips to 'verificado' when
+    //   she confirms via the admin tool.
+    // admin / vendedor: everything (they're on-site).
     const COMPRADOR_ALLOWED = ['stripe', 'zelle', 'cheque'] as const
     if (rol === 'comprador' && !(COMPRADOR_ALLOWED as readonly string[]).includes(tipoPago)) {
       logActivity(supabase, {
@@ -143,24 +147,15 @@ export async function POST(req: Request) {
       })
       return NextResponse.json(
         {
-          error: 'Ese método de pago no está disponible en la tienda en línea. ' +
-                 'Efectivo y tarjeta presencial solo aplican para ventas en tienda.',
+          error: 'Ese método de pago no está disponible para tu cuenta. ' +
+                 'Efectivo y tarjeta presencial son solo para clientes B2B y ventas en tienda.',
         },
         { status: 403 }
       )
     }
-    if (rol === 'cliente' && tipoPago === 'efectivo') {
-      logActivity(supabase, {
-        userId: user.id,
-        action: 'security_violation_payment_method',
-        resource: 'ordenes',
-        details: { rol, attempted_tipo_pago: tipoPago, reason: 'cliente_cannot_use_cash_online' },
-      })
-      return NextResponse.json(
-        { error: 'El pago en efectivo solo aplica para ventas en tienda.' },
-        { status: 403 }
-      )
-    }
+    // Note: rol='cliente' is intentionally allowed to use 'efectivo'.
+    // The downstream branch creates the orden in pendiente_verificacion
+    // exactly like zelle/cheque — Mache marks it verified after collecting.
 
     // Guard: if stripe not configured, reject early instead of creating a
     // phantom orden that will never get a checkout URL.

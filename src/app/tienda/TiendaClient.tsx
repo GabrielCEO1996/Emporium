@@ -706,14 +706,17 @@ function ConfirmModal({
   const total = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
   // ── ROL-BASED METHOD FILTERING (SECURITY — MIRRORS BACKEND) ─────────────
-  // comprador: stripe + zelle + cheque. (Stripe is always shown; if it's not
-  //   configured we render it as "Próximamente" and block selection.)
-  // cliente: stripe + zelle + cheque + credito (if authorized).
+  // comprador (online buyer):
+  //   stripe + zelle + cheque. NO efectivo (no in-person delivery flow).
+  // cliente (authorized B2B with credit):
+  //   stripe + zelle + cheque + efectivo + credito (if authorized).
+  //   Efectivo means "pago contra entrega" — Mache delivers and collects
+  //   cash; the orden stays pendiente_verificacion until she confirms.
   // admin / vendedor: everything.
   const methods: TipoPago[] = (() => {
     if (rol === 'comprador') return ['stripe', 'zelle', 'cheque']
     if (rol === 'cliente') {
-      const base: TipoPago[] = ['stripe', 'zelle', 'cheque']
+      const base: TipoPago[] = ['stripe', 'zelle', 'cheque', 'efectivo']
       if (creditoAutorizado) base.push('credito')
       return base
     }
