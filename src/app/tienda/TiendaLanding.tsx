@@ -147,6 +147,17 @@ if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger)
 }
 
+/**
+ * Returns true when the user prefers reduced motion. We honor this
+ * everywhere — GSAP scroll triggers and the count-up tween both fall
+ * back to instant state changes when this is true. Re-checked at
+ * mount because the OS setting can change between visits.
+ */
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 export default function TiendaLanding({ profile, productos }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const heroImageRef = useRef<HTMLDivElement>(null)
@@ -179,9 +190,10 @@ export default function TiendaLanding({ profile, productos }: Props) {
 
       // Skip scrub on small screens — phones don't handle it well and the
       // motion adds zero value when the hero is already mostly off-screen
-      // by the time the user scrolls a notch.
+      // by the time the user scrolls a notch. Also bail if the user has
+      // OS-level "reduce motion" turned on.
       const isMobile = window.matchMedia('(max-width: 767px)').matches
-      if (isMobile) return
+      if (isMobile || prefersReducedMotion()) return
 
       gsap.to(heroImageRef.current, {
         scale: 0.4,
@@ -363,6 +375,16 @@ export default function TiendaLanding({ profile, productos }: Props) {
           4. FEATURED PRODUCTS — "Más vendidos"
           ════════════════════════════════════════════════════════════════════ */}
       <FeaturedSection productos={productos} />
+
+      {/* ════════════════════════════════════════════════════════════════════
+          5. HOW IT WORKS — dark, sequential reveal
+          ════════════════════════════════════════════════════════════════════ */}
+      <HowItWorksSection />
+
+      {/* ════════════════════════════════════════════════════════════════════
+          6. FINAL CTA — cream, restrained
+          ════════════════════════════════════════════════════════════════════ */}
+      <FinalCTA firstName={firstName} />
     </div>
   )
 }
@@ -604,6 +626,11 @@ function Stat({
       setDisplay(value)
       return
     }
+    // Honor reduce-motion: snap directly to the final number, no animation.
+    if (prefersReducedMotion()) {
+      setDisplay(value)
+      return
+    }
     // Count up over ~1.2s using GSAP for smoother frame pacing than rAF loops.
     const obj = { n: 0 }
     const tween = gsap.to(obj, {
@@ -627,5 +654,148 @@ function Stat({
         {label}
       </span>
     </div>
+  )
+}
+
+// ─── How it works ────────────────────────────────────────────────────────────
+
+const STEPS: Array<{ num: string; title: string; copy: string }> = [
+  {
+    num: '01·',
+    title: 'Explora',
+    copy:
+      'Recorre el catálogo. Filtros por categoría, búsqueda por nombre o código de barras. Sin distracciones.',
+  },
+  {
+    num: '02·',
+    title: 'Elige',
+    copy:
+      'Agrega productos al carrito. Te mostramos el precio aplicable a tu cuenta y el stock disponible al instante.',
+  },
+  {
+    num: '03·',
+    title: 'Recibe',
+    copy:
+      'Confirma el pedido. Coordinamos entrega en 24 horas o pago contra entrega si tu cuenta lo autoriza.',
+  },
+]
+
+function HowItWorksSection() {
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const stepsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      if (!stepsRef.current) return
+      gsap.from(stepsRef.current.querySelectorAll('[data-step]'), {
+        y: 40,
+        opacity: 0,
+        // Sequential — feels like a process unfolding, not a parallel reveal
+        stagger: 0.15,
+        duration: 0.9,
+        ease: 'expo.out',
+        scrollTrigger: {
+          trigger: stepsRef.current,
+          start: 'top 75%',
+        },
+      })
+    }, sectionRef)
+    return () => ctx.revert()
+  }, [])
+
+  return (
+    <section ref={sectionRef} className="bg-[#0a0a0a] text-[#fafaf7]">
+      <div className="max-w-6xl mx-auto px-6 lg:px-10 py-24 lg:py-32">
+        <div className="mb-16 lg:mb-20 max-w-2xl">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[#C9A961] mb-5">
+            Proceso
+          </p>
+          <h2
+            className="font-serif text-[#fafaf7] tracking-tight"
+            style={{ fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: 1.08 }}
+          >
+            Cómo <span className="italic text-[#C9A961]">funciona</span>.
+          </h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-[#fafaf7]/55">
+            Tres pasos. Sin fricciones.
+          </p>
+        </div>
+
+        <div ref={stepsRef} className="grid lg:grid-cols-3 gap-12 lg:gap-8">
+          {STEPS.map((s) => (
+            <div key={s.num} data-step className="lg:border-l lg:border-[#fafaf7]/10 lg:pl-8">
+              <p
+                className="font-serif text-[#C9A961]/80 tabular-nums mb-6"
+                style={{ fontSize: 'clamp(28px, 3.5vw, 40px)' }}
+              >
+                {s.num}
+              </p>
+              <h3
+                className="font-serif text-[#fafaf7] mb-4 tracking-tight"
+                style={{ fontSize: 'clamp(24px, 2.5vw, 32px)', lineHeight: 1.1 }}
+              >
+                {s.title}
+              </h3>
+              <p className="text-[15px] leading-relaxed text-[#fafaf7]/60 max-w-sm">
+                {s.copy}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Final CTA ───────────────────────────────────────────────────────────────
+
+function FinalCTA({ firstName }: { firstName: string }) {
+  const sectionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      if (!sectionRef.current) return
+      // One smooth fade-up. No stagger — single block, single move.
+      gsap.from(sectionRef.current.querySelectorAll('[data-cta-line]'), {
+        y: 30,
+        opacity: 0,
+        stagger: 0.1,
+        duration: 1.0,
+        ease: 'expo.out',
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: 'top 75%',
+        },
+      })
+    }, sectionRef)
+    return () => ctx.revert()
+  }, [])
+
+  return (
+    <section ref={sectionRef} className="bg-[#fafaf7]">
+      <div className="max-w-4xl mx-auto px-6 lg:px-10 py-24 lg:py-32 text-center">
+        <p data-cta-line className="text-[10px] uppercase tracking-[0.3em] text-[#C9A961] mb-6">
+          {firstName ? `Para ti, ${firstName}` : 'Tu próximo pedido'}
+        </p>
+        <h2
+          data-cta-line
+          className="font-serif text-[#0a0a0a] tracking-tight max-w-3xl mx-auto"
+          style={{ fontSize: 'clamp(32px, 5.5vw, 64px)', lineHeight: 1.05 }}
+        >
+          Tu próximo pedido,
+          <br />
+          <span className="italic text-[#C9A961]">en menos clics que un café</span>.
+        </h2>
+        <div data-cta-line className="mt-12">
+          <a
+            href="#catalogo"
+            className="inline-flex items-center gap-2 bg-[#0a0a0a] text-[#fafaf7] text-[11px] uppercase tracking-[0.18em] px-10 py-5 rounded-full hover:bg-[#0a0a0a]/85 transition-all group min-h-[52px]"
+          >
+            Empezar ahora
+            <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </a>
+        </div>
+      </div>
+    </section>
   )
 }
