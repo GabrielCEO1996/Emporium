@@ -53,10 +53,14 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider>
           {children}
+          {/* Toasts at bottom-center so the cart icon (top-right of the
+              tienda header) and the admin notification bell never get
+              hidden by a "added to cart" / "saved" message. 3s is long
+              enough to read but short enough to feel snappy. */}
           <Toaster
             richColors
-            position="top-right"
-            toastOptions={{ duration: 4000 }}
+            position="bottom-center"
+            toastOptions={{ duration: 3000 }}
           />
           <ServiceWorkerRegistration />
           <PWAInstallBanner />

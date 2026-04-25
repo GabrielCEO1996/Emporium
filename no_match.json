@@ -1,0 +1,367 @@
+[
+  {
+    "filename": "162.jpg",
+    "bestScore": 0
+  },
+  {
+    "filename": "ACEITE DE EUCALIPTO CONCENTRADO MEX 2.02 oz.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "ACEITE DLC EUCALIPTO 2oz"
+  },
+  {
+    "filename": "Acetaminofen Jarabe MK .jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "ZORRITONE JARABE 118ml"
+  },
+  {
+    "filename": "Acetaminofen MK 100 pastillas .jpg",
+    "bestScore": 0.25,
+    "bestMatch": "COFAL AZUL 100 GR"
+  },
+  {
+    "filename": "ADVIL PASTILLAS X 24.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ADVIL REGULAR DISPLAY 25/2"
+  },
+  {
+    "filename": "ALKA SELTZER X 12.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "ALKA SELTZER EXTRA STRENGTH STOMACH X 72"
+  },
+  {
+    "filename": "Alka Selzert azul regular 60 tabletas .jpg",
+    "bestScore": 0.16666666666666666,
+    "bestMatch": "ADVIL REGULAR DISPLAY 25/2"
+  },
+  {
+    "filename": "ARTRIFIN CAJA_24 CAPLETS.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "CAJA BULDAK SPICY X2"
+  },
+  {
+    "filename": "ASPIRINA X 40.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "ASPIRINA FORTE DISPLAY"
+  },
+  {
+    "filename": "Barmicil Crema 40gr .jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "BARMICIL"
+  },
+  {
+    "filename": "BEDO TRY _10 Ampolletas 100 Ml OPMX.jpg",
+    "bestScore": 0.42857142857142855,
+    "bestMatch": "NEUROBION IMMUNE SUPPORT 10 VIALES 100 ML"
+  },
+  {
+    "filename": "CALCIO DOBLE 340 ML.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "BRILLANTINA PALMOLIVE 115 ML."
+  },
+  {
+    "filename": "CANESTEN CREMA AZUL 1% 30gr.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "PONDS AZUL S CREMA 100gr"
+  },
+  {
+    "filename": "Canesten ovulos.jpg",
+    "bestScore": 0
+  },
+  {
+    "filename": "CARBONATO DE MAGNESIA VERDE 7 GR.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "JABON DE VIBORA 140 gr"
+  },
+  {
+    "filename": "Clotriplex Crema 12.5 gr  (Lata).jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "VICK VAPORUP LATITA AMERICANO 12 gr x 24"
+  },
+  {
+    "filename": "Clotriplex Crema Tubo 15 gr (Tubo).jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "CLOTRIPLEX TUBO UNIDAD.*15g."
+  },
+  {
+    "filename": "COLGATE CAVITY GDE PROTEC 8 oz.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "ACEITE DLC ROSA MOSQUETA 1 oz"
+  },
+  {
+    "filename": "COLGATE CAVITY PQÑA PROTEC 2.5 oz.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "ACEITE DLC ROSA MOSQUETA 1 oz"
+  },
+  {
+    "filename": "DESOD AXE SPRAY MARINE 150 ml.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "AXE DEO MARINE 150ml"
+  },
+  {
+    "filename": "DESOD AXE SPRAY WILD 150ML.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "AXE DEO MARINE 150ml"
+  },
+  {
+    "filename": "DOLODOL CAJA_24 CAPLETS.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "CAJA BULDAK SPICY X2"
+  },
+  {
+    "filename": "Dolodol vitaminado 20_4 (Display).jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ANGIN FORTE 20 CAPS"
+  },
+  {
+    "filename": "DOLONEUROBION X 30.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "VITAL FUERTE H3 X 30"
+  },
+  {
+    "filename": "GEL MARIGUANOL 120 gr.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "PEYOTE GEL EXTRA FUERTE 250 GR"
+  },
+  {
+    "filename": "Gelmicin Crema 40gr .jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "SEDAL CREMA ANTINUDOS"
+  },
+  {
+    "filename": "HALLS DISPLAY MORA AZUL X 12.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "CEPILLOS DENTAL COLGATE X 12 DISPLAY"
+  },
+  {
+    "filename": "Histaprin Caja 10 pastillas.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "CAJA BULDAK SPICY X2"
+  },
+  {
+    "filename": "Ibuprofen 800 saimed .jpg",
+    "bestScore": 0
+  },
+  {
+    "filename": "INHALADOR VAPORAL _12.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "DIARREFIN TABS 12 ct"
+  },
+  {
+    "filename": "KOMILON VITAMINA JARABE 4oz.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ASEPXIA JABON CARBON 4oz"
+  },
+  {
+    "filename": "KRAZY GLUE.jpg",
+    "bestScore": 0
+  },
+  {
+    "filename": "LECHE DE MAGNESIA PHILLIPS 4 oz.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "Jugo de Naranja"
+  },
+  {
+    "filename": "Loratadina Jarabe Caplin Point Niños 120 ml .jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "AMBROXOL NORDIC EXPECTORANTE 120 ML"
+  },
+  {
+    "filename": "MEJORAL 500 mg X 24.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ASPIRINA 20CT 325 mg"
+  },
+  {
+    "filename": "MOTRIN JARABE 4 oz.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "DERMAN 1.76 oz"
+  },
+  {
+    "filename": "NAPROXENO 220 CAPSULAS_24.jpg",
+    "bestScore": 0.16666666666666666,
+    "bestMatch": "ANTI-GRIP NOCHE  DISPLAY X 24 TABLETAS"
+  },
+  {
+    "filename": "NEO Penicilina pomada 11 gr (40 unidades) .jpg",
+    "bestScore": 0.14285714285714285,
+    "bestMatch": "BRONCOLIN MIEL AZUL 11.4 OZ"
+  },
+  {
+    "filename": "NEOLUBRINA FUERTE _24 CAPLETS.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "VITAL FUERTE H3 X 30"
+  },
+  {
+    "filename": "NEOLUBRINA JARABE 4 oz.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "DERMAN 1.76 oz"
+  },
+  {
+    "filename": "PANADOL ULTRA DISPLAY X 104.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "PANADOL EXTRA FUERTE DISPLAY 104CT 1 27.77"
+  },
+  {
+    "filename": "PARCHES GUADALUPANOS.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "PARCHE GUADALUPANOS 1pz"
+  },
+  {
+    "filename": "POMADA BALSAMO BLANCO 100 GR.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "COFAL AZUL 100 GR"
+  },
+  {
+    "filename": "POMADA LA CAMPANA GDE 2.6 OZ.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "POMADA CAMPANA CHICA"
+  },
+  {
+    "filename": "POMADA LA TIA CHICA 60 gr.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "COFAL ROJO  60 GR"
+  },
+  {
+    "filename": "POMADA LA TIA GRANDE 125 gr.jpg",
+    "bestScore": 0.16666666666666666,
+    "bestMatch": "COFAL AZUL 100 GR"
+  },
+  {
+    "filename": "PREGNANCY TEST.jpg",
+    "bestScore": 0
+  },
+  {
+    "filename": "QUADRIDERM MX 30 gr.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "COFAL AZUL 100 GR"
+  },
+  {
+    "filename": "QUADRYDERM CREMA 2 OZ ZAPOTOL.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "LAGICAM VAGINAL ANTIFUNGAL CREMA 0.9 oz"
+  },
+  {
+    "filename": "RABANO YODADO LAINEZ 8 OZ.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "COLIRIO OCUSAN AZUL 0.5 oz"
+  },
+  {
+    "filename": "SH HERKLIN PARA PIOJOS 60ML.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "PEINES  PARA PIOJOS DISPLAY *12"
+  },
+  {
+    "filename": "SILKA DEFENSE POWDER ICE COOL 6 oz.jpg",
+    "bestScore": 0.16666666666666666,
+    "bestMatch": "AXE DEO ICE CHILL"
+  },
+  {
+    "filename": "SILKA MEDIC MX 30 Gr.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "COFAL AZUL 100 GR"
+  },
+  {
+    "filename": "SOPHIA GOTAS MANZANILLA 15ml.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "GRISI MANZANILLA CONDICIONADOR 13.5"
+  },
+  {
+    "filename": "Sudagrip Te x 25 sobres (Display).jpg",
+    "bestScore": 0.4,
+    "bestMatch": "SUDAGRIP TE NOCHE"
+  },
+  {
+    "filename": "Sudagrip x 100 Capsulas .jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "OMEPRAZOL - 100"
+  },
+  {
+    "filename": "SUKROL TABLETAS X 100.jpg",
+    "bestScore": 0.4,
+    "bestMatch": "ANTIGRIP ADULTO DISPLAY X 100 TABLETAS"
+  },
+  {
+    "filename": "Sulfateazol Crema (40 unidades) (Display).jpg",
+    "bestScore": 0.2,
+    "bestMatch": "CREMA GEL HONGOS 1.4oz"
+  },
+  {
+    "filename": "TABCIN ACTIVE _ 10.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "NEUROBION 10-1"
+  },
+  {
+    "filename": "Tabcin Extra Fuerte Rojo Efervescente x 60 .jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "COFAL ROJO  60 GR"
+  },
+  {
+    "filename": "Tabcin Morado Efervescente x 60 .jpg",
+    "bestScore": 0.42857142857142855,
+    "bestMatch": "TABCIN GEL GRIPE Y TOS MORADO X 60 CAPS"
+  },
+  {
+    "filename": "TABCIN NIGHT X 10.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "NEUROBION 10-1"
+  },
+  {
+    "filename": "TYLENOL GOTERO.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "TYLENOL CAJITA 24ct"
+  },
+  {
+    "filename": "TYLENOL JRBE NIÑOS 4oz.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ASEPXIA JABON CARBON 4oz"
+  },
+  {
+    "filename": "TYLENOL X 24.jpg",
+    "bestScore": 0.3333333333333333,
+    "bestMatch": "TYLENOL CAJITA 24ct"
+  },
+  {
+    "filename": "VERMOX CEREZA 1 TOMA 10 ml.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "NEUROBION IMMUNE SUPPORT 10 VIALES 100 ML"
+  },
+  {
+    "filename": "VERMOX SUSPENSION M  20 ml.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ANGIN FORTE 20 CAPS"
+  },
+  {
+    "filename": "VERMOX TABLETA 500 mg M X 1.jpg",
+    "bestScore": 0.25,
+    "bestMatch": "ASPIRINA 20CT 325 mg"
+  },
+  {
+    "filename": "VICK VAPORUP BABY 50gr.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "VICK VAPORUP LATITA AMERICANO 12 gr x 24"
+  },
+  {
+    "filename": "VICKS INHALADOR CAJA DE 12 TUBITOS INHALADORES.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "CAJA DE WAFER DUBACO"
+  },
+  {
+    "filename": "vitADEROGIL 10 AMPOLLETAS 100 ML.jpg",
+    "bestScore": 0.42857142857142855,
+    "bestMatch": "NEUROBION IMMUNE SUPPORT 10 VIALES 100 ML"
+  },
+  {
+    "filename": "VITAL FUERTE CAJA DE 10 AMPOLLAS BEBIBLES.jpg",
+    "bestScore": 0.2857142857142857,
+    "bestMatch": "CAJA DE WAFER DUBACO"
+  },
+  {
+    "filename": "XL-3 COLD MEDICINE _20 Cap.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "ANGIN FORTE 20 CAPS"
+  },
+  {
+    "filename": "XL-3 MEX AZUL_12 Cap.jpg",
+    "bestScore": 0.2,
+    "bestMatch": "BRONCOLIN MIEL AZUL 11.4 OZ"
+  }
+]
