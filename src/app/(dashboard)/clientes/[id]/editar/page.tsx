@@ -13,15 +13,37 @@ export const dynamic = 'force-dynamic'
 export default async function EditarClientePage({ params }: PageProps) {
   const supabase = createClient()
 
-  const { data: cliente, error } = await supabase
-    .from('clientes')
-    .select('*')
-    .eq('id', params.id)
-    .single()
-
-  if (error || !cliente) {
-    notFound()
+  // Try by clientes.id first (canonical), fallback to user_id (auth UUID)
+  // so legacy / app-user routes still resolve.
+  let cliente: any = null
+  try {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) console.warn(`[clientes/[id]/editar] id fetch: ${error.message}`)
+    cliente = data
+  } catch (err: any) {
+    console.warn(`[clientes/[id]/editar] id fetch threw:`, err?.message ?? err)
   }
+  if (!cliente) {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('user_id', params.id)
+        .maybeSingle()
+      if (error) console.warn(`[clientes/[id]/editar] user_id fallback: ${error.message}`)
+      cliente = data
+    } catch (err: any) {
+      console.warn(`[clientes/[id]/editar] user_id fallback threw:`, err?.message ?? err)
+    }
+  }
+  if (!cliente) notFound()
+
+  // Use canonical cliente.id for breadcrumb link so it always resolves.
+  const clienteId: string = cliente.id
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -34,7 +56,7 @@ export default async function EditarClientePage({ params }: PageProps) {
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
           <Link
-            href={`/clientes/${params.id}`}
+            href={`/clientes/${clienteId}`}
             className="hover:text-teal-600 transition-colors font-medium text-slate-700 truncate max-w-xs"
           >
             {cliente.nombre}

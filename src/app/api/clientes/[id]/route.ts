@@ -17,18 +17,30 @@ export async function GET(
     const gate = await requireAdminOrVendedor(supabase)
     if (!gate.ok) return gate.response
 
-    const { data, error } = await supabase
+    // Resolve by id first; if missing, retry by user_id so app-user routes
+    // still find the cliente row.
+    let { data, error } = await supabase
       .from('clientes')
       .select('*')
       .eq('id', params.id)
-      .single()
+      .maybeSingle()
+
+    if (!data && !error) {
+      const fb = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('user_id', params.id)
+        .maybeSingle()
+      data = fb.data
+      error = fb.error
+    }
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
-      }
       console.error('[GET /api/clientes/[id]]', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    if (!data) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
     }
 
     return NextResponse.json(data)
@@ -83,10 +95,26 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     }
 
+    // Resolve to canonical cliente.id (param may be id or user_id) before
+    // updating, so legacy app-user URLs still write to the correct row.
+    let canonicalId: string | null = null
+    {
+      const lookup = await supabase
+        .from('clientes')
+        .select('id')
+        .or(`id.eq.${params.id},user_id.eq.${params.id}`)
+        .limit(1)
+        .maybeSingle()
+      canonicalId = (lookup.data as any)?.id ?? null
+    }
+    if (!canonicalId) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    }
+
     const { data, error } = await supabase
       .from('clientes')
       .update(clienteData)
-      .eq('id', params.id)
+      .eq('id', canonicalId)
       .select()
       .single()
 
@@ -116,11 +144,23 @@ export async function DELETE(
     const gate = await requireAdmin(supabase)
     if (!gate.ok) return gate.response
 
+    // Resolve canonical cliente.id (param may be id or user_id).
+    const lookup = await supabase
+      .from('clientes')
+      .select('id')
+      .or(`id.eq.${params.id},user_id.eq.${params.id}`)
+      .limit(1)
+      .maybeSingle()
+    const canonicalId: string | null = (lookup.data as any)?.id ?? null
+    if (!canonicalId) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    }
+
     // Check if client has associated orders
     const { count } = await supabase
       .from('pedidos')
       .select('*', { count: 'exact', head: true })
-      .eq('cliente_id', params.id)
+      .eq('cliente_id', canonicalId)
 
     if (count && count > 0) {
       return NextResponse.json(
@@ -132,7 +172,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('clientes')
       .delete()
-      .eq('id', params.id)
+      .eq('id', canonicalId)
 
     if (error) {
       console.error('[DELETE /api/clientes/[id]]', error)

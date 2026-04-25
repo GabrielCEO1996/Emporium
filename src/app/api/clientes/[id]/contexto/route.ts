@@ -29,19 +29,39 @@ export async function GET(
     const gate = await requireAdminOrVendedor(supabase)
     if (!gate.ok) return gate.response
 
-    const clienteId = params.id
+    const paramId = params.id
+
+    // Resolve cliente by id first, fall back to user_id so legacy / app-user
+    // routes still find the right row.
+    let cliente: any = null
+    {
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, descuento_porcentaje, deuda_total, limite_credito, dias_credito')
+        .eq('id', paramId)
+        .maybeSingle()
+      cliente = data
+    }
+    if (!cliente) {
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, descuento_porcentaje, deuda_total, limite_credito, dias_credito')
+        .eq('user_id', paramId)
+        .maybeSingle()
+      cliente = data
+    }
+    if (!cliente) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    }
+    // Canonical id for downstream queries (NEVER use the path param after
+    // this point — it might be a user_id).
+    const clienteId: string = cliente.id
 
     const [
-      { data: cliente },
       { data: pedidosRecientes },
       { count: totalPedidos },
       { data: facturasUnpaid },
     ] = await Promise.all([
-      supabase
-        .from('clientes')
-        .select('id, nombre, descuento_porcentaje, deuda_total, limite_credito, dias_credito')
-        .eq('id', clienteId)
-        .maybeSingle(),
       supabase
         .from('pedidos')
         .select('id, numero, estado, total, fecha_pedido')
@@ -58,10 +78,6 @@ export async function GET(
         .eq('cliente_id', clienteId)
         .in('estado', ['emitida', 'enviada']),
     ])
-
-    if (!cliente) {
-      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
-    }
 
     // Prefer the denormalized deuda_total column when present; fall back to
     // summing the saldo pendiente across open facturas.

@@ -70,8 +70,10 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
   const supabase = createClient()
 
   // ── Main fetch ──────────────────────────────────────────────────────────────
-  // 404 only when the cliente truly doesn't exist — never crash the render
-  // because of a transient query error.
+  // Try `clientes.id` first (the canonical case). If that returns nothing,
+  // fall back to `clientes.user_id` so old links / app-user routes that may
+  // have surfaced the auth user's UUID still resolve to the right cliente.
+  // 404 only when neither lookup matches.
   let cliente: any = null
   try {
     const { data, error } = await supabase
@@ -86,7 +88,30 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
   } catch (err: any) {
     console.warn(`[clientes/[id]] main fetch threw:`, err?.message ?? err)
   }
+
+  if (!cliente) {
+    // Fallback: maybe the URL has a user_id (auth UUID) instead of clientes.id.
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('user_id', params.id)
+        .maybeSingle()
+      if (error) {
+        console.warn(`[clientes/[id]] user_id fallback: ${error.message}`)
+      }
+      cliente = data
+    } catch (err: any) {
+      console.warn(`[clientes/[id]] user_id fallback threw:`, err?.message ?? err)
+    }
+  }
+
   if (!cliente) notFound()
+
+  // From here on use the canonical cliente.id, NEVER params.id, so all
+  // child queries and links resolve correctly regardless of which UUID
+  // the URL originally carried.
+  const clienteId: string = cliente.id
 
   const requestedTab = (searchParams?.tab as TabId) ?? 'info'
   const activeTab: TabId = VALID_TABS.includes(requestedTab) ? requestedTab : 'info'
@@ -105,7 +130,7 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     safeArray(
       supabase.from('pedidos')
         .select('id, numero, estado, fecha_pedido, subtotal, descuento, impuesto, total, notas, direccion_entrega')
-        .eq('cliente_id', params.id)
+        .eq('cliente_id', clienteId)
         .order('fecha_pedido', { ascending: false })
         .limit(100),
       'pedidos',
@@ -113,7 +138,7 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     safeArray(
       supabase.from('facturas')
         .select('id, numero, total, monto_pagado, fecha_emision, fecha_vencimiento, estado')
-        .eq('cliente_id', params.id)
+        .eq('cliente_id', clienteId)
         .in('estado', ['emitida', 'enviada'])
         .order('fecha_emision', { ascending: false }),
       'facturas:unpaid',
@@ -121,7 +146,7 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     safeArray(
       supabase.from('facturas')
         .select('id, numero, total, monto_pagado, fecha_emision, estado')
-        .eq('cliente_id', params.id)
+        .eq('cliente_id', clienteId)
         .order('fecha_emision', { ascending: false })
         .limit(50),
       'facturas:all',
@@ -133,7 +158,7 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
           producto:productos(id, nombre, categoria),
           presentacion:presentaciones(id, nombre, precio)
         `)
-        .eq('cliente_id', params.id)
+        .eq('cliente_id', clienteId)
         .gte('fecha', sixMonthsAgo)
         .order('fecha', { ascending: false })
         .limit(500),
