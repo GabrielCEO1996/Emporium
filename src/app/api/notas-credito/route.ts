@@ -180,41 +180,73 @@ export async function POST(request: NextRequest) {
       }
 
       // ── 3. Restore inventory + record 'devolucion' movement ───────────────
-      await Promise.all(items.map(async (it: any) => {
-        if (!it.presentacion_id || !it.cantidad) return
+      // Phase-4 audit gap: the previous Promise.all swallowed per-item errors.
+      // If 1 of N restores failed (e.g. RLS, missing inventario row), the
+      // others succeeded silently and inventory diverged from the ledger.
+      //
+      // New behavior: collect outcomes; if any item failed, log it loudly and
+      // surface a partial-failure count in the response. We DON'T roll back
+      // the nc itself — by the time we hit step 3 the nc + items are durable
+      // and ledger reversal still needs to run. The caller can re-run a
+      // missing item via a manual inventory adjustment if needed.
+      const restoreResults = await Promise.all(
+        items.map(async (it: any) => {
+          try {
+            if (!it.presentacion_id || !it.cantidad) {
+              return { ok: false, reason: 'invalid_item', presentacion_id: it.presentacion_id ?? null }
+            }
+            const { data: inv, error: invErr } = await supabase
+              .from('inventario')
+              .select('id, stock_total, producto_id')
+              .eq('presentacion_id', it.presentacion_id)
+              .maybeSingle()
+            if (invErr) return { ok: false, reason: invErr.message, presentacion_id: it.presentacion_id }
+            if (!inv) return { ok: false, reason: 'no_inventory_row', presentacion_id: it.presentacion_id }
 
-        const { data: inv } = await supabase
-          .from('inventario')
-          .select('id, stock_total, producto_id')
-          .eq('presentacion_id', it.presentacion_id)
-          .maybeSingle()
+            const stockAnterior = inv.stock_total ?? 0
+            const stockNuevo = stockAnterior + Number(it.cantidad)
 
-        if (!inv) return
+            const { error: updErr } = await supabase
+              .from('inventario')
+              .update({ stock_total: stockNuevo })
+              .eq('id', inv.id)
+            if (updErr) return { ok: false, reason: updErr.message, presentacion_id: it.presentacion_id }
 
-        const stockAnterior = inv.stock_total ?? 0
-        const stockNuevo = stockAnterior + Number(it.cantidad)
+            await supabase
+              .from('presentaciones')
+              .update({ stock: stockNuevo, updated_at: new Date().toISOString() })
+              .eq('id', it.presentacion_id)
 
-        await supabase.from('inventario')
-          .update({ stock_total: stockNuevo })
-          .eq('id', inv.id)
-
-        await supabase.from('presentaciones')
-          .update({ stock: stockNuevo, updated_at: new Date().toISOString() })
-          .eq('id', it.presentacion_id)
-
-        await supabase.from('inventario_movimientos').insert({
-          producto_id: inv.producto_id,
-          presentacion_id: it.presentacion_id,
-          tipo: 'devolucion',
-          cantidad: Number(it.cantidad),
-          stock_anterior: stockAnterior,
-          stock_nuevo: stockNuevo,
-          referencia_tipo: 'nota_credito',
-          referencia_id: nc.id,
-          usuario_id: user.id,
-          notas: `Nota de crédito ${nc.numero} — devolución`,
+            const { error: movErr } = await supabase.from('inventario_movimientos').insert({
+              producto_id: inv.producto_id,
+              presentacion_id: it.presentacion_id,
+              tipo: 'devolucion',
+              cantidad: Number(it.cantidad),
+              stock_anterior: stockAnterior,
+              stock_nuevo: stockNuevo,
+              referencia_tipo: 'nota_credito',
+              referencia_id: nc.id,
+              usuario_id: user.id,
+              notas: `Nota de crédito ${nc.numero} — devolución`,
+            })
+            if (movErr) {
+              return { ok: false, reason: 'mov_insert_failed:' + movErr.message, presentacion_id: it.presentacion_id }
+            }
+            return { ok: true, presentacion_id: it.presentacion_id }
+          } catch (err) {
+            const e = err as { message?: string }
+            return { ok: false, reason: e?.message ?? 'unknown', presentacion_id: it.presentacion_id ?? null }
+          }
         })
-      }))
+      )
+      const restoreFailures = restoreResults.filter(r => !r.ok)
+      if (restoreFailures.length > 0) {
+        console.error(
+          '[notas-credito] partial inventory restore failure on nc',
+          nc.numero,
+          restoreFailures
+        )
+      }
 
       // ── 4. Refund ledger (negative ingreso) ───────────────────────────────
       try {
@@ -286,10 +318,20 @@ export async function POST(request: NextRequest) {
           motivo,
           total,
           tipo: tipoValidado,
+          inventory_restore_failures: restoreFailures.length,
         },
       })
 
-      return NextResponse.json(nc, { status: 201 })
+      return NextResponse.json(
+        {
+          ...nc,
+          // If any item didn't restore, surface it so the UI / admin knows
+          // a manual inventory adjustment is needed for those presentaciones.
+          // Most NC creations will have an empty array here.
+          inventory_warnings: restoreFailures.length > 0 ? restoreFailures : undefined,
+        },
+        { status: 201 }
+      )
 
   } catch (err) {
     console.error('[POST /api/notas-credito]', err)

@@ -187,7 +187,25 @@ export async function POST(request: NextRequest) {
           subtotal: i.subtotal,
         }
       }))
-      await supabase.from('factura_items').insert(facturaItems)
+      const { error: facItemsErr } = await supabase
+        .from('factura_items')
+        .insert(facturaItems)
+      if (facItemsErr) {
+        // Critical: factura exists but its items didn't land. Roll back the
+        // factura + pedido + items so we don't leave an empty-line factura
+        // visible in /facturas (which would also misrepresent revenue).
+        // Order matters: factura_items (none yet, but defensive), factura,
+        // pedido_items, pedido. RLS allows admin/vendedor for all.
+        console.error('[venta-directa] factura_items insert failed, rolling back:', facItemsErr)
+        await supabase.from('factura_items').delete().eq('factura_id', factura.id)
+        await supabase.from('facturas').delete().eq('id', factura.id)
+        await supabase.from('pedido_items').delete().eq('pedido_id', pedido.id)
+        await supabase.from('pedidos').delete().eq('id', pedido.id)
+        return NextResponse.json(
+          { error: 'No se pudieron registrar los renglones de la factura. Operación revertida.' },
+          { status: 500 }
+        )
+      }
 
       // ── 6b. Price memory (historial_precios_cliente) ──────────────────────
       // Record the exact sold price per producto so Mache can see "last sold
