@@ -8,6 +8,7 @@ import {
   ArrowLeft, ShoppingBag, CalendarDays, Truck, Package,
   PackageCheck, Clock, CheckCircle2, Loader2, AlertCircle, Trash2,
 } from 'lucide-react'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 import {
   formatCurrency,
   formatDate,
@@ -49,12 +50,15 @@ export default function CompraDetailPage() {
   // ── estado change (calls PATCH /api/compras/[id]) ─────────────────────────
 
   const handleEstado = async (nuevoEstado: 'recibida' | 'cancelada') => {
-    const confirmMsg =
-      nuevoEstado === 'recibida'
-        ? '¿Confirmar que recibiste esta compra?'
-        : '¿Cancelar esta compra?'
-
-    if (!confirm(confirmMsg)) return
+    const ok = await showConfirm({
+      title: nuevoEstado === 'recibida' ? '¿Confirmar recepción?' : '¿Cancelar la compra?',
+      message: nuevoEstado === 'recibida'
+        ? 'Se actualizará el inventario y se registrará el costo en el libro contable.'
+        : 'La compra quedará marcada como cancelada y no afectará al inventario.',
+      confirmLabel: nuevoEstado === 'recibida' ? 'Sí, recibí' : 'Sí, cancelar',
+      danger: nuevoEstado === 'cancelada',
+    })
+    if (!ok) return
 
     setActionBusy(nuevoEstado)
     setActionError('')
@@ -90,7 +94,13 @@ export default function CompraDetailPage() {
   // ── delete ─────────────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
-    if (!confirm('¿Eliminar esta compra? Esta acción no se puede deshacer.')) return
+    const ok = await showConfirm({
+      title: '¿Eliminar esta compra?',
+      message: 'Esta acción no se puede deshacer. Si la compra estaba recibida, el stock añadido se revertirá.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setActionBusy('delete')
     setActionError('')
     try {

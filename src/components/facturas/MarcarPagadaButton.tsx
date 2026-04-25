@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 interface MarcarPagadaButtonProps {
   facturaId: string
@@ -14,7 +15,12 @@ export default function MarcarPagadaButton({ facturaId }: MarcarPagadaButtonProp
   const [loading, setLoading] = useState(false)
 
   const handleMarcarPagada = async () => {
-    if (!confirm('¿Confirmar que esta factura ha sido pagada completamente?')) return
+    const ok = await showConfirm({
+      title: '¿Marcar como pagada?',
+      message: 'Confirma que esta factura ha sido pagada completamente. Se registrará en el libro contable.',
+      confirmLabel: 'Sí, marcar como pagada',
+    })
+    if (!ok) return
 
     setLoading(true)
     try {

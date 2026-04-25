@@ -4,13 +4,20 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Loader2 } from 'lucide-react'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 export default function EliminarCompraButton({ compraId }: { compraId: string }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
-    if (!confirm('¿Eliminar esta compra? El stock se revertirá automáticamente.')) return
+    const ok = await showConfirm({
+      title: '¿Eliminar esta compra?',
+      message: 'El stock añadido se revertirá automáticamente, junto con la transacción contable.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setLoading(true)
     try {
       const res = await fetch(`/api/compras/${compraId}`, { method: 'DELETE' })

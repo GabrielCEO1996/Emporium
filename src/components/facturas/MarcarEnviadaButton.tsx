@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 interface Props {
   facturaId: string
@@ -14,7 +15,12 @@ export default function MarcarEnviadaButton({ facturaId }: Props) {
   const [loading, setLoading] = useState(false)
 
   const handleMarcarEnviada = async () => {
-    if (!confirm('¿Marcar esta factura como enviada al cliente?')) return
+    const ok = await showConfirm({
+      title: '¿Marcar como enviada?',
+      message: 'Confirma que la factura fue entregada al cliente.',
+      confirmLabel: 'Sí, marcar como enviada',
+    })
+    if (!ok) return
     setLoading(true)
     try {
       const res = await fetch(`/api/facturas/${facturaId}/enviada`, { method: 'POST' })

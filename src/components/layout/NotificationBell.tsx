@@ -107,10 +107,10 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setOpen(p => !p)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
         aria-label="Notificaciones"
       >
-        <Bell className="h-4 w-4" />
+        <Bell className="h-5 w-5" />
         {total > 0 && (
           <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-0.5 ${urgentCount > 0 ? 'bg-red-500' : 'bg-teal-500'}`}>
             {total > 9 ? '9+' : total}

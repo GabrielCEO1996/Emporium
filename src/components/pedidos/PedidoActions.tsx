@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { EstadoPedido } from '@/lib/types'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 import {
   Loader2, CheckCircle2, Truck, Package, Lock,
   XCircle, FileText, Trash2, X, ShieldCheck, AlertTriangle,
@@ -97,7 +98,12 @@ export default function PedidoActions({
   }
 
   const handleEntregar = async () => {
-    if (!confirm('¿Confirmar entrega? El inventario se descontará definitivamente.')) return
+    const ok = await showConfirm({
+      title: '¿Confirmar entrega del pedido?',
+      message: 'El inventario se descontará definitivamente. Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, marcar como entregado',
+    })
+    if (!ok) return
     setLoad('entregar')
     try {
       await doPost('entregar')
@@ -121,7 +127,13 @@ export default function PedidoActions({
   }
 
   const handleEliminar = async () => {
-    if (!confirm('¿Eliminar este pedido? Esta acción no se puede deshacer.')) return
+    const ok = await showConfirm({
+      title: '¿Eliminar este pedido?',
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setLoad('eliminar')
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}`, { method: 'DELETE', cache: 'no-store' })

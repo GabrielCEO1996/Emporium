@@ -273,7 +273,9 @@ export default function Sidebar({ profile, stockAlertas = 0, pendingOrdenes = 0 
               href={item.href}
               prefetch={false}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0 flex-1 relative',
+                // min-h-[44px] guarantees the WCAG-recommended tap target on
+                // mobile, even though the icon itself stays 24px.
+                'flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] rounded-xl transition-all min-w-0 flex-1 relative',
                 isActive ? 'text-teal-600' : 'text-slate-500'
               )}
             >

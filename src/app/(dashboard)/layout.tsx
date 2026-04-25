@@ -7,6 +7,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle'
 import KeyboardShortcutsInit from '@/components/ui/KeyboardShortcutsInit'
 import NotificationBell from '@/components/layout/NotificationBell'
 import CommandPalette from '@/components/ui/CommandPalette'
+import ConfirmDialogHost from '@/components/ui/ConfirmDialog'
 import { Profile } from '@/lib/types'
 
 export default async function DashboardLayout({
@@ -50,6 +51,7 @@ export default async function DashboardLayout({
     <div className="flex h-screen gradient-mesh overflow-hidden">
       <KeyboardShortcutsInit />
       <CommandPalette />
+      <ConfirmDialogHost />
       <Sidebar
         profile={profile as Profile | null}
         stockAlertas={stockAlertas}

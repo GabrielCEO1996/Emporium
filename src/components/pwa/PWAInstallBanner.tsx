@@ -80,7 +80,7 @@ export default function PWAInstallBanner() {
           onClick={dismiss}
           className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0 touch-manipulation"
           aria-label="Cerrar"
-          style={{ minHeight: 36, minWidth: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ minHeight: 40, minWidth: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <X size={16} />
         </button>
@@ -112,7 +112,7 @@ export default function PWAInstallBanner() {
             onClick={dismiss}
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0 touch-manipulation"
             aria-label="Cerrar"
-            style={{ minHeight: 36, minWidth: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ minHeight: 40, minWidth: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <X size={16} />
           </button>

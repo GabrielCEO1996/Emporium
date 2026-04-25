@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Wallet, CalendarDays, Trash2, Loader2, Filter, Search } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 type Categoria = 'operacion' | 'personal' | 'marketing' | 'servicios' | 'otro'
 
@@ -60,7 +61,13 @@ export default function GastosClient({ gastos }: { gastos: Gasto[] }) {
   const filteredTotal = filtered.reduce((s, g) => s + Number(g.monto ?? 0), 0)
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este gasto? Se eliminará también la transacción asociada.')) return
+    const ok = await showConfirm({
+      title: '¿Eliminar este gasto?',
+      message: 'Se eliminará también la transacción asociada del libro contable.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setDeleting(id)
     try {
       const res = await fetch(`/api/gastos/${id}`, { method: 'DELETE', cache: 'no-store' })

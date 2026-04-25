@@ -8,6 +8,7 @@ import {
   Search, Plus, Pencil, Trash2, Phone, Mail,
   MessageCircle, Star, Clock, BadgeCheck, XCircle
 } from 'lucide-react'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 interface Proveedor {
   id: string
@@ -59,7 +60,13 @@ export default function ProveedoresClient({ initialData }: Props) {
   })
 
   const handleDelete = async (id: string, nombre: string) => {
-    if (!confirm(`¿Desactivar a "${nombre}"?`)) return
+    const ok = await showConfirm({
+      title: `¿Desactivar a "${nombre}"?`,
+      message: 'El proveedor dejará de aparecer en los selectores. Podrás reactivarlo después si es necesario.',
+      confirmLabel: 'Sí, desactivar',
+      danger: true,
+    })
+    if (!ok) return
     setDeleting(id)
     const res = await fetch(`/api/proveedores/${id}`, { method: 'DELETE' })
     if (res.ok) {

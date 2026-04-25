@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Loader2 } from 'lucide-react'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 interface Props {
   facturaId: string
@@ -21,7 +22,13 @@ export default function EliminarFacturaButton({ facturaId, facturaNumero, estado
   if (estadoActual === 'pagada') return null
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar definitivamente la factura ${facturaNumero}? Esta acción no se puede deshacer.`)) return
+    const ok = await showConfirm({
+      title: `¿Eliminar la factura ${facturaNumero}?`,
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setLoading(true)
     try {
       const res = await fetch(`/api/facturas/${facturaId}`, { method: 'DELETE' })

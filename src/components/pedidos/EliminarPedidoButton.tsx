@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Loader2 } from 'lucide-react'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 interface Props {
   pedidoId: string
@@ -15,7 +16,13 @@ export default function EliminarPedidoButton({ pedidoId, pedidoNumero }: Props) 
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar el pedido #${pedidoNumero}? Esta acción no se puede deshacer.`)) return
+    const ok = await showConfirm({
+      title: `¿Eliminar el pedido #${pedidoNumero}?`,
+      message: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setLoading(true)
     try {
       const res = await fetch(`/api/pedidos/${pedidoId}`, { method: 'DELETE' })

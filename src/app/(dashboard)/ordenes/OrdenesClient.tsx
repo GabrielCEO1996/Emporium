@@ -9,6 +9,7 @@ import {
   Wallet, Landmark, CreditCard, FileText, BadgeCheck, Banknote, FileCheck,
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
 type EstadoPago = 'verificado' | 'pendiente_verificacion' | 'rechazado'
@@ -57,7 +58,12 @@ export default function OrdenesClient({
   const [motivo, setMotivo] = useState('')
 
   const handleAprobar = async (orden: Orden) => {
-    if (!confirm(`¿Aprobar orden ${orden.numero}? Se creará un pedido nuevo.`)) return
+    const ok = await showConfirm({
+      title: `¿Aprobar orden ${orden.numero}?`,
+      message: 'Se creará un pedido nuevo a partir de esta orden.',
+      confirmLabel: 'Sí, aprobar',
+    })
+    if (!ok) return
     setBusyId(orden.id)
     try {
       const res = await fetch(`/api/ordenes/${orden.id}/aprobar`, { method: 'POST' })
@@ -79,7 +85,12 @@ export default function OrdenesClient({
       orden.tipo_pago === 'efectivo' ? 'efectivo' :
       orden.tipo_pago === 'transferencia' ? 'transferencia' :
       'este método'
-    if (!confirm(`¿Confirmar que recibiste el pago de ${orden.numero} por ${tipo}? Esto aprobará la orden y creará el pedido.`)) return
+    const ok = await showConfirm({
+      title: `¿Confirmar pago de ${orden.numero}?`,
+      message: `Confirma que recibiste el pago por ${tipo}. La orden se aprobará y se creará el pedido automáticamente.`,
+      confirmLabel: 'Sí, confirmar pago',
+    })
+    if (!ok) return
     setBusyId(orden.id)
     try {
       const res = await fetch(`/api/ordenes/${orden.id}/confirmar-pago`, { method: 'POST' })
