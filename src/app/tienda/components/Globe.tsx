@@ -378,26 +378,9 @@ const atmosphereFragment = /* glsl */ `
   }
 `
 
-const starsVertex = /* glsl */ `
-  attribute float aSeed;
-  uniform float uTime;
-  varying float vAlpha;
-  void main() {
-    vAlpha = 0.15 + 0.25 * sin(uTime * 0.5 + aSeed);
-    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-    gl_Position = projectionMatrix * mvPos;
-    gl_PointSize = 1.5;
-  }
-`
-
-const starsFragment = /* glsl */ `
-  varying float vAlpha;
-  void main() {
-    vec2 c = gl_PointCoord - 0.5;
-    if (length(c) > 0.5) discard;
-    gl_FragColor = vec4(0.369, 0.749, 0.714, vAlpha);
-  }
-`
+// Background stars used to live here. Moved to SpaceBackground.tsx so that
+// the cosmic depth lives behind the entire /tienda surface (not just the
+// hero), with parallax across all six sections.
 
 // ─── Distribution destinations from Chicago ──────────────────────────────
 const SPHERE_RADIUS = 1.4
@@ -532,38 +515,6 @@ function EarthScene() {
     })
   }, [chicagoLocal])
 
-  // Stars
-  const starsGeometry = useMemo(() => {
-    const count = 120
-    const positions = new Float32Array(count * 3)
-    const seeds = new Float32Array(count)
-    for (let i = 0; i < count; i++) {
-      const r = 8 + Math.random() * 6
-      const theta = Math.random() * Math.PI * 2
-      const phi = (Math.random() - 0.5) * Math.PI
-      positions[i * 3]     = r * Math.cos(theta) * Math.cos(phi)
-      positions[i * 3 + 1] = r * Math.sin(phi)
-      positions[i * 3 + 2] = r * Math.sin(theta) * Math.cos(phi) - 4
-      seeds[i] = Math.random() * Math.PI * 2
-    }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
-    return g
-  }, [])
-
-  const starsMaterial = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: { uTime: earthMaterial.uniforms.uTime },
-        vertexShader: starsVertex,
-        fragmentShader: starsFragment,
-      }),
-    [earthMaterial],
-  )
-
   // Per-frame: time, parallax, earth rotation, arcs phases, hq pulse
   useFrame((state) => {
     const t = state.clock.getElapsedTime()
@@ -642,9 +593,6 @@ function EarthScene() {
 
   return (
     <>
-      {/* Background stars */}
-      <points geometry={starsGeometry} material={starsMaterial} />
-
       {/* Atmosphere — fresnel teal, additive */}
       <mesh ref={atmosphereRef} position={[1.6, 0, 0]} material={atmosphereMaterial}>
         <sphereGeometry args={[1.55, 64, 64]} />

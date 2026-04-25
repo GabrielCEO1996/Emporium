@@ -24,11 +24,20 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
 import { ArrowUpRight } from 'lucide-react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import GlobeStage from './components/GlobeStage'
 import PinOverlay from './components/PinOverlay'
+
+// Lazy-load: three.js is heavy and the cosmic background is purely cosmetic.
+// ssr:false avoids shipping it to the SSR pass and to clients that bail
+// before the Canvas mounts (e.g. very low-end devices, headless crawlers).
+const SpaceBackground = dynamic(() => import('./components/SpaceBackground'), {
+  ssr: false,
+  loading: () => null,
+})
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -196,7 +205,14 @@ export default function TiendaLanding({ profile, productos }: Props) {
   }, [])
 
   return (
-    <div ref={rootRef}>
+    <div ref={rootRef} className="tienda-landing-root">
+      {/* Cosmic depth — fixed behind everything, three layers with subtle
+          parallax. Self-disables on reduce-motion and downscales density
+          on mobile/low-core devices. The non-hero sections live at z-index 1
+          (set by .tienda-landing-root > section:not(.tienda-hero)) so they
+          paint over the cosmic background when scrolled into view. */}
+      <SpaceBackground />
+
       {/* ════════════════════════════════════════════════════════════════════
           1. HERO — Globo 3D + saludo personalizado (Fase 4)
           La paleta del HTML de referencia: cream + navy + teal. El Globe

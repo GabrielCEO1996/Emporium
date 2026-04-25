@@ -158,6 +158,26 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * SPACE BACKGROUND (Fase 4 add-on)
+ * Capa cosmica fixed detrás de TODO. Su <canvas> hereda 100% del wrapper.
+ * z-index 0: detrás del globo (z-index 1) y de las secciones (z-index 2+).
+ * pointer-events:none para no interceptar clicks.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-space-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tienda-space-bg canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
  * HERO + GLOBO + PIN OVERLAY (Fase 4)
  * El hero section es position:relative y altura 100vh. Dentro:
  *   - canvas del Globe (Fase 4)
@@ -165,11 +185,23 @@
  *   - texto eyebrow + title + subtitle + CTAs (Fase 5 enriquece con stats)
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/* tienda-landing-root wraps the whole landing — its only job is to make the
+ * non-hero sections positioned (z-index 1) so they sit ABOVE the fixed
+ * SpaceBackground (z-index 0). Without this, the cosmic background would
+ * paint over the stats/categories/etc. sections (positioned beats flow). */
+.tienda-landing-root > section:not(.tienda-hero) {
+  position: relative;
+  z-index: 1;
+}
+
 .tienda-hero {
   position: relative;
+  /* No background — let SpaceBackground show through. The .tienda-screen
+   * wrapper still has bg-brand-cream as a fallback in case Three.js fails
+   * to load (offline, low-end devices skipping the Canvas). */
+  background: transparent;
   width: 100%;
   min-height: 100vh;
-  background: var(--bg-cream);
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   align-items: center;
