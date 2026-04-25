@@ -22,38 +22,45 @@ export const runtime = 'nodejs'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-  if (!webhookSecret) {
-    console.error('[webhook/stripe] STRIPE_WEBHOOK_SECRET missing')
-    return NextResponse.json({ error: 'Webhook secret no configurado' }, { status: 503 })
-  }
-
-  const signature = req.headers.get('stripe-signature')
-  if (!signature) return NextResponse.json({ error: 'Sin firma' }, { status: 400 })
-
-  const rawBody = await req.text()
-  let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
-  } catch (err: any) {
-    console.error('[webhook/stripe] signature error:', err.message)
-    return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 })
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+      if (!webhookSecret) {
+        console.error('[webhook/stripe] STRIPE_WEBHOOK_SECRET missing')
+        return NextResponse.json({ error: 'Webhook secret no configurado' }, { status: 503 })
+      }
+
+      const signature = req.headers.get('stripe-signature')
+      if (!signature) return NextResponse.json({ error: 'Sin firma' }, { status: 400 })
+
+      const rawBody = await req.text()
+      let event: Stripe.Event
+      try {
+        event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
+      } catch (err: any) {
+        console.error('[webhook/stripe] signature error:', err.message)
+        return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 })
+      }
+
+      try {
+        if (event.type === 'checkout.session.completed') {
+          await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
+        } else if (event.type === 'checkout.session.expired') {
+          console.log('[webhook/stripe] session expired:', (event.data.object as any).id)
+        } else if (event.type === 'payment_intent.payment_failed') {
+          console.log('[webhook/stripe] payment failed:', (event.data.object as any).id)
+        }
+      } catch (err: any) {
+        console.error('[webhook/stripe] handler threw:', err)
+        // Return 200 anyway — we've logged it, don't trigger Stripe retry storms
+      }
+
+      return NextResponse.json({ received: true })
+
+  } catch (err) {
+    console.error('[POST /api/webhook/stripe]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 
-  try {
-    if (event.type === 'checkout.session.completed') {
-      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
-    } else if (event.type === 'checkout.session.expired') {
-      console.log('[webhook/stripe] session expired:', (event.data.object as any).id)
-    } else if (event.type === 'payment_intent.payment_failed') {
-      console.log('[webhook/stripe] payment failed:', (event.data.object as any).id)
-    }
-  } catch (err: any) {
-    console.error('[webhook/stripe] handler threw:', err)
-    // Return 200 anyway — we've logged it, don't trigger Stripe retry storms
-  }
-
-  return NextResponse.json({ received: true })
 }
 
 // ─── checkout.session.completed handler ─────────────────────────────────────

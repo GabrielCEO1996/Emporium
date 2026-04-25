@@ -9,116 +9,123 @@ export const revalidate = 0
 // POST /api/pedidos/[id]/despachar — ADMIN ONLY
 // aprobada → despachada ; auto-creates factura (estado='emitida') if none exists
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+  try {
+    const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  if (profile?.rol !== 'admin') {
-    return NextResponse.json({ error: 'Solo administradores pueden despachar pedidos' }, { status: 403 })
-  }
+      const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+      if (profile?.rol !== 'admin') {
+        return NextResponse.json({ error: 'Solo administradores pueden despachar pedidos' }, { status: 403 })
+      }
 
-  const { data: pedido } = await supabase
-    .from('pedidos')
-    .select('id, numero, estado, cliente_id, vendedor_id, subtotal, descuento, total')
-    .eq('id', params.id)
-    .single()
+      const { data: pedido } = await supabase
+        .from('pedidos')
+        .select('id, numero, estado, cliente_id, vendedor_id, subtotal, descuento, total')
+        .eq('id', params.id)
+        .single()
 
-  if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
-  if (pedido.estado !== 'aprobada') {
-    return NextResponse.json(
-      { error: `Solo se pueden despachar pedidos aprobados (estado actual: ${pedido.estado})` },
-      { status: 400 }
-    )
-  }
+      if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+      if (pedido.estado !== 'aprobada') {
+        return NextResponse.json(
+          { error: `Solo se pueden despachar pedidos aprobados (estado actual: ${pedido.estado})` },
+          { status: 400 }
+        )
+      }
 
-  // Auto-create factura if not exists
-  const { data: existingFactura } = await supabase
-    .from('facturas')
-    .select('id, numero')
-    .eq('pedido_id', params.id)
-    .maybeSingle()
+      // Auto-create factura if not exists
+      const { data: existingFactura } = await supabase
+        .from('facturas')
+        .select('id, numero')
+        .eq('pedido_id', params.id)
+        .maybeSingle()
 
-  let facturaId:     string | null = existingFactura?.id     ?? null
-  let facturaNumero: string | null = existingFactura?.numero ?? null
+      let facturaId:     string | null = existingFactura?.id     ?? null
+      let facturaNumero: string | null = existingFactura?.numero ?? null
 
-  if (!facturaId) {
-    const { data: pedidoItems } = await supabase
-      .from('pedido_items')
-      .select('*, presentacion:presentaciones(nombre)')
-      .eq('pedido_id', params.id)
+      if (!facturaId) {
+        const { data: pedidoItems } = await supabase
+          .from('pedido_items')
+          .select('*, presentacion:presentaciones(nombre)')
+          .eq('pedido_id', params.id)
 
-    const facturaItemsData = (pedidoItems ?? []).map((pi: any) => ({
-      presentacion_id: pi.presentacion_id,
-      descripcion: pi.presentacion?.nombre ?? 'Artículo',
-      cantidad: pi.cantidad,
-      precio_unitario: pi.precio_unitario,
-      descuento: pi.descuento ?? 0,
-      subtotal: pi.subtotal,
-    }))
+        const facturaItemsData = (pedidoItems ?? []).map((pi: any) => ({
+          presentacion_id: pi.presentacion_id,
+          descripcion: pi.presentacion?.nombre ?? 'Artículo',
+          cantidad: pi.cantidad,
+          precio_unitario: pi.precio_unitario,
+          descuento: pi.descuento ?? 0,
+          subtotal: pi.subtotal,
+        }))
 
-    const { data: seqData } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })
+        const { data: seqData } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })
 
-    const { data: nuevaFactura, error: facturaError } = await supabase
-      .from('facturas')
-      .insert({
-        numero: seqData,
-        pedido_id: params.id,
-        cliente_id: pedido.cliente_id,
-        vendedor_id: pedido.vendedor_id ?? null,
-        estado: 'emitida',
-        fecha_emision: new Date().toISOString().split('T')[0],
-        subtotal: pedido.subtotal,
-        descuento: pedido.descuento ?? 0,
-        base_imponible: pedido.subtotal - (pedido.descuento ?? 0),
-        tasa_impuesto: 0,
-        impuesto: 0,
-        total: pedido.total,
-        monto_pagado: 0,
+        const { data: nuevaFactura, error: facturaError } = await supabase
+          .from('facturas')
+          .insert({
+            numero: seqData,
+            pedido_id: params.id,
+            cliente_id: pedido.cliente_id,
+            vendedor_id: pedido.vendedor_id ?? null,
+            estado: 'emitida',
+            fecha_emision: new Date().toISOString().split('T')[0],
+            subtotal: pedido.subtotal,
+            descuento: pedido.descuento ?? 0,
+            base_imponible: pedido.subtotal - (pedido.descuento ?? 0),
+            tasa_impuesto: 0,
+            impuesto: 0,
+            total: pedido.total,
+            monto_pagado: 0,
+          })
+          .select()
+          .single()
+
+        if (facturaError || !nuevaFactura) {
+          return NextResponse.json({ error: facturaError?.message ?? 'Error al crear factura' }, { status: 500 })
+        }
+
+        if (facturaItemsData.length > 0) {
+          await supabase.from('factura_items').insert(
+            facturaItemsData.map((i) => ({ ...i, factura_id: nuevaFactura.id }))
+          )
+        }
+
+        facturaId     = nuevaFactura.id
+        facturaNumero = nuevaFactura.numero
+      }
+
+      const { data, error } = await supabase
+        .from('pedidos')
+        .update({ estado: 'despachada', updated_at: new Date().toISOString() })
+        .eq('id', params.id)
+        .select()
+        .single()
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      // Activity log — link pedido ↔ factura so /historial can render both as clickable.
+      // Fire-and-forget; a log failure must never roll back the state change.
+      void logActivity(supabase as any, {
+        user_id: user.id,
+        action: 'despachar_pedido',
+        resource: 'pedidos',
+        resource_id: params.id,
+        estado_anterior: pedido.estado,
+        estado_nuevo: 'despachada',
+        details: {
+          pedido_id:      params.id,
+          pedido_numero:  pedido.numero,
+          factura_id:     facturaId,
+          factura_numero: facturaNumero,
+        },
       })
-      .select()
-      .single()
 
-    if (facturaError || !nuevaFactura) {
-      return NextResponse.json({ error: facturaError?.message ?? 'Error al crear factura' }, { status: 500 })
-    }
+      return NextResponse.json({ ...data, factura_id: facturaId, factura_numero: facturaNumero })
 
-    if (facturaItemsData.length > 0) {
-      await supabase.from('factura_items').insert(
-        facturaItemsData.map((i) => ({ ...i, factura_id: nuevaFactura.id }))
-      )
-    }
-
-    facturaId     = nuevaFactura.id
-    facturaNumero = nuevaFactura.numero
+  } catch (err) {
+    console.error('[POST /api/pedidos/[id]/despachar]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 
-  const { data, error } = await supabase
-    .from('pedidos')
-    .update({ estado: 'despachada', updated_at: new Date().toISOString() })
-    .eq('id', params.id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Activity log — link pedido ↔ factura so /historial can render both as clickable.
-  // Fire-and-forget; a log failure must never roll back the state change.
-  void logActivity(supabase as any, {
-    user_id: user.id,
-    action: 'despachar_pedido',
-    resource: 'pedidos',
-    resource_id: params.id,
-    estado_anterior: pedido.estado,
-    estado_nuevo: 'despachada',
-    details: {
-      pedido_id:      params.id,
-      pedido_numero:  pedido.numero,
-      factura_id:     facturaId,
-      factura_numero: facturaNumero,
-    },
-  })
-
-  return NextResponse.json({ ...data, factura_id: facturaId, factura_numero: facturaNumero })
 }

@@ -13,126 +13,133 @@ export const revalidate = 0
 //   admin:    any state except entregada
 //             releases stock_reservado if pedido was aprobada/despachada
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createClient()
+  try {
+    const supabase = createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
-  const isAdmin = profile?.rol === 'admin'
-  const isVendedor = profile?.rol === 'vendedor'
+      const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
+      const isAdmin = profile?.rol === 'admin'
+      const isVendedor = profile?.rol === 'vendedor'
 
-  if (!isAdmin && !isVendedor) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
-  }
+      if (!isAdmin && !isVendedor) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+      }
 
-  const body = await req.json().catch(() => ({}))
-  const motivo: string = (body.motivo ?? '').trim()
+      const body = await req.json().catch(() => ({}))
+      const motivo: string = (body.motivo ?? '').trim()
 
-  const { data: pedido } = await supabase
-    .from('pedidos')
-    .select('numero, estado, vendedor_id, notas')
-    .eq('id', params.id)
-    .single()
+      const { data: pedido } = await supabase
+        .from('pedidos')
+        .select('numero, estado, vendedor_id, notas')
+        .eq('id', params.id)
+        .single()
 
-  if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+      if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
 
-  const estadoActual: string = pedido.estado
-  const estadoEntregada = ['entregada', 'entregado'].includes(estadoActual)
+      const estadoActual: string = pedido.estado
+      const estadoEntregada = ['entregada', 'entregado'].includes(estadoActual)
 
-  if (isVendedor) {
-    if (pedido.vendedor_id !== user.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
-    }
-    if (estadoActual !== 'borrador') {
-      return NextResponse.json(
-        { error: 'Los vendedores solo pueden cancelar pedidos en borrador' },
-        { status: 403 }
-      )
-    }
-  } else if (isAdmin) {
-    if (estadoEntregada) {
-      return NextResponse.json(
-        { error: 'No se puede cancelar un pedido ya entregado' },
-        { status: 400 }
-      )
-    }
-  }
-
-  const requiereLiberacion = ['aprobada', 'despachada', 'despachado', 'en_ruta', 'preparando', 'confirmado'].includes(estadoActual)
-
-  if (requiereLiberacion) {
-    const { data: items } = await supabase
-      .from('pedido_items')
-      .select('presentacion_id, cantidad')
-      .eq('pedido_id', params.id)
-
-    if (items && items.length > 0) {
-      for (const item of items as any[]) {
-        const lots = await fetchLotsFefo(supabase, item.presentacion_id)
-        // Release reservation in FEFO order — lots that expire first
-        // get their reservation freed first so they become available again.
-        const allocs = allocateFefo(lots, item.cantidad, 'reservado')
-
-        for (const { lot, take } of allocs) {
-          const nuevoReservado = Math.max(0, (lot.stock_reservado ?? 0) - take)
-          await supabase
-            .from('inventario')
-            .update({ stock_reservado: nuevoReservado })
-            .eq('id', lot.id)
-
-          await supabase.from('inventario_movimientos').insert({
-            producto_id:       lot.producto_id,
-            presentacion_id:   item.presentacion_id,
-            tipo:              'liberacion',
-            cantidad:          take,
-            stock_anterior:    lot.stock_reservado ?? 0,
-            stock_nuevo:       nuevoReservado,
-            numero_lote:       lot.numero_lote,
-            fecha_vencimiento: lot.fecha_vencimiento,
-            referencia_tipo:   'pedido_cancelado',
-            referencia_id:     params.id,
-            usuario_id:        user.id,
-            notas:             motivo ? `Cancelación: ${motivo}` : 'Pedido cancelado — liberación FEFO',
-          })
+      if (isVendedor) {
+        if (pedido.vendedor_id !== user.id) {
+          return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+        }
+        if (estadoActual !== 'borrador') {
+          return NextResponse.json(
+            { error: 'Los vendedores solo pueden cancelar pedidos en borrador' },
+            { status: 403 }
+          )
+        }
+      } else if (isAdmin) {
+        if (estadoEntregada) {
+          return NextResponse.json(
+            { error: 'No se puede cancelar un pedido ya entregado' },
+            { status: 400 }
+          )
         }
       }
-    }
+
+      const requiereLiberacion = ['aprobada', 'despachada', 'despachado', 'en_ruta', 'preparando', 'confirmado'].includes(estadoActual)
+
+      if (requiereLiberacion) {
+        const { data: items } = await supabase
+          .from('pedido_items')
+          .select('presentacion_id, cantidad')
+          .eq('pedido_id', params.id)
+
+        if (items && items.length > 0) {
+          for (const item of items as any[]) {
+            const lots = await fetchLotsFefo(supabase, item.presentacion_id)
+            // Release reservation in FEFO order — lots that expire first
+            // get their reservation freed first so they become available again.
+            const allocs = allocateFefo(lots, item.cantidad, 'reservado')
+
+            for (const { lot, take } of allocs) {
+              const nuevoReservado = Math.max(0, (lot.stock_reservado ?? 0) - take)
+              await supabase
+                .from('inventario')
+                .update({ stock_reservado: nuevoReservado })
+                .eq('id', lot.id)
+
+              await supabase.from('inventario_movimientos').insert({
+                producto_id:       lot.producto_id,
+                presentacion_id:   item.presentacion_id,
+                tipo:              'liberacion',
+                cantidad:          take,
+                stock_anterior:    lot.stock_reservado ?? 0,
+                stock_nuevo:       nuevoReservado,
+                numero_lote:       lot.numero_lote,
+                fecha_vencimiento: lot.fecha_vencimiento,
+                referencia_tipo:   'pedido_cancelado',
+                referencia_id:     params.id,
+                usuario_id:        user.id,
+                notas:             motivo ? `Cancelación: ${motivo}` : 'Pedido cancelado — liberación FEFO',
+              })
+            }
+          }
+        }
+      }
+
+      const updates: Record<string, unknown> = { estado: 'cancelada', updated_at: new Date().toISOString() }
+      if (motivo) updates.notas = motivo
+
+      const { data, error } = await supabase
+        .from('pedidos')
+        .update(updates)
+        .eq('id', params.id)
+        .select()
+        .single()
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      const { data: facturaRow } = await supabase
+        .from('facturas')
+        .select('id, numero')
+        .eq('pedido_id', params.id)
+        .maybeSingle()
+
+      void logActivity(supabase as any, {
+        user_id: user.id,
+        action: 'cancelar_pedido',
+        resource: 'pedidos',
+        resource_id: params.id,
+        estado_anterior: estadoActual,
+        estado_nuevo: 'cancelada',
+        details: {
+          pedido_id:      params.id,
+          pedido_numero:  pedido.numero,
+          factura_id:     facturaRow?.id     ?? null,
+          factura_numero: facturaRow?.numero ?? null,
+          motivo:         motivo || null,
+        },
+      })
+
+      return NextResponse.json(data)
+
+  } catch (err) {
+    console.error('[POST /api/pedidos/[id]/cancelar]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 
-  const updates: Record<string, unknown> = { estado: 'cancelada', updated_at: new Date().toISOString() }
-  if (motivo) updates.notas = motivo
-
-  const { data, error } = await supabase
-    .from('pedidos')
-    .update(updates)
-    .eq('id', params.id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const { data: facturaRow } = await supabase
-    .from('facturas')
-    .select('id, numero')
-    .eq('pedido_id', params.id)
-    .maybeSingle()
-
-  void logActivity(supabase as any, {
-    user_id: user.id,
-    action: 'cancelar_pedido',
-    resource: 'pedidos',
-    resource_id: params.id,
-    estado_anterior: estadoActual,
-    estado_nuevo: 'cancelada',
-    details: {
-      pedido_id:      params.id,
-      pedido_numero:  pedido.numero,
-      factura_id:     facturaRow?.id     ?? null,
-      factura_numero: facturaRow?.numero ?? null,
-      motivo:         motivo || null,
-    },
-  })
-
-  return NextResponse.json(data)
 }
