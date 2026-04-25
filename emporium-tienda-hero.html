@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emporium — Compra, abastécete.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-cream: #fafaf7;
+      --bg-cream-deep: #f3f1ea;
+      --bg-dark: #0a0a0a;
+      --brand-navy: #1E3A5F;
+      --brand-navy-deep: #0F2238;
+      --brand-teal: #0D9488;
+      --brand-teal-soft: #5EBFB6;
+      --text-primary: #0F2238;
+      --text-muted: rgba(15, 34, 56, 0.55);
+      --text-faint: rgba(15, 34, 56, 0.32);
+      --border-subtle: rgba(15, 34, 56, 0.10);
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-cream);
+      color: var(--text-primary);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      cursor: none;
+    }
+
+    /* ─── INITIAL LOADER (cinematic curtain with logo) ───────── */
+    .loader {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-cream);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      pointer-events: all;
+      transition: opacity 1.2s var(--ease-out-expo), visibility 1.2s var(--ease-out-expo);
+    }
+
+    .loader.done {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .loader-logo {
+      width: 64px;
+      height: auto;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: logoIn 1.4s var(--ease-out-expo) 0.2s forwards;
+    }
+
+    .loader-name {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.42em;
+      color: var(--brand-navy);
+      opacity: 0;
+      transform: translateY(8px);
+      animation: logoIn 1.2s var(--ease-out-expo) 0.6s forwards;
+    }
+
+    .loader-progress {
+      width: 80px;
+      height: 0.5px;
+      background: var(--border-subtle);
+      position: relative;
+      margin-top: 8px;
+      opacity: 0;
+      animation: fadeIn 0.6s var(--ease-out-expo) 1s forwards;
+    }
+
+    .loader-progress::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--brand-teal);
+      transform: scaleX(0);
+      transform-origin: left;
+      animation: progress 1.4s var(--ease-out-expo) 1s forwards;
+    }
+
+    @keyframes logoIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+
+    @keyframes progress {
+      to { transform: scaleX(1); }
+    }
+
+    /* ─── 3D SCENE CANVAS ────────────────────────────────────── */
+    #scene {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ─── PIN MARKER OVERLAY (envuelve el globo, como logo) ─── */
+    .pin-overlay {
+      position: fixed;
+      top: 50%;
+      left: 70%;
+      transform: translate(-50%, -50%);
+      width: 520px;
+      height: 620px;
+      z-index: 2;
+      pointer-events: none;
+      opacity: 0;
+      animation: pinIn 2s var(--ease-out-expo) 2.8s forwards;
+    }
+
+    @keyframes pinIn {
+      to { opacity: 0.85; }
+    }
+
+    .pin-overlay svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ─── STICKY NAV ─────────────────────────────────────────── */
+    .nav {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-12px);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      padding: 12px 24px 12px 16px;
+      background: rgba(250, 250, 247, 0.72);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 0.5px solid var(--border-subtle);
+      border-radius: 100px;
+      opacity: 0;
+      animation: navIn 1s var(--ease-out-expo) 2.6s forwards;
+    }
+
+    @keyframes navIn {
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    .nav-mark {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-right: 16px;
+      border-right: 0.5px solid var(--border-subtle);
+    }
+
+    .nav-mark svg {
+      width: 26px;
+      height: auto;
+      flex-shrink: 0;
+    }
+
+    .nav-mark-text {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.32em;
+      color: var(--brand-navy);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      transition: color 0.4s var(--ease-out-expo);
+    }
+
+    .nav-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .nav-links a.active {
+      color: var(--brand-navy);
+      font-weight: 500;
+    }
+
+    .nav-links a.active::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--brand-teal);
+    }
+
+    .nav-links a {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 6px;
+      background: var(--brand-teal);
+      color: var(--bg-cream);
+      font-size: 10px;
+      font-weight: 500;
+      border-radius: 9px;
+      line-height: 1;
+    }
+
+    /* ─── EMPORIUM BOT — floating chat button (bottom right) ─── */
+    .bot-fab {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 50;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--brand-navy);
+      border: none;
+      cursor: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 24px rgba(15, 34, 56, 0.25);
+      transition: transform 0.5s var(--ease-out-expo), background 0.5s var(--ease-out-expo);
+      opacity: 0;
+      transform: scale(0.6);
+      animation: botIn 1s var(--ease-out-expo) 4.4s forwards;
+    }
+
+    @keyframes botIn {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .bot-fab:hover {
+      background: var(--brand-teal);
+      transform: scale(1.06);
+    }
+
+    .bot-fab svg {
+      width: 22px;
+      height: 22px;
+      color: var(--bg-cream);
+    }
+
+    .bot-fab::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid var(--brand-teal);
+      opacity: 0;
+      animation: botPulse 2.4s var(--ease-out-expo) infinite;
+    }
+
+    @keyframes botPulse {
+      0% { opacity: 0.7; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.4); }
+    }
+
+    .bot-fab-status {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--brand-teal);
+      border: 2px solid var(--brand-navy);
+    }
+
+    .bot-tooltip {
+      position: fixed;
+      bottom: 96px;
+      right: 28px;
+      z-index: 49;
+      background: var(--brand-navy);
+      color: var(--bg-cream);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      animation: botTipIn 1.2s var(--ease-out-expo) 5.4s forwards, botTipOut 1.2s var(--ease-out-expo) 9s forwards;
+    }
+
+    .bot-tooltip::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      right: 22px;
+      width: 8px;
+      height: 8px;
+      background: var(--brand-navy);
+      transform: rotate(45deg);
+    }
+
+    .bot-tooltip-name {
+      display: block;
+      color: var(--brand-teal-soft);
+      font-size: 9px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    @keyframes botTipIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes botTipOut {
+      to { opacity: 0; transform: translateY(-4px); pointer-events: none; }
+    }
+
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      color: var(--bg-cream);
+      padding: 8px 16px;
+      border: none;
+      border-radius: 100px;
+      background: var(--brand-navy);
+      cursor: none;
+      transition: background 0.4s var(--ease-out-expo);
+    }
+
+    .nav-cta:hover {
+      background: var(--brand-teal);
+    }
+
+    .nav-cta-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--brand-teal-soft);
+      animation: pulse 2.6s var(--ease-out-expo) infinite;
+    }
+
+    /* ─── HERO CONTENT (rule of thirds) ──────────────────────── */
+    .hero {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      align-items: center;
+      padding: 0 8vw;
+      pointer-events: none;
+    }
+
+    .hero-content {
+      max-width: 600px;
+    }
+
+    .hero-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--brand-teal);
+      margin-bottom: 24px;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: revealUp 1.2s var(--ease-out-expo) 2.4s forwards;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 32px;
+      height: 0.5px;
+      background: var(--brand-teal);
+    }
+
+    .hero-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 300;
+      font-size: clamp(48px, 6.5vw, 104px);
+      line-height: 0.98;
+      letter-spacing: -0.02em;
+      color: var(--brand-navy);
+      margin-bottom: 24px;
+    }
+
+    .hero-title .word {
+      display: inline-block;
+      overflow: hidden;
+      vertical-align: baseline;
+    }
+
+    .hero-title .inner {
+      display: inline-block;
+      transform: translateY(110%);
+      animation: revealUp 1.4s var(--ease-out-expo) forwards;
+    }
+
+    .hero-title .word:nth-child(1) .inner { animation-delay: 2.6s; }
+    .hero-title .word:nth-child(2) .inner { animation-delay: 2.8s; }
+
+    .hero-title em {
+      font-style: italic;
+      font-weight: 300;
+      color: var(--brand-teal);
+    }
+
+    @keyframes revealUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .hero-subtitle {
+      font-size: 15px;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-width: 440px;
+      margin-bottom: 36px;
+      opacity: 0;
+      transform: translateY(16px);
+      animation: revealUp 1.2s var(--ease-out-expo) 3.2s forwards;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      opacity: 0;
+      transform: translateY(16px);
+      animation: revealUp 1.2s var(--ease-out-expo) 3.5s forwards;
+    }
+
+    .cta-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 26px;
+      background: var(--brand-navy);
+      color: var(--bg-cream);
+      border: none;
+      border-radius: 100px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: none;
+      pointer-events: all;
+      transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
+    }
+
+    .cta-primary:hover {
+      background: var(--brand-teal);
+      transform: translateY(-1px);
+    }
+
+    .cta-primary .arrow {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.5s var(--ease-out-expo);
+    }
+
+    .cta-primary:hover .arrow {
+      transform: translateX(4px);
+    }
+
+    .cta-secondary {
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: none;
+      pointer-events: all;
+      border-bottom: 0.5px solid var(--border-subtle);
+      padding-bottom: 4px;
+      transition: color 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
+    }
+
+    .cta-secondary:hover {
+      color: var(--brand-navy);
+      border-color: var(--brand-navy);
+    }
+
+    /* ─── HERO META (right side editorial) ───────────────────── */
+    .hero-meta {
+      align-self: end;
+      justify-self: end;
+      text-align: right;
+      padding-bottom: 80px;
+      opacity: 0;
+      animation: revealUp 1.2s var(--ease-out-expo) 3.8s forwards;
+      pointer-events: all;
+    }
+
+    .hero-meta-label {
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 10px;
+    }
+
+    .hero-meta-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 26px;
+      font-weight: 400;
+      color: var(--brand-navy);
+      line-height: 1.2;
+    }
+
+    .hero-meta-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--border-subtle);
+      margin: 16px 0 16px auto;
+    }
+
+    /* ─── SCROLL INDICATOR ───────────────────────────────────── */
+    .scroll-cue {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      opacity: 0;
+      animation: revealUp 1.2s var(--ease-out-expo) 4s forwards;
+    }
+
+    .scroll-cue-line {
+      width: 0.5px;
+      height: 32px;
+      background: linear-gradient(to bottom, transparent, var(--brand-teal), transparent);
+      animation: scrollPulse 2.6s var(--ease-out-expo) infinite;
+    }
+
+    @keyframes scrollPulse {
+      0%, 100% { transform: scaleY(0.4); opacity: 0.4; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+
+    /* ─── CUSTOM CURSOR ──────────────────────────────────────── */
+    .cursor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--brand-teal);
+      pointer-events: none;
+      z-index: 1000;
+      transition: width 0.4s var(--ease-out-expo), height 0.4s var(--ease-out-expo);
+    }
+
+    .cursor-ring {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 0.5px solid var(--brand-navy);
+      pointer-events: none;
+      z-index: 999;
+      transition: width 0.4s var(--ease-out-expo), height 0.4s var(--ease-out-expo), opacity 0.4s var(--ease-out-expo);
+      opacity: 0.3;
+    }
+
+    .cursor.hover {
+      width: 0;
+      height: 0;
+    }
+
+    .cursor-ring.hover {
+      width: 56px;
+      height: 56px;
+      opacity: 0.6;
+      border-color: var(--brand-teal);
+    }
+
+    /* ─── EDITORIAL CORNER LABELS ────────────────────────────── */
+    .corner-label {
+      position: fixed;
+      bottom: 32px;
+      left: 8vw;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      opacity: 0;
+      animation: revealUp 1.2s var(--ease-out-expo) 4s forwards;
+    }
+
+    .corner-label-line {
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+
+    .corner-label-line strong {
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .top-right-label {
+      position: fixed;
+      top: 32px;
+      right: 8vw;
+      z-index: 5;
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      text-align: right;
+      opacity: 0;
+      animation: revealUp 1.2s var(--ease-out-expo) 2s forwards;
+    }
+
+    .top-right-label .accent {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--brand-teal);
+      margin-right: 8px;
+      vertical-align: middle;
+      animation: pulse 2.6s var(--ease-out-expo) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.3); }
+    }
+
+    /* ─── CHICAGO TOOLTIP (sobre el globo) ───────────────────── */
+    .chicago-tooltip {
+      position: fixed;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(-12px);
+      animation: revealUp 1.2s var(--ease-out-expo) 4.2s forwards;
+    }
+
+    .chicago-tooltip-card {
+      background: rgba(15, 34, 56, 0.92);
+      backdrop-filter: blur(12px);
+      color: var(--bg-cream);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      white-space: nowrap;
+      box-shadow: 0 0 0 0.5px rgba(13, 148, 136, 0.4);
+    }
+
+    .chicago-tooltip-card::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 50%;
+      transform: translateX(-50%) rotate(45deg);
+      width: 8px;
+      height: 8px;
+      background: rgba(15, 34, 56, 0.92);
+    }
+
+    .chicago-tooltip-line {
+      color: var(--brand-teal-soft);
+      font-size: 9px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      margin-top: 2px;
+      display: block;
+    }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      html, body { cursor: auto; }
+      .cursor, .cursor-ring { display: none; }
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 100px 6vw 80px;
+        align-items: start;
+      }
+      .hero-meta { display: none; }
+      .corner-label { display: none; }
+      .pin-overlay {
+        width: 320px;
+        height: 380px;
+        left: 50%;
+        top: 60%;
+      }
+      .nav {
+        gap: 16px;
+        padding: 10px 14px 10px 12px;
+      }
+      .nav-links { display: none; }
+      .chicago-tooltip { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- LOADER — Logo SVG + nombre + barra de progreso teal       -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="loader" id="loader">
+    <svg class="loader-logo" viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Pin shadow (teal deep, layer atrás) -->
+      <path
+        d="M105 12 C148 12, 178 42, 178 86 C178 128, 148 168, 105 220 C100 226, 96 226, 91 220 C48 168, 18 128, 18 86 C18 42, 48 12, 91 12 Z"
+        fill="#0D9488"
+        opacity="0.45"
+      />
+      <!-- Pin body (teal main) -->
+      <path
+        d="M100 8 C143 8, 173 38, 173 82 C173 124, 143 164, 100 216 C95 222, 91 222, 86 216 C43 164, 13 124, 13 82 C13 38, 43 8, 86 8 Z"
+        fill="#5EBFB6"
+        stroke="#fafaf7"
+        stroke-width="3"
+      />
+      <!-- Inner globe circle -->
+      <circle cx="93" cy="86" r="46" fill="#1E3A5F" />
+      <!-- Continents stylized (Norteamérica + Sudamérica + masa Atlántica) -->
+      <path
+        d="M75 60 Q72 58, 70 62 L68 68 Q66 72, 70 74 L74 78 L72 82 Q70 86, 74 86 L78 84 L82 88 L80 92 L84 96 Q88 96, 88 92 L86 88 L90 86 L94 90 L98 88 L100 92 L96 96 L94 100 L92 106 L96 110 L102 108 L104 112 L102 116 L106 120 L110 116 L112 110 L116 110 L118 106 L116 100 L114 96 L116 92 L114 86 L112 82 L116 78 L114 72 L108 70 L104 66 L98 64 L92 62 L86 60 L80 58 Z"
+        fill="#fafaf7"
+      />
+      <path
+        d="M120 80 Q124 78, 124 82 L122 86 L124 88 L122 92 L120 90 L118 86 L120 82 Z"
+        fill="#fafaf7"
+      />
+      <!-- Pin point connection -->
+      <ellipse cx="93" cy="222" rx="22" ry="4" fill="#fafaf7" opacity="0.25" />
+    </svg>
+    <div class="loader-name">EMPORIUM</div>
+    <div class="loader-progress"></div>
+  </div>
+
+  <!-- Custom cursor -->
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-ring" id="cursor-ring"></div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- 3D Earth canvas                                            -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <canvas id="scene"></canvas>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- PIN MARKER OVERLAY — wraps the 3D globe                    -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="pin-overlay">
+    <svg viewBox="0 0 520 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="soft-glow">
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+      </defs>
+      <!-- Pin outline ONLY (no fill — el globo 3D está adentro) -->
+      <path
+        d="M260 30 C385 30, 470 115, 470 240 C470 360, 385 470, 260 590 C250 600, 240 600, 230 590 C105 470, 50 360, 50 240 C50 115, 135 30, 260 30 Z"
+        fill="none"
+        stroke="#0D9488"
+        stroke-width="2.5"
+        stroke-opacity="0.55"
+      />
+      <!-- Inner soft ring -->
+      <path
+        d="M260 50 C375 50, 450 125, 450 240 C450 350, 375 450, 260 565 C250 575, 240 575, 230 565 C115 450, 60 350, 60 240 C60 125, 145 50, 260 50 Z"
+        fill="none"
+        stroke="#5EBFB6"
+        stroke-width="1"
+        stroke-opacity="0.35"
+      />
+    </svg>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- STICKY NAV — Logo SVG + nombre + links + CTA              -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <nav class="nav">
+    <div class="nav-mark">
+      <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path
+          d="M100 8 C143 8, 173 38, 173 82 C173 124, 143 164, 100 216 C95 222, 91 222, 86 216 C43 164, 13 124, 13 82 C13 38, 43 8, 86 8 Z"
+          fill="#5EBFB6"
+          stroke="#1E3A5F"
+          stroke-width="4"
+        />
+        <circle cx="93" cy="86" r="46" fill="#1E3A5F" />
+        <path
+          d="M75 60 Q72 58, 70 62 L68 68 Q66 72, 70 74 L74 78 L72 82 Q70 86, 74 86 L82 88 L80 92 L84 96 L88 92 L90 86 L94 90 L98 88 L100 92 L96 96 L94 100 L96 110 L102 108 L104 112 L106 120 L110 116 L116 110 L118 106 L116 100 L114 86 L116 78 L108 70 L98 64 L92 62 L80 58 Z"
+          fill="#fafaf7"
+        />
+      </svg>
+      <span class="nav-mark-text">EMPORIUM</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#" class="active">Catálogo</a></li>
+      <li><a href="#">Pedidos <span class="nav-badge">2</span></a></li>
+      <li><a href="#">Cuenta</a></li>
+    </ul>
+    <button class="nav-cta">
+      <span class="nav-cta-dot"></span>
+      Carrito
+    </button>
+  </nav>
+
+  <!-- Top-right status -->
+  <div class="top-right-label">
+    <span class="accent"></span>En línea · Chicago
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- HERO content                                               -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-eyebrow">Hola · 26 de abril, 2026</div>
+      <h1 class="hero-title">
+        <span class="word"><span class="inner">Bienvenida,</span></span><br />
+        <span class="word"><span class="inner"><em>Laura.</em></span></span>
+      </h1>
+      <p class="hero-subtitle">
+        Tienes <strong style="color: var(--brand-navy); font-weight: 500;">2 pedidos en preparación</strong> y 28 productos nuevos en el catálogo desde tu última visita.
+      </p>
+      <div class="hero-actions">
+        <button class="cta-primary">
+          Ver catálogo
+          <svg class="arrow" viewBox="0 0 14 14" fill="none">
+            <path d="M1 7H13M13 7L7 1M13 7L7 13" stroke="currentColor" stroke-width="0.8" />
+          </svg>
+        </button>
+        <a href="#" class="cta-secondary">Mis pedidos (2)</a>
+      </div>
+    </div>
+
+    <aside class="hero-meta">
+      <div class="hero-meta-label">Cr\u00e9dito disponible</div>
+      <div class="hero-meta-value">$ 4,800 <em style="font-size: 14px; color: var(--text-faint); font-style: normal;">USD</em></div>
+      <div class="hero-meta-divider"></div>
+      <div class="hero-meta-label">\u00daltima compra</div>
+      <div class="hero-meta-value">hace 5 d\u00edas <em style="font-size: 14px; color: var(--text-faint); font-style: normal;">$ 320</em></div>
+    </aside>
+  </section>
+
+  <!-- Bottom corner editorial label -->
+  <div class="corner-label">
+    <div class="corner-label-line"><strong>Atención</strong> · WhatsApp</div>
+    <div class="corner-label-line">Lun a Sáb · 8 a.m.–6 p.m.</div>
+  </div>
+
+  <!-- Chicago tooltip (positioned via JS) -->
+  <div class="chicago-tooltip" id="chicago-tooltip">
+    <div class="chicago-tooltip-card">
+      Chicago, IL
+      <span class="chicago-tooltip-line">HQ · Distribución</span>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- EMPORIUMBOT — chat flotante bottom-right                   -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="bot-tooltip">
+    <span class="bot-tooltip-name">EmporiumBot · IA</span>
+    Hola Laura, ¿necesitas ayuda?
+  </div>
+  <button class="bot-fab" aria-label="Abrir EmporiumBot">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      <circle cx="9" cy="10" r="0.8" fill="currentColor"/>
+      <circle cx="12" cy="10" r="0.8" fill="currentColor"/>
+      <circle cx="15" cy="10" r="0.8" fill="currentColor"/>
+    </svg>
+    <span class="bot-fab-status"></span>
+  </button>
+
+  <!-- Scroll cue -->
+  <div class="scroll-cue">
+    Productos
+    <div class="scroll-cue-line"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // ════════════════════════════════════════════════════════════
+    // EMPORIUM — 3D Earth con paleta de marca
+    // Globo terráqueo realista + Chicago pulsante + atmósfera teal
+    // ════════════════════════════════════════════════════════════
+
+    const canvas = document.getElementById('scene');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 6);
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+
+    // ─── BRAND COLORS (GLSL vec3) ───────────────────────────────
+    const COLORS = {
+      cream: new THREE.Color(0xfafaf7),
+      navy: new THREE.Color(0x1E3A5F),
+      navyDeep: new THREE.Color(0x0F2238),
+      teal: new THREE.Color(0x0D9488),
+      tealSoft: new THREE.Color(0x5EBFB6),
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // EARTH — sphere with custom shader
+    // Texture generated 100% offline via canvas (no CDN, no CORS)
+    // Continents drawn as simplified polygons in equirectangular projection
+    // ════════════════════════════════════════════════════════════
+
+    function createEarthTexture() {
+      const c = document.createElement('canvas');
+      c.width = 2048;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      // Ocean base — uses a distinctly "blue-dominant" color so the shader can detect it
+      ctx.fillStyle = '#2a5a8a';
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      // Subtle ocean variation (deeper in middle of oceans)
+      const grad = ctx.createRadialGradient(700, 512, 100, 700, 512, 800);
+      grad.addColorStop(0, 'rgba(20, 50, 90, 0.4)');
+      grad.addColorStop(1, 'rgba(20, 50, 90, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      // Land color — earthy/green-dominant so shader detects as "land"
+      ctx.fillStyle = '#9a8b5a';
+
+      // ─── NORTH AMERICA ────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(380, 200);
+      ctx.bezierCurveTo(440, 170, 520, 165, 580, 195);
+      ctx.bezierCurveTo(640, 185, 700, 200, 720, 230);
+      ctx.bezierCurveTo(740, 270, 730, 320, 700, 350);
+      ctx.bezierCurveTo(680, 380, 660, 400, 640, 405);
+      ctx.bezierCurveTo(610, 430, 580, 445, 555, 440);
+      ctx.bezierCurveTo(540, 460, 520, 470, 510, 460);
+      ctx.bezierCurveTo(490, 470, 480, 490, 475, 510);
+      ctx.bezierCurveTo(465, 525, 450, 520, 440, 510);
+      ctx.bezierCurveTo(420, 495, 410, 470, 400, 440);
+      ctx.bezierCurveTo(380, 410, 360, 380, 350, 350);
+      ctx.bezierCurveTo(330, 320, 320, 280, 330, 250);
+      ctx.bezierCurveTo(340, 220, 360, 205, 380, 200);
+      ctx.closePath();
+      ctx.fill();
+
+      // Greenland
+      ctx.beginPath();
+      ctx.moveTo(720, 150);
+      ctx.bezierCurveTo(770, 140, 810, 155, 800, 200);
+      ctx.bezierCurveTo(790, 240, 760, 250, 730, 230);
+      ctx.bezierCurveTo(710, 200, 705, 170, 720, 150);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── SOUTH AMERICA ────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(530, 510);
+      ctx.bezierCurveTo(570, 505, 600, 540, 605, 580);
+      ctx.bezierCurveTo(610, 620, 600, 660, 590, 700);
+      ctx.bezierCurveTo(580, 750, 565, 800, 545, 830);
+      ctx.bezierCurveTo(530, 850, 515, 855, 510, 830);
+      ctx.bezierCurveTo(495, 790, 490, 740, 495, 700);
+      ctx.bezierCurveTo(495, 650, 500, 600, 510, 560);
+      ctx.bezierCurveTo(515, 530, 525, 510, 530, 510);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── EUROPE ───────────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(960, 200);
+      ctx.bezierCurveTo(1010, 195, 1080, 210, 1110, 240);
+      ctx.bezierCurveTo(1130, 280, 1115, 320, 1080, 335);
+      ctx.bezierCurveTo(1040, 345, 990, 340, 960, 320);
+      ctx.bezierCurveTo(940, 295, 935, 250, 960, 200);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── AFRICA ───────────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(1010, 380);
+      ctx.bezierCurveTo(1080, 370, 1140, 400, 1170, 450);
+      ctx.bezierCurveTo(1185, 500, 1180, 560, 1160, 620);
+      ctx.bezierCurveTo(1140, 680, 1110, 730, 1080, 760);
+      ctx.bezierCurveTo(1050, 780, 1020, 770, 1000, 740);
+      ctx.bezierCurveTo(980, 700, 970, 650, 975, 600);
+      ctx.bezierCurveTo(975, 540, 985, 480, 1000, 430);
+      ctx.bezierCurveTo(1005, 400, 1010, 380, 1010, 380);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── ASIA ─────────────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(1140, 200);
+      ctx.bezierCurveTo(1240, 180, 1380, 175, 1500, 195);
+      ctx.bezierCurveTo(1620, 200, 1720, 220, 1780, 260);
+      ctx.bezierCurveTo(1820, 300, 1800, 340, 1740, 360);
+      ctx.bezierCurveTo(1660, 380, 1560, 390, 1450, 380);
+      ctx.bezierCurveTo(1340, 380, 1240, 370, 1180, 360);
+      ctx.bezierCurveTo(1140, 340, 1130, 280, 1140, 200);
+      ctx.closePath();
+      ctx.fill();
+
+      // India peninsula
+      ctx.beginPath();
+      ctx.moveTo(1380, 380);
+      ctx.bezierCurveTo(1410, 390, 1430, 430, 1420, 470);
+      ctx.bezierCurveTo(1410, 500, 1390, 510, 1370, 490);
+      ctx.bezierCurveTo(1360, 460, 1365, 420, 1380, 380);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── SOUTHEAST ASIA / INDONESIA ───────────────────────
+      ctx.beginPath();
+      ctx.arc(1620, 480, 35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(1680, 510, 25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(1720, 525, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ─── AUSTRALIA ────────────────────────────────────────
+      ctx.beginPath();
+      ctx.moveTo(1700, 600);
+      ctx.bezierCurveTo(1760, 590, 1830, 605, 1850, 640);
+      ctx.bezierCurveTo(1860, 680, 1830, 710, 1780, 715);
+      ctx.bezierCurveTo(1730, 720, 1690, 700, 1680, 670);
+      ctx.bezierCurveTo(1680, 630, 1690, 610, 1700, 600);
+      ctx.closePath();
+      ctx.fill();
+
+      // ─── ANTARCTICA (banda inferior) ──────────────────────
+      ctx.fillStyle = '#aa9d70';
+      ctx.fillRect(0, 940, 2048, 84);
+
+      // ─── UK / IRELAND (small islands) ─────────────────────
+      ctx.fillStyle = '#9a8b5a';
+      ctx.beginPath();
+      ctx.arc(940, 230, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ─── JAPAN ────────────────────────────────────────────
+      ctx.beginPath();
+      ctx.ellipse(1810, 280, 12, 28, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ─── New Zealand ──────────────────────────────────────
+      ctx.beginPath();
+      ctx.ellipse(1920, 730, 10, 25, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Subtle landmass texture (irregular edges)
+      ctx.globalCompositeOperation = 'source-atop';
+      for (let i = 0; i < 800; i++) {
+        const x = Math.random() * 2048;
+        const y = Math.random() * 1024;
+        const alpha = Math.random() * 0.15;
+        ctx.fillStyle = `rgba(100, 80, 40, ${alpha})`;
+        ctx.fillRect(x, y, 2, 2);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 16;
+      tex.wrapS = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const earthTexture = createEarthTexture();
+
+    // ────────────────────────────────────────────────────────────
+    // CITY LIGHTS texture — for the night side of the globe
+    // 40+ major cities glowing on the dark side. Generated offline.
+    // ────────────────────────────────────────────────────────────
+    function createLightsTexture() {
+      const c = document.createElement('canvas');
+      c.width = 2048;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      const cities = [
+        // North America
+        { lat:  40.71, lng:  -74.01, w: 1.0, r: 14 }, // New York
+        { lat:  34.05, lng: -118.24, w: 1.0, r: 13 }, // LA
+        { lat:  41.88, lng:  -87.63, w: 1.0, r: 14 }, // Chicago (HQ)
+        { lat:  25.76, lng:  -80.19, w: 0.85, r: 11 }, // Miami
+        { lat:  37.77, lng: -122.42, w: 0.8, r: 10 }, // SF
+        { lat:  43.65, lng:  -79.38, w: 0.75, r: 10 }, // Toronto
+        { lat:  19.43, lng:  -99.13, w: 0.85, r: 11 }, // Mexico City
+        { lat:  29.76, lng:  -95.37, w: 0.7, r: 9 },  // Houston
+        { lat:  47.61, lng: -122.33, w: 0.7, r: 9 },  // Seattle
+        { lat:  42.36, lng:  -71.06, w: 0.7, r: 9 },  // Boston
+        { lat:  49.28, lng: -123.12, w: 0.65, r: 8 }, // Vancouver
+        // South America
+        { lat: -23.55, lng:  -46.63, w: 0.95, r: 12 }, // São Paulo
+        { lat: -34.61, lng:  -58.38, w: 0.85, r: 11 }, // Buenos Aires
+        { lat:   4.71, lng:  -74.07, w: 0.75, r: 10 }, // Bogotá
+        { lat: -12.05, lng:  -77.04, w: 0.7, r: 9 },  // Lima
+        { lat: -22.91, lng:  -43.17, w: 0.8, r: 10 }, // Rio
+        { lat: -33.45, lng:  -70.67, w: 0.7, r: 9 },  // Santiago
+        // Europe
+        { lat:  51.51, lng:   -0.13, w: 1.0, r: 13 }, // London
+        { lat:  48.86, lng:    2.35, w: 0.95, r: 12 }, // Paris
+        { lat:  40.42, lng:   -3.70, w: 0.8, r: 10 }, // Madrid
+        { lat:  41.90, lng:   12.50, w: 0.75, r: 10 }, // Rome
+        { lat:  52.52, lng:   13.41, w: 0.85, r: 11 }, // Berlin
+        { lat:  52.37, lng:    4.90, w: 0.7, r: 9 },  // Amsterdam
+        { lat:  55.76, lng:   37.62, w: 0.85, r: 11 }, // Moscow
+        { lat:  41.01, lng:   28.98, w: 0.85, r: 11 }, // Istanbul
+        // Africa
+        { lat:  30.04, lng:   31.24, w: 0.85, r: 11 }, // Cairo
+        { lat:   6.52, lng:    3.38, w: 0.8, r: 10 }, // Lagos
+        { lat: -26.20, lng:   28.05, w: 0.7, r: 9 },  // Johannesburg
+        { lat:  33.57, lng:   -7.59, w: 0.65, r: 8 }, // Casablanca
+        { lat: -1.29,  lng:   36.82, w: 0.6, r: 8 },  // Nairobi
+        // Asia
+        { lat:  35.68, lng:  139.69, w: 1.0, r: 14 }, // Tokyo
+        { lat:  39.90, lng:  116.40, w: 1.0, r: 14 }, // Beijing
+        { lat:  31.23, lng:  121.47, w: 1.0, r: 14 }, // Shanghai
+        { lat:  22.32, lng:  114.17, w: 0.9, r: 12 }, // Hong Kong
+        { lat:  37.57, lng:  126.98, w: 0.9, r: 12 }, // Seoul
+        { lat:   1.35, lng:  103.82, w: 0.85, r: 11 }, // Singapore
+        { lat:  19.08, lng:   72.88, w: 1.0, r: 13 }, // Mumbai
+        { lat:  28.61, lng:   77.21, w: 1.0, r: 13 }, // Delhi
+        { lat:  13.76, lng:  100.50, w: 0.85, r: 11 }, // Bangkok
+        { lat:  -6.21, lng:  106.85, w: 0.85, r: 11 }, // Jakarta
+        { lat:  14.60, lng:  120.98, w: 0.8, r: 10 }, // Manila
+        { lat:  25.20, lng:   55.27, w: 0.85, r: 11 }, // Dubai
+        { lat:  24.71, lng:   46.68, w: 0.7, r: 9 },  // Riyadh
+        // Oceania
+        { lat: -33.87, lng:  151.21, w: 0.85, r: 11 }, // Sydney
+        { lat: -37.81, lng:  144.96, w: 0.75, r: 10 }, // Melbourne
+        { lat: -36.85, lng:  174.76, w: 0.6, r: 8 },  // Auckland
+      ];
+
+      cities.forEach(city => {
+        const u = (city.lng + 180) / 360;
+        const v = (90 - city.lat) / 180;
+        const x = u * 2048;
+        const y = v * 1024;
+
+        // Outer glow (warm yellow-amber, blurred)
+        const outerGrad = ctx.createRadialGradient(x, y, 0, x, y, city.r * 2);
+        outerGrad.addColorStop(0, `rgba(255, 220, 140, ${city.w * 0.5})`);
+        outerGrad.addColorStop(0.5, `rgba(255, 180, 80, ${city.w * 0.18})`);
+        outerGrad.addColorStop(1, 'rgba(255, 160, 60, 0)');
+        ctx.fillStyle = outerGrad;
+        ctx.beginPath();
+        ctx.arc(x, y, city.r * 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner bright core
+        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, city.r * 0.6);
+        coreGrad.addColorStop(0, `rgba(255, 240, 200, ${city.w})`);
+        coreGrad.addColorStop(1, `rgba(255, 220, 140, 0)`);
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.arc(x, y, city.r * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Subtle smaller dots scattered along populated areas (continent edges)
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 600; i++) {
+        // Random points biased toward existing cities
+        const cityRef = cities[Math.floor(Math.random() * cities.length)];
+        const u = (cityRef.lng + 180) / 360 + (Math.random() - 0.5) * 0.04;
+        const v = (90 - cityRef.lat) / 180 + (Math.random() - 0.5) * 0.04;
+        const x = u * 2048;
+        const y = v * 1024;
+        const intensity = Math.random() * 0.4 + 0.1;
+        ctx.fillStyle = `rgba(255, 220, 140, ${intensity})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 16;
+      return tex;
+    }
+
+    const lightsTexture = createLightsTexture();
+    earthMaterial.uniforms.uLights.value = lightsTexture;
+
+    // Optional upgrade: try loading real Earth texture from CDN.
+    // If it succeeds (online), it replaces the procedural one for extra realism.
+    // If it fails (offline / CORS), nothing happens — procedural stays.
+    (function tryLoadRealTextures() {
+      const loader = new THREE.TextureLoader();
+      loader.crossOrigin = 'anonymous';
+      loader.load(
+        'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
+        function (tex) {
+          tex.anisotropy = 16;
+          earthMaterial.uniforms.uMap.value = tex;
+        },
+        undefined,
+        function () { /* silent fallback */ }
+      );
+      loader.load(
+        'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png',
+        function (tex) {
+          tex.anisotropy = 16;
+          earthMaterial.uniforms.uLights.value = tex;
+        },
+        undefined,
+        function () { /* silent fallback */ }
+      );
+    })();
+
+    const earthVertex = `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    const earthFragment = `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      uniform sampler2D uMap;
+      uniform sampler2D uLights;
+      uniform float uTime;
+
+      const vec3 cream    = vec3(0.980, 0.980, 0.969);
+      const vec3 navy     = vec3(0.118, 0.227, 0.373);
+      const vec3 navyDeep = vec3(0.059, 0.133, 0.220);
+      const vec3 navyNight = vec3(0.030, 0.080, 0.140);
+      const vec3 teal     = vec3(0.051, 0.580, 0.533);
+      const vec3 cityWarm = vec3(1.0, 0.86, 0.55);
+
+      void main() {
+        vec4 tex = texture2D(uMap, vUv);
+        vec4 lights = texture2D(uLights, vUv);
+
+        // Detect land vs ocean by warmth (R+G dominance over B)
+        float warmth = (tex.r + tex.g * 0.6) - tex.b * 1.4;
+        float landMask = smoothstep(-0.05, 0.10, warmth);
+
+        // Land luminance for inner shading
+        float lum = (tex.r + tex.g + tex.b) / 3.0;
+        vec3 landDay = mix(cream * 0.88, cream, smoothstep(0.3, 0.7, lum));
+        vec3 oceanDay = mix(navyDeep, navy, smoothstep(0.0, 0.5, lum));
+        vec3 baseDay = mix(oceanDay, landDay, landMask);
+
+        // ─── Day/night terminator ──────────────────────────────
+        vec3 lightDir = normalize(vec3(0.5, 0.55, 0.85));
+        float NdotL = dot(vNormal, lightDir);
+        float dayMix = smoothstep(-0.18, 0.32, NdotL);
+
+        // Day side: full lit
+        float ambient = 0.32;
+        float diffuse = max(NdotL, 0.0) * 0.85;
+        vec3 dayColor = baseDay * (ambient + diffuse);
+
+        // Night side: deep dark navy with city lights glowing
+        vec3 nightLand = navyNight * 1.4;
+        vec3 nightOcean = navyNight * 0.8;
+        vec3 nightBase = mix(nightOcean, nightLand, landMask);
+
+        // City lights pull from texture, brighter on night side
+        float lightIntensity = max(lights.r, max(lights.g, lights.b)) * 1.8;
+        vec3 cityGlow = cityWarm * lightIntensity;
+        vec3 nightWithCities = nightBase + cityGlow * (1.0 - dayMix * 0.85);
+
+        // Final day/night blend
+        vec3 baseColor = mix(nightWithCities, dayColor, dayMix);
+
+        // ─── Atmosphere fresnel rim (terminator glow) ──────────
+        vec3 viewDir = normalize(vViewPosition);
+        float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+        baseColor = mix(baseColor, teal * 0.85, fresnel * 0.22);
+
+        // Gentle tonemap
+        baseColor = baseColor / (baseColor + 0.55);
+
+        gl_FragColor = vec4(baseColor, 1.0);
+      }
+    `;
+
+    const earthMaterial = new THREE.ShaderMaterial({
+      vertexShader: earthVertex,
+      fragmentShader: earthFragment,
+      uniforms: {
+        uMap: { value: earthTexture },
+        uLights: { value: null }, // populated after createLightsTexture()
+        uTime: { value: 0 },
+      },
+    });
+
+    const earthGeo = new THREE.SphereGeometry(1.4, 96, 96);
+    const earth = new THREE.Mesh(earthGeo, earthMaterial);
+    // Position in right third (asymmetric)
+    earth.position.set(1.6, 0.0, 0);
+    // Initial rotation so Chicago faces forward
+    // Chicago: lat 41.88°N, lng -87.63°W → globe rotation around Y to bring it center
+    earth.rotation.y = THREE.Math.degToRad(87.63 - 90); // ~ -2.4°
+    earth.rotation.x = THREE.Math.degToRad(-15); // tilt up so Chicago is more visible
+    scene.add(earth);
+
+    // ════════════════════════════════════════════════════════════
+    // ATMOSPHERE — outer sphere with fresnel teal glow
+    // ════════════════════════════════════════════════════════════
+    const atmosphereVertex = `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    const atmosphereFragment = `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.62 - dot(vNormal, vec3(0, 0, 1.0)), 2.4);
+        gl_FragColor = vec4(0.051, 0.580, 0.533, 1.0) * intensity;
+      }
+    `;
+    const atmosphereMat = new THREE.ShaderMaterial({
+      vertexShader: atmosphereVertex,
+      fragmentShader: atmosphereFragment,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+    });
+    const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.55, 64, 64), atmosphereMat);
+    atmosphere.position.copy(earth.position);
+    scene.add(atmosphere);
+
+    // ════════════════════════════════════════════════════════════
+    // CHICAGO HUB + DISTRIBUTION ARCS
+    // Líneas de luz saliendo de Chicago hacia destinos del mundo
+    // Cada línea se dibuja, llega, explota, fade out, loop
+    // ════════════════════════════════════════════════════════════
+    function latLngToVec3(lat, lng, radius) {
+      const phi = (90 - lat) * Math.PI / 180;
+      const theta = (lng + 180) * Math.PI / 180;
+      return new THREE.Vector3(
+        -radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    const SPHERE_RADIUS = 1.4;
+    const chicagoLocal = latLngToVec3(41.88, -87.63, SPHERE_RADIUS);
+
+    // ─── Chicago anchor: dot + permanent halo (HQ marker) ────
+    const hqDot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.032, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x5EBFB6 })
+    );
+    hqDot.position.copy(chicagoLocal);
+    earth.add(hqDot);
+
+    const hqRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.04, 0.055, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x0D9488,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+      })
+    );
+    hqRing.position.copy(chicagoLocal);
+    hqRing.lookAt(new THREE.Vector3(0, 0, 0));
+    hqRing.rotateY(Math.PI);
+    earth.add(hqRing);
+
+    // ─── Distribution destinations ────────────────────────────
+    const destinations = [
+      { name: 'Miami',       lat:  25.76, lng:  -80.19 },
+      { name: 'New York',    lat:  40.71, lng:  -74.01 },
+      { name: 'Los Angeles', lat:  34.05, lng: -118.24 },
+      { name: 'México City', lat:  19.43, lng:  -99.13 },
+      { name: 'Bogotá',      lat:   4.71, lng:  -74.07 },
+      { name: 'São Paulo',   lat: -23.55, lng:  -46.63 },
+      { name: 'Madrid',      lat:  40.42, lng:   -3.70 },
+      { name: 'Tokyo',       lat:  35.68, lng:  139.69 },
+    ];
+
+    const ARC_SEGMENTS = 60;
+    const ARC_LIFT = 0.32;
+    const ARC_DURATION = 4.5; // seconds for full cycle (draw + pulse + fade)
+
+    const arcs = [];
+
+    destinations.forEach((dest, i) => {
+      const startVec = chicagoLocal.clone();
+      const endVec = latLngToVec3(dest.lat, dest.lng, SPHERE_RADIUS);
+
+      // Build arc points (great-circle interpolation lifted above surface)
+      const arcPoints = [];
+      for (let j = 0; j <= ARC_SEGMENTS; j++) {
+        const t = j / ARC_SEGMENTS;
+        const p = new THREE.Vector3().lerpVectors(startVec, endVec, t);
+        // Lift the midpoint up; ends touch the surface
+        const lift = Math.sin(t * Math.PI) * ARC_LIFT;
+        p.normalize().multiplyScalar(SPHERE_RADIUS + lift);
+        arcPoints.push(p);
+      }
+
+      // Arc line
+      const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPoints);
+      const arcMat = new THREE.LineBasicMaterial({
+        color: 0x5EBFB6,
+        transparent: true,
+        opacity: 0,
+        linewidth: 1.5,
+      });
+      const arc = new THREE.Line(arcGeo, arcMat);
+      arc.geometry.setDrawRange(0, 0);
+      earth.add(arc);
+
+      // Destination dot (always visible, small)
+      const destDot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.018, 12, 12),
+        new THREE.MeshBasicMaterial({
+          color: 0x5EBFB6,
+          transparent: true,
+          opacity: 0.55,
+        })
+      );
+      destDot.position.copy(endVec);
+      earth.add(destDot);
+
+      // Pulse explosion ring (expands and fades when arc arrives)
+      const pulseRingGeo = new THREE.RingGeometry(0.025, 0.04, 32);
+      const pulseRingMat = new THREE.MeshBasicMaterial({
+        color: 0x0D9488,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+      });
+      const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+      pulseRing.position.copy(endVec);
+      pulseRing.lookAt(new THREE.Vector3(0, 0, 0));
+      pulseRing.rotateY(Math.PI);
+      earth.add(pulseRing);
+
+      // Inner flash dot (bright moment when arc arrives)
+      const flashGeo = new THREE.SphereGeometry(0.025, 12, 12);
+      const flashMat = new THREE.MeshBasicMaterial({
+        color: 0xfafaf7,
+        transparent: true,
+        opacity: 0,
+      });
+      const flash = new THREE.Mesh(flashGeo, flashMat);
+      flash.position.copy(endVec);
+      earth.add(flash);
+
+      arcs.push({
+        arc,
+        arcMat,
+        pulseRing,
+        pulseRingMat,
+        flash,
+        flashMat,
+        destDot,
+        delay: (i / destinations.length) * ARC_DURATION,
+      });
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // BACKGROUND CONSTELLATION — subtle teal points far away
+    // ════════════════════════════════════════════════════════════
+    const starsCount = 120;
+    const starsGeo = new THREE.BufferGeometry();
+    const starsPos = new Float32Array(starsCount * 3);
+    const starsSeeds = new Float32Array(starsCount);
+    for (let i = 0; i < starsCount; i++) {
+      const r = 8 + Math.random() * 6;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI;
+      starsPos[i * 3]     = r * Math.cos(theta) * Math.cos(phi);
+      starsPos[i * 3 + 1] = r * Math.sin(phi);
+      starsPos[i * 3 + 2] = r * Math.sin(theta) * Math.cos(phi) - 4;
+      starsSeeds[i] = Math.random() * Math.PI * 2;
+    }
+    starsGeo.setAttribute('position', new THREE.BufferAttribute(starsPos, 3));
+    starsGeo.setAttribute('aSeed', new THREE.BufferAttribute(starsSeeds, 1));
+
+    const starsMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: { uTime: earthMaterial.uniforms.uTime },
+      vertexShader: `
+        attribute float aSeed;
+        uniform float uTime;
+        varying float vAlpha;
+        void main() {
+          vAlpha = 0.15 + 0.25 * sin(uTime * 0.5 + aSeed);
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPos;
+          gl_PointSize = 1.5;
+        }
+      `,
+      fragmentShader: `
+        varying float vAlpha;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          if (length(c) > 0.5) discard;
+          gl_FragColor = vec4(0.369, 0.749, 0.714, vAlpha);
+        }
+      `,
+    });
+    const stars = new THREE.Points(starsGeo, starsMat);
+    scene.add(stars);
+
+    // ════════════════════════════════════════════════════════════
+    // MOUSE PARALLAX — camera moves subtly
+    // ════════════════════════════════════════════════════════════
+    const target = { x: 0, y: 0 };
+    const current = { x: 0, y: 0 };
+    let mouseX = 0, mouseY = 0;
+
+    window.addEventListener('mousemove', (e) => {
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      target.x = nx * 0.18;
+      target.y = -ny * 0.12;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // ANIMATION LOOP
+    // ════════════════════════════════════════════════════════════
+    const clock = new THREE.Clock();
+    const tooltipEl = document.getElementById('chicago-tooltip');
+
+    function animate() {
+      const t = clock.getElapsedTime();
+      earthMaterial.uniforms.uTime.value = t;
+
+      // Smooth parallax on camera
+      current.x += (target.x - current.x) * 0.04;
+      current.y += (target.y - current.y) * 0.04;
+      camera.position.x = current.x;
+      camera.position.y = current.y;
+      camera.lookAt(earth.position);
+
+      // Slow earth rotation around Y (so user sees the world spin gently)
+      earth.rotation.y += 0.0008;
+
+      // Atmosphere stays aligned (no rotation)
+      atmosphere.position.copy(earth.position);
+
+      // ─── HQ Chicago: pulsing ring (constant) ──────────────
+      const hqPulse = 1 + Math.sin(t * 1.6) * 0.35;
+      hqRing.scale.set(hqPulse, hqPulse, hqPulse);
+      hqRing.material.opacity = 0.8 - (hqPulse - 1) * 0.6;
+
+      // ─── Distribution arcs: 4 phases per cycle ────────────
+      // Phase A (0.0-0.45): draw line from Chicago to destination
+      // Phase B (0.45-0.55): flash + explosion at destination
+      // Phase C (0.55-0.95): fade out arc, ring keeps expanding
+      // Phase D (0.95-1.0): rest before next cycle
+      arcs.forEach((a) => {
+        const cycleTime = ARC_DURATION;
+        const local = ((t + a.delay) % cycleTime) / cycleTime; // 0..1
+
+        if (local < 0.45) {
+          // PHASE A: drawing
+          const drawT = local / 0.45;
+          // Eased draw: starts slow, ends fast
+          const eased = 1 - Math.pow(1 - drawT, 2.2);
+          const segments = Math.floor(eased * (ARC_SEGMENTS + 1));
+          a.arc.geometry.setDrawRange(0, segments);
+          a.arcMat.opacity = 0.85;
+          a.flashMat.opacity = 0;
+          a.pulseRingMat.opacity = 0;
+          a.pulseRing.scale.set(1, 1, 1);
+          a.destDot.material.opacity = 0.55;
+
+        } else if (local < 0.55) {
+          // PHASE B: flash arrival
+          const flashT = (local - 0.45) / 0.10;
+          a.arc.geometry.setDrawRange(0, ARC_SEGMENTS + 1);
+          a.arcMat.opacity = 0.85;
+          // White flash quickly fades
+          a.flashMat.opacity = (1 - flashT) * 0.9;
+          a.flash.scale.set(1 + flashT * 1.5, 1 + flashT * 1.5, 1 + flashT * 1.5);
+          // Pulse ring starts expanding
+          a.pulseRing.scale.set(1 + flashT * 1.5, 1 + flashT * 1.5, 1);
+          a.pulseRingMat.opacity = 0.85;
+          a.destDot.material.opacity = 1.0;
+
+        } else if (local < 0.95) {
+          // PHASE C: fade out
+          const fadeT = (local - 0.55) / 0.40;
+          a.arc.geometry.setDrawRange(0, ARC_SEGMENTS + 1);
+          a.arcMat.opacity = 0.85 * (1 - fadeT);
+          a.flashMat.opacity = 0;
+          // Pulse ring keeps expanding while fading
+          const ringScale = 1.5 + fadeT * 4;
+          a.pulseRing.scale.set(ringScale, ringScale, 1);
+          a.pulseRingMat.opacity = 0.85 * (1 - fadeT);
+          a.destDot.material.opacity = 1.0 - fadeT * 0.45;
+
+        } else {
+          // PHASE D: rest
+          a.arc.geometry.setDrawRange(0, 0);
+          a.arcMat.opacity = 0;
+          a.flashMat.opacity = 0;
+          a.pulseRingMat.opacity = 0;
+          a.pulseRing.scale.set(1, 1, 1);
+          a.destDot.material.opacity = 0.55;
+        }
+      });
+
+      // Project Chicago position to screen for tooltip
+      const chicagoWorld = chicagoLocal.clone();
+      earth.localToWorld(chicagoWorld);
+      const projected = chicagoWorld.clone().project(camera);
+      const screenX = (projected.x * 0.5 + 0.5) * window.innerWidth;
+      const screenY = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+
+      // Hide tooltip when Chicago is on far side of globe
+      // Compute if Chicago is on the visible hemisphere
+      const camToChicago = chicagoWorld.clone().sub(camera.position).normalize();
+      const camToCenter = earth.position.clone().sub(camera.position).normalize();
+      const facing = camToChicago.dot(camToCenter);
+
+      if (facing < 0.65 && projected.z < 1) {
+        tooltipEl.style.left = screenX + 'px';
+        tooltipEl.style.top = screenY + 'px';
+        tooltipEl.style.opacity = '1';
+      } else {
+        tooltipEl.style.opacity = '0';
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // ════════════════════════════════════════════════════════════
+    // RESIZE
+    // ════════════════════════════════════════════════════════════
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // CUSTOM CURSOR
+    // ════════════════════════════════════════════════════════════
+    const cursor = document.getElementById('cursor');
+    const cursorRing = document.getElementById('cursor-ring');
+    const cursorPos = { x: 0, y: 0 };
+    const ringPos = { x: 0, y: 0 };
+
+    window.addEventListener('mousemove', (e) => {
+      cursorPos.x = e.clientX;
+      cursorPos.y = e.clientY;
+    });
+
+    function updateCursor() {
+      cursor.style.transform = `translate(${cursorPos.x - 3}px, ${cursorPos.y - 3}px)`;
+      ringPos.x += (cursorPos.x - ringPos.x) * 0.18;
+      ringPos.y += (cursorPos.y - ringPos.y) * 0.18;
+      cursorRing.style.transform = `translate(${ringPos.x - 18}px, ${ringPos.y - 18}px)`;
+      requestAnimationFrame(updateCursor);
+    }
+    updateCursor();
+
+    document.querySelectorAll('a, button').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        cursor.classList.add('hover');
+        cursorRing.classList.add('hover');
+      });
+      el.addEventListener('mouseleave', () => {
+        cursor.classList.remove('hover');
+        cursorRing.classList.remove('hover');
+      });
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // LOADER DISMISS
+    // ════════════════════════════════════════════════════════════
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('loader').classList.add('done');
+      }, 2400);
+    });
+  </script>
+</body>
+</html>
