@@ -353,7 +353,233 @@ export default function TiendaLanding({ profile, productos }: Props) {
           />
         </div>
       </section>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          3. CATEGORIES — "El catálogo, curado"
+          ════════════════════════════════════════════════════════════════════ */}
+      <CategoriesSection counts={counts} />
+
+      {/* ════════════════════════════════════════════════════════════════════
+          4. FEATURED PRODUCTS — "Más vendidos"
+          ════════════════════════════════════════════════════════════════════ */}
+      <FeaturedSection productos={productos} />
     </div>
+  )
+}
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+const CATEGORIES_META: Array<{
+  key: 'salud' | 'belleza' | 'nutricion' | 'bebidas' | 'alimentos' | 'otros'
+  label: string
+  blurb: string
+  /** Solid bg color — restraint per the skill (no gradients on bg). */
+  bg: string
+  /** Foreground tone derived to keep contrast comfortable. */
+  fg: string
+  /** Filter slug pushed via the URL hash so the catalog scrolls + filters. */
+  slug: string
+}> = [
+  { key: 'salud',     label: 'Salud',      blurb: 'Medicamentos y OTC',  bg: '#2d4a3e', fg: '#fafaf7', slug: 'salud' },
+  { key: 'belleza',   label: 'Belleza',    blurb: 'Cuidado personal',    bg: '#C9A961', fg: '#0a0a0a', slug: 'belleza' },
+  { key: 'nutricion', label: 'Nutrición',  blurb: 'Vitaminas + suplementos', bg: '#3a3635', fg: '#fafaf7', slug: 'nutricion' },
+  { key: 'bebidas',   label: 'Bebidas',    blurb: 'Hidratación y energía', bg: '#0a4a4a', fg: '#fafaf7', slug: 'bebidas' },
+  { key: 'otros',     label: 'Otros',      blurb: 'Cuidado del hogar',   bg: '#7a6a5a', fg: '#fafaf7', slug: 'otros' },
+  { key: 'alimentos', label: 'Alimentos',  blurb: 'Snacks y comida',     bg: '#a04a3e', fg: '#fafaf7', slug: 'alimentos' },
+]
+
+function CategoriesSection({ counts }: { counts: Record<string, number> }) {
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const cardsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      if (!cardsRef.current) return
+      gsap.from(cardsRef.current.querySelectorAll('[data-category-card]'), {
+        y: 60,
+        opacity: 0,
+        stagger: 0.1,
+        duration: 0.9,
+        ease: 'expo.out',
+        scrollTrigger: {
+          trigger: cardsRef.current,
+          start: 'top 80%',
+          // No scrub — fire once when section enters viewport
+        },
+      })
+    }, sectionRef)
+    return () => ctx.revert()
+  }, [])
+
+  return (
+    <section ref={sectionRef} className="bg-[#fafaf7]">
+      <div className="max-w-6xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+        {/* Section heading — asymmetric editorial layout */}
+        <div className="mb-14 lg:mb-20 max-w-3xl">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[#C9A961] mb-5">
+            Catálogo
+          </p>
+          <h2
+            className="font-serif text-[#0a0a0a] tracking-tight"
+            style={{ fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: 1.08 }}
+          >
+            El catálogo, <span className="italic text-[#C9A961]">curado</span>.
+          </h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-[#0a0a0a]/55 max-w-md">
+            Seis categorías, cientos de referencias. Cada una seleccionada para entrega rápida y precio mayorista.
+          </p>
+        </div>
+
+        {/* Grid: 2-col mobile, 3-col desktop. Aspect 4/5. */}
+        <div
+          ref={cardsRef}
+          className="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-5"
+        >
+          {CATEGORIES_META.map((c) => {
+            const n = counts[c.key] ?? 0
+            // Hide categories with 0 items — better to show 4-5 populated
+            // cards than 6 with zeros. We render an empty placeholder slot
+            // to keep the grid balanced if necessary.
+            return (
+              <a
+                key={c.key}
+                href={`#catalogo`}
+                data-category-card
+                aria-label={`Ver ${c.label} (${n} productos)`}
+                className="group relative aspect-[4/5] rounded-[12px] overflow-hidden flex flex-col justify-end p-6 lg:p-8 transition-transform hover:-translate-y-1"
+                style={{ backgroundColor: c.bg, color: c.fg, willChange: 'transform' }}
+              >
+                {/* Subtle inner ring instead of a drop shadow */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-[12px] ring-1 ring-inset"
+                  style={{ borderColor: 'rgba(255,255,255,0.06)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05)' }}
+                />
+                <p className="text-[10px] uppercase tracking-[0.25em] opacity-60 mb-3">
+                  {c.blurb}
+                </p>
+                <h3
+                  className="font-serif tracking-tight"
+                  style={{ fontSize: 'clamp(28px, 3.6vw, 44px)', lineHeight: 1 }}
+                >
+                  {c.label}
+                </h3>
+                <div className="mt-4 flex items-center justify-between text-[10px] uppercase tracking-[0.25em] opacity-70">
+                  <span>{n} {n === 1 ? 'producto' : 'productos'}</span>
+                  <ArrowUpRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  />
+                </div>
+              </a>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Featured products ───────────────────────────────────────────────────────
+
+function FeaturedSection({ productos }: { productos: Producto[] }) {
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  // Pick 4 products with imagen_url. Skip the ones used as the hero so we
+  // don't repeat the same photo. If there aren't enough, just show what
+  // we have — the section still reads cleanly with 1-3 cards.
+  const featured = productos.filter((p) => p.imagen_url).slice(0, 4)
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      if (!gridRef.current || featured.length === 0) return
+      gsap.from(gridRef.current.querySelectorAll('[data-featured-card]'), {
+        x: 80,
+        opacity: 0,
+        stagger: 0.12,
+        duration: 1.0,
+        ease: 'expo.out',
+        scrollTrigger: {
+          trigger: gridRef.current,
+          start: 'top 80%',
+        },
+      })
+    }, sectionRef)
+    return () => ctx.revert()
+  }, [featured.length])
+
+  if (featured.length === 0) return null // Don't render an empty section
+
+  return (
+    <section ref={sectionRef} className="bg-[#fafaf7]">
+      <div className="max-w-6xl mx-auto px-6 lg:px-10 pb-20 lg:pb-28">
+        {/* Heading on the right — editorial asymmetry vs the categories block above */}
+        <div className="mb-14 lg:mb-20 lg:ml-auto max-w-3xl lg:text-right">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[#C9A961] mb-5">
+            Destacados
+          </p>
+          <h2
+            className="font-serif text-[#0a0a0a] tracking-tight"
+            style={{ fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: 1.08 }}
+          >
+            Más <span className="italic text-[#C9A961]">vendidos</span>.
+          </h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-[#0a0a0a]/55 max-w-md lg:ml-auto">
+            Los productos que tu negocio vuelve a pedir mes a mes.
+          </p>
+        </div>
+
+        <div
+          ref={gridRef}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5"
+        >
+          {featured.map((p) => {
+            const cheapest = (p.presentaciones ?? [])
+              .filter((pr) => typeof pr.precio === 'number' && (pr.precio ?? 0) > 0)
+              .map((pr) => pr.precio as number)
+              .sort((a, b) => a - b)[0]
+            return (
+              <a
+                key={p.id}
+                href="#catalogo"
+                data-featured-card
+                aria-label={`Ver ${p.nombre} en el catálogo`}
+                className="group bg-white rounded-[12px] overflow-hidden border border-[#0a0a0a]/[0.06] hover:border-[#C9A961]/40 transition-colors"
+              >
+                <div className="relative aspect-square bg-[#fafaf7]">
+                  {p.imagen_url && (
+                    <Image
+                      src={p.imagen_url}
+                      alt={p.nombre}
+                      fill
+                      sizes="(max-width: 1024px) 50vw, 25vw"
+                      loading="lazy"
+                      className="object-contain p-6 transition-transform duration-700 group-hover:scale-[1.04]"
+                    />
+                  )}
+                </div>
+                <div className="p-5 lg:p-6 border-t border-[#0a0a0a]/[0.06]">
+                  <p className="text-[9px] uppercase tracking-[0.25em] text-[#C9A961] mb-2">
+                    {p.categoria ?? 'Otros'}
+                  </p>
+                  <h3 className="font-serif text-[18px] lg:text-[20px] text-[#0a0a0a] leading-snug line-clamp-2 min-h-[2.5em]">
+                    {p.nombre}
+                  </h3>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-[12px] text-[#0a0a0a]/55">
+                      {cheapest ? `Desde $${cheapest.toFixed(2)}` : 'Ver precios'}
+                    </span>
+                    <ArrowUpRight
+                      className="w-3.5 h-3.5 text-[#0a0a0a]/40 transition-all group-hover:text-[#C9A961] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    />
+                  </div>
+                </div>
+              </a>
+            )
+          })}
+        </div>
+      </div>
+    </section>
   )
 }
 
