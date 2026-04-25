@@ -69,6 +69,7 @@ export async function POST(request: Request) {
 
     const limiteCredito = Math.max(0, Math.min(1e9, Number(body.limite_credito) || 0))
     const diasCredito   = Math.max(0, Math.min(365,  Number(body.dias_credito)   || 0))
+    const descuentoPct  = Math.max(0, Math.min(100,  Number(body.descuento_porcentaje) || 0))
 
     const clienteData = {
       nombre: body.nombre.trim(),
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
       zona: body.zona?.trim() || null,
       limite_credito: limiteCredito,
       dias_credito: diasCredito,
+      descuento_porcentaje: descuentoPct,
       activo: body.activo !== undefined ? Boolean(body.activo) : true,
       notas: body.notas?.trim() || null,
     }

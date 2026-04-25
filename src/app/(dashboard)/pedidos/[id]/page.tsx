@@ -295,22 +295,44 @@ export default async function PedidoDetailPage({ params }: PageProps) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {items.map((item) => (
-                          <tr key={item.id}>
-                            <td className="px-5 py-3">
-                              <p className="font-medium text-slate-900">
-                                {(item.presentacion as any)?.producto?.nombre ?? '—'} — {item.presentacion?.nombre ?? ''}
-                              </p>
-                              <p className="text-xs text-slate-500">{item.presentacion?.unidad ?? ''}</p>
-                            </td>
-                            <td className="px-5 py-3 text-center text-slate-700">{item.cantidad}</td>
-                            <td className="px-5 py-3 text-right text-slate-700">{formatCurrency(item.precio_unitario)}</td>
-                            <td className="px-5 py-3 text-right text-slate-500">
-                              {item.descuento > 0 ? formatCurrency(item.descuento) : '—'}
-                            </td>
-                            <td className="px-5 py-3 text-right font-semibold text-slate-900">{formatCurrency(item.subtotal)}</td>
-                          </tr>
-                        ))}
+                        {items.map((item) => {
+                          const precioOficial = Number((item.presentacion as any)?.precio ?? 0)
+                          const precioFinal = Number(item.precio_unitario ?? 0)
+                          const negociado = precioOficial > 0 && precioFinal > 0 && precioFinal < precioOficial - 0.009
+                          const descPct = negociado ? ((precioOficial - precioFinal) / precioOficial) * 100 : 0
+                          return (
+                            <tr key={item.id}>
+                              <td className="px-5 py-3">
+                                <p className="font-medium text-slate-900">
+                                  {(item.presentacion as any)?.producto?.nombre ?? '—'} — {item.presentacion?.nombre ?? ''}
+                                </p>
+                                <p className="text-xs text-slate-500">{item.presentacion?.unidad ?? ''}</p>
+                              </td>
+                              <td className="px-5 py-3 text-center text-slate-700">{item.cantidad}</td>
+                              <td className="px-5 py-3 text-right">
+                                {negociado ? (
+                                  <div className="flex flex-col items-end gap-0.5" title="Precio negociado para este cliente">
+                                    <span className="text-xs text-slate-400 line-through">
+                                      {formatCurrency(precioOficial)}
+                                    </span>
+                                    <span className="font-semibold text-violet-700">
+                                      {formatCurrency(precioFinal)}
+                                    </span>
+                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0 text-[10px] font-semibold text-violet-700">
+                                      −{descPct.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-700">{formatCurrency(precioFinal)}</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-right text-slate-500">
+                                {item.descuento > 0 ? formatCurrency(item.descuento) : '—'}
+                              </td>
+                              <td className="px-5 py-3 text-right font-semibold text-slate-900">{formatCurrency(item.subtotal)}</td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

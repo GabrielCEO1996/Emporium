@@ -18,6 +18,8 @@ import {
   Loader2,
   Save,
   X,
+  Percent,
+  Tag,
 } from 'lucide-react'
 
 interface ClienteFormProps {
@@ -36,6 +38,7 @@ interface FormData {
   zona: string
   limite_credito: string
   dias_credito: string
+  descuento_porcentaje: string
   notas: string
   activo: boolean
   credito_autorizado: boolean
@@ -46,6 +49,7 @@ interface FormErrors {
   email?: string
   limite_credito?: string
   dias_credito?: string
+  descuento_porcentaje?: string
 }
 
 const inputClass =
@@ -70,6 +74,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
     zona: cliente?.zona || '',
     limite_credito: cliente?.limite_credito?.toString() || '0',
     dias_credito: cliente?.dias_credito?.toString() || '0',
+    descuento_porcentaje: ((cliente as any)?.descuento_porcentaje ?? 0).toString(),
     notas: cliente?.notas || '',
     activo: cliente?.activo !== undefined ? cliente.activo : true,
     credito_autorizado: (cliente as any)?.credito_autorizado ?? false,
@@ -92,6 +97,13 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
 
     if (formData.dias_credito && isNaN(Number(formData.dias_credito))) {
       newErrors.dias_credito = 'Debe ser un número válido'
+    }
+
+    if (formData.descuento_porcentaje) {
+      const dp = Number(formData.descuento_porcentaje)
+      if (isNaN(dp) || dp < 0 || dp > 100) {
+        newErrors.descuento_porcentaje = 'El descuento debe estar entre 0 y 100'
+      }
     }
 
     setErrors(newErrors)
@@ -126,6 +138,7 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
         ...formData,
         limite_credito: Number(formData.limite_credito) || 0,
         dias_credito: Number(formData.dias_credito) || 0,
+        descuento_porcentaje: Math.max(0, Math.min(100, Number(formData.descuento_porcentaje) || 0)),
         credito_autorizado: formData.credito_autorizado,
       }
 
@@ -445,6 +458,84 @@ export default function ClienteForm({ cliente, isEditing = false }: ClienteFormP
             {errors.dias_credito && (
               <p className="mt-1 text-xs text-red-600">{errors.dias_credito}</p>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Descuento global (pricing inteligente) */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <Tag className="h-4 w-4 text-violet-600" />
+            Descuento global
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Se aplica automáticamente a todos los productos de este cliente (VIP, distribuidores, etc.).
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2">
+          <div>
+            <label htmlFor="descuento_porcentaje" className={labelClass}>
+              Descuento global (%)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                id="descuento_porcentaje_range"
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={formData.descuento_porcentaje || '0'}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, descuento_porcentaje: e.target.value }))
+                }
+                className="flex-1 accent-violet-600"
+              />
+              <div className="relative w-24">
+                <Percent className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  id="descuento_porcentaje"
+                  name="descuento_porcentaje"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={formData.descuento_porcentaje}
+                  onChange={handleChange}
+                  placeholder="0"
+                  className={cn(inputClass, 'pl-9 text-right', errors.descuento_porcentaje && 'border-red-400 focus:border-red-400 focus:ring-red-400/20')}
+                />
+              </div>
+            </div>
+            {errors.descuento_porcentaje && (
+              <p className="mt-1 text-xs text-red-600">{errors.descuento_porcentaje}</p>
+            )}
+            <p className="mt-2 text-xs text-slate-400">
+              Rango sugerido: 0-50%. Puedes escribir hasta 100% si es necesario.
+            </p>
+          </div>
+          <div className="rounded-lg border border-violet-100 bg-violet-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+              Ejemplo
+            </p>
+            {(() => {
+              const dp = Math.max(0, Math.min(100, Number(formData.descuento_porcentaje) || 0))
+              const base = 10
+              const final = base * (1 - dp / 100)
+              return (
+                <p className="mt-2 text-sm text-slate-700 leading-relaxed">
+                  Si un producto cuesta <span className="font-semibold">$10.00</span>, este cliente pagará{' '}
+                  <span className="font-bold text-violet-700">${final.toFixed(2)}</span>
+                  {dp > 0 && (
+                    <span className="text-xs text-slate-500"> (ahorra ${(base - final).toFixed(2)})</span>
+                  )}
+                  .
+                </p>
+              )
+            })()}
+            <p className="mt-3 text-[11px] text-slate-500">
+              Al crear pedidos podrás ajustar precios por línea si negocias algo distinto.
+            </p>
           </div>
         </div>
       </div>

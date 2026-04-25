@@ -188,6 +188,49 @@ export async function POST(request: NextRequest) {
   }))
   await supabase.from('factura_items').insert(facturaItems)
 
+  // ── 6b. Price memory (historial_precios_cliente) ──────────────────────
+  // Record the exact sold price per producto so Mache can see "last sold
+  // to this cliente at $X" next time. Non-fatal on failure.
+  try {
+    const presIds = Array.from(
+      new Set(items.map((i: any) => i.presentacion_id).filter(Boolean))
+    )
+    if (presIds.length > 0) {
+      const { data: presRows } = await supabase
+        .from('presentaciones')
+        .select('id, producto_id')
+        .in('id', presIds)
+      const productoByPres: Record<string, string> = {}
+      for (const p of presRows ?? []) {
+        productoByPres[(p as any).id] = (p as any).producto_id
+      }
+      const histRows = items
+        .map((it: any) => {
+          const producto_id = productoByPres[it.presentacion_id]
+          if (!producto_id) return null
+          return {
+            cliente_id,
+            producto_id,
+            presentacion_id: it.presentacion_id,
+            precio_vendido: it.precio_unitario,
+            cantidad: it.cantidad,
+            fecha: factura.fecha_emision,
+            factura_id: factura.id,
+            pedido_id: pedido.id,
+          }
+        })
+        .filter(Boolean)
+      if (histRows.length > 0) {
+        const { error: hErr } = await supabase
+          .from('historial_precios_cliente')
+          .insert(histRows)
+        if (hErr) console.warn('[venta-directa] historial non-fatal:', hErr.message)
+      }
+    }
+  } catch (hErr) {
+    console.warn('[venta-directa] historial non-fatal:', hErr)
+  }
+
   // ── 7. Inventory deduction + movement log ─────────────────────────────
   await Promise.all(items.map(async (it: any) => {
     const { data: inv } = await supabase

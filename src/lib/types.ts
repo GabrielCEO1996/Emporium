@@ -96,6 +96,11 @@ export interface Cliente {
   zona?: string
   limite_credito: number
   dias_credito: number
+  /**
+   * Global discount applied automatically to every line when this cliente
+   * buys. Range 0-100%. Default 0 (pays official price).
+   */
+  descuento_porcentaje?: number
   activo: boolean
   notas?: string
   /** Links this cliente to an auth user (app-user-registered clients). */

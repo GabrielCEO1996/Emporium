@@ -221,6 +221,57 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 })
     }
 
+    // ─── Record price memory ─────────────────────────────────────────────────
+    // One row per line into historial_precios_cliente so Mache can see the
+    // exact last price sold to this cliente for each producto next time.
+    // We need producto_id, which is not on factura_items — look it up from
+    // presentaciones in one batch.
+    try {
+      const presIds = Array.from(
+        new Set(itemsWithSubtotals.map((i: any) => i.presentacion_id).filter(Boolean))
+      )
+      if (presIds.length > 0) {
+        const { data: presRows } = await supabase
+          .from('presentaciones')
+          .select('id, producto_id')
+          .in('id', presIds)
+        const productoByPres: Record<string, string> = {}
+        for (const p of presRows ?? []) {
+          productoByPres[(p as any).id] = (p as any).producto_id
+        }
+
+        const historialRows = itemsWithSubtotals
+          .map((it: any) => {
+            const producto_id = productoByPres[it.presentacion_id]
+            if (!producto_id) return null
+            return {
+              cliente_id,
+              producto_id,
+              presentacion_id: it.presentacion_id,
+              precio_vendido: it.precio_unitario,
+              cantidad: it.cantidad,
+              fecha: factura.fecha_emision,
+              factura_id: factura.id,
+              pedido_id: pedido_id ?? null,
+            }
+          })
+          .filter(Boolean)
+
+        if (historialRows.length > 0) {
+          // Non-fatal: failure here should NOT roll back the factura.
+          const { error: histErr } = await supabase
+            .from('historial_precios_cliente')
+            .insert(historialRows)
+          if (histErr) {
+            console.warn('[POST /api/facturas] historial_precios insert failed:', histErr.message)
+          }
+        }
+      }
+    } catch (histErr) {
+      // Never block the factura creation on price-memory errors.
+      console.warn('[POST /api/facturas] historial_precios non-fatal error:', histErr)
+    }
+
     // If from a pedido, mark pedido as facturado
     if (pedido_id) {
       await supabase

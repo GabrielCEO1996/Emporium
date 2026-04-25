@@ -63,6 +63,7 @@ export async function PUT(
     // Clamp numeric fields to sane bounds to block tampering.
     const limiteCredito = Math.max(0, Math.min(1e9, Number(body.limite_credito) || 0))
     const diasCredito   = Math.max(0, Math.min(365,  Number(body.dias_credito)   || 0))
+    const descuentoPct  = Math.max(0, Math.min(100,  Number(body.descuento_porcentaje) || 0))
 
     const clienteData = {
       nombre: body.nombre.trim(),
@@ -75,6 +76,7 @@ export async function PUT(
       zona: body.zona?.trim() || null,
       limite_credito: limiteCredito,
       dias_credito: diasCredito,
+      descuento_porcentaje: descuentoPct,
       activo: Boolean(body.activo),
       credito_autorizado: Boolean(body.credito_autorizado),
       notas: body.notas?.trim() || null,

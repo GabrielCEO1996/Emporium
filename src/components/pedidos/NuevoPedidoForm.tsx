@@ -24,9 +24,27 @@ import {
   CreditCard,
   Send,
   X,
+  History,
+  Tag,
+  RotateCcw,
+  TrendingUp,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PriceContext {
+  precio_oficial: number
+  precio_costo: number
+  descuento_global_pct: number
+  precio_con_descuento: number
+  ultima_venta: {
+    precio: number
+    cantidad: number
+    fecha: string
+    dias_atras: number
+    factura_id: string | null
+  } | null
+}
 
 interface CartItem {
   presentacion: Presentacion & { producto?: { nombre: string; categoria?: string } }
@@ -34,6 +52,8 @@ interface CartItem {
   precio_unitario: number
   descuento: number
   subtotal: number
+  /** Pricing context fetched from /api/pricing/sugerido — populated async */
+  pricing?: PriceContext
 }
 
 interface FormState {
@@ -224,16 +244,20 @@ function stockBadgeClass(stock: number): string {
 
 function StepProductos({
   items,
+  clienteDescuentoPct,
   onAdd,
   onRemove,
   onChangeQty,
   onChangePrice,
+  onRestaurarPrecio,
 }: {
   items: CartItem[]
+  clienteDescuentoPct: number
   onAdd: (p: Presentacion & { producto?: { nombre: string; categoria?: string } }) => void
   onRemove: (id: string) => void
   onChangeQty: (id: string, qty: number) => void
   onChangePrice: (id: string, precio: number) => void
+  onRestaurarPrecio: (id: string) => void
 }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<
@@ -319,6 +343,14 @@ function StepProductos({
 
   return (
     <div className="space-y-4">
+      {clienteDescuentoPct > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-700">
+          <Tag className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Este cliente tiene un <span className="font-bold">{clienteDescuentoPct.toFixed(clienteDescuentoPct % 1 === 0 ? 0 : 1)}% de descuento global</span>. Se aplica automáticamente a cada producto que agregues.
+          </span>
+        </div>
+      )}
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -416,95 +448,175 @@ function StepProductos({
                 <p className="mt-2 text-sm text-slate-400">Carrito vacío</p>
               </div>
             )}
-            {items.map((item) => (
-              <div key={item.presentacion.id} className="px-3 py-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-900 truncate">
-                      {item.presentacion.producto?.nombre ?? ''} — {item.presentacion.nombre}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(item.presentacion.id)}
-                    className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                {/* Editable price per line */}
-                <div className="mt-2 grid grid-cols-3 gap-2 items-center">
-                  <label className="col-span-1 text-xs text-slate-500">Precio u.</label>
-                  <div className="col-span-2 relative">
-                    <span className="absolute left-2 top-1 text-xs text-slate-400">$</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={item.precio_unitario}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value)
-                        if (!isNaN(v) && v >= 0) onChangePrice(item.presentacion.id, v)
-                      }}
-                      className="w-full pl-5 pr-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
+            {items.map((item) => {
+              const ctx = item.pricing
+              const oficial = ctx?.precio_oficial ?? item.presentacion.precio ?? 0
+              const costo = ctx?.precio_costo ?? 0
+              const sugerido = ctx?.precio_con_descuento ?? oficial
+              const ultima = ctx?.ultima_venta ?? null
+              const precioFinal = item.precio_unitario
+              const margenPct = precioFinal > 0 ? ((precioFinal - costo) / precioFinal) * 100 : 0
+              const bajoCosto = costo > 0 && precioFinal < costo
+              const descAplicado = oficial > 0 && precioFinal < oficial
+                ? ((oficial - precioFinal) / oficial) * 100
+                : 0
+              return (
+                <div key={item.presentacion.id} className="px-3 py-2.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-900 truncate">
+                        {item.presentacion.producto?.nombre ?? ''} — {item.presentacion.nombre}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        onChangeQty(item.presentacion.id, Math.max(1, item.cantidad - 1))
-                      }
-                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+                      onClick={() => onRemove(item.presentacion.id)}
+                      className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
                     >
-                      <Minus className="h-3 w-3" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                    <input
-                      type="number"
-                      min={1}
-                      max={item.presentacion.stock}
-                      value={item.cantidad}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value)
-                        if (!isNaN(v) && v >= 1) {
+                  </div>
+
+                  {/* ── Pricing context (oficial / descuento / última venta) ── */}
+                  <div className="rounded-md bg-slate-50 border border-slate-100 px-2 py-1.5 space-y-0.5 text-[11px]">
+                    <div className="flex items-center justify-between text-slate-500">
+                      <span>Precio oficial</span>
+                      <span className="font-semibold text-slate-700">{formatCurrency(oficial)}</span>
+                    </div>
+                    {ctx && ctx.descuento_global_pct > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-violet-600">
+                          <Tag className="h-3 w-3" />
+                          Con descuento ({ctx.descuento_global_pct.toFixed(ctx.descuento_global_pct % 1 === 0 ? 0 : 1)}%)
+                        </span>
+                        <span className="font-semibold text-violet-700">{formatCurrency(sugerido)}</span>
+                      </div>
+                    )}
+                    {ultima && (
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 text-amber-600">
+                          <History className="h-3 w-3" />
+                          Última venta ({ultima.dias_atras === 0 ? 'hoy' : `hace ${ultima.dias_atras}d`})
+                        </span>
+                        <span className="font-semibold text-amber-700">{formatCurrency(ultima.precio)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Editable price per line */}
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs text-slate-500 shrink-0">Precio:</label>
+                    <div className="relative flex-1">
+                      <span className="absolute left-2 top-1 text-xs text-slate-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={item.precio_unitario}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value)
+                          if (!isNaN(v) && v >= 0) onChangePrice(item.presentacion.id, v)
+                        }}
+                        className={cn(
+                          'w-full pl-5 pr-2 py-1 text-xs font-semibold border rounded focus:outline-none focus:ring-1',
+                          bajoCosto
+                            ? 'border-red-300 bg-red-50 text-red-700 focus:ring-red-500'
+                            : margenPct >= 25
+                            ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700 focus:ring-emerald-500'
+                            : margenPct >= 10
+                            ? 'border-amber-200 bg-amber-50/50 text-amber-700 focus:ring-amber-500'
+                            : 'border-slate-200 focus:ring-teal-500'
+                        )}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRestaurarPrecio(item.presentacion.id)}
+                      title="Restaurar precio sugerido"
+                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors shrink-0"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {/* Margin + discount applied badges */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                    {costo > 0 && (
+                      <span className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-semibold',
+                        bajoCosto ? 'bg-red-100 text-red-700' :
+                        margenPct >= 25 ? 'bg-emerald-100 text-emerald-700' :
+                        margenPct >= 10 ? 'bg-amber-100 text-amber-700' :
+                        'bg-slate-100 text-slate-600'
+                      )}>
+                        <TrendingUp className="h-2.5 w-2.5" />
+                        {bajoCosto
+                          ? `⚠ Bajo costo (${margenPct.toFixed(0)}%)`
+                          : `Margen ${margenPct.toFixed(1)}%`}
+                      </span>
+                    )}
+                    {descAplicado > 0.1 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 font-semibold text-violet-700">
+                        <Tag className="h-2.5 w-2.5" />
+                        -{descAplicado.toFixed(1)}% vs oficial
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChangeQty(item.presentacion.id, Math.max(1, item.cantidad - 1))
+                        }
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={item.presentacion.stock}
+                        value={item.cantidad}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value)
+                          if (!isNaN(v) && v >= 1) {
+                            onChangeQty(
+                              item.presentacion.id,
+                              Math.min(v, item.presentacion.stock)
+                            )
+                          }
+                        }}
+                        className="w-12 text-center text-sm border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
                           onChangeQty(
                             item.presentacion.id,
-                            Math.min(v, item.presentacion.stock)
+                            Math.min(item.presentacion.stock, item.cantidad + 1)
                           )
                         }
-                      }}
-                      className="w-12 text-center text-sm border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChangeQty(
-                          item.presentacion.id,
-                          Math.min(item.presentacion.stock, item.cantidad + 1)
-                        )
-                      }
-                      disabled={item.cantidad >= item.presentacion.stock}
-                      className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
+                        disabled={item.cantidad >= item.presentacion.stock}
+                        className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {formatCurrency(item.subtotal)}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-slate-900">
-                    {formatCurrency(item.subtotal)}
-                  </span>
+                  {item.cantidad >= item.presentacion.stock && (
+                    <p className="text-xs text-yellow-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Máximo disponible
+                    </p>
+                  )}
                 </div>
-                {item.cantidad >= item.presentacion.stock && (
-                  <p className="mt-1 text-xs text-yellow-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Máximo disponible
-                  </p>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Running total */}
@@ -838,6 +950,58 @@ export default function NuevoPedidoForm() {
   const updateForm = (partial: Partial<FormState>) =>
     setForm((f) => ({ ...f, ...partial }))
 
+  // ── Fetch pricing context for a set of presentaciones for the current cliente.
+  //    Populates each cart item's `pricing` + applies the smart-default price.
+  //    Preference order: última venta → descuento global → precio oficial.
+  const hydratePricing = useCallback(async (
+    clienteId: string,
+    presIds: string[],
+    /** If true, overwrite precio_unitario on the affected items with the suggested price. */
+    applyDefault: boolean
+  ) => {
+    if (!clienteId || presIds.length === 0) return
+    try {
+      const res = await fetch('/api/pricing/sugerido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: clienteId, presentacion_ids: presIds }),
+        cache: 'no-store',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'error')
+      const ctx: Record<string, PriceContext> = data?.context ?? {}
+      setForm((f) => ({
+        ...f,
+        items: f.items.map((i) => {
+          const c = ctx[i.presentacion.id]
+          if (!c) return i
+          if (!applyDefault) return { ...i, pricing: c }
+          const suggested = c.ultima_venta?.precio ?? c.precio_con_descuento
+          const precio = suggested > 0 ? suggested : i.precio_unitario
+          return {
+            ...i,
+            pricing: c,
+            precio_unitario: precio,
+            subtotal: precio * i.cantidad - i.descuento,
+          }
+        }),
+      }))
+    } catch (err) {
+      console.warn('[pricing/sugerido]', err)
+    }
+  }, [])
+
+  // When cliente changes, re-hydrate pricing for all existing items AND apply defaults
+  // so the displayed prices match the new cliente's policy.
+  useEffect(() => {
+    const clienteId = form.cliente?.id
+    if (!clienteId) return
+    const presIds = form.items.map((i) => i.presentacion.id)
+    if (presIds.length === 0) return
+    hydratePricing(clienteId, presIds, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.cliente?.id])
+
   // Cart handlers
   const addItem = (
     pres: Presentacion & { producto?: { nombre: string; categoria?: string } }
@@ -854,6 +1018,10 @@ export default function NuevoPedidoForm() {
       }
       return { ...f, items: [...f.items, newItem] }
     })
+    // Fetch smart price in the background if we have a cliente selected.
+    if (form.cliente?.id) {
+      hydratePricing(form.cliente.id, [pres.id], true)
+    }
   }
 
   const removeItem = (id: string) =>
@@ -877,6 +1045,19 @@ export default function NuevoPedidoForm() {
           ? { ...i, precio_unitario: precio, subtotal: precio * i.cantidad - i.descuento }
           : i
       ),
+    }))
+
+  // Restaurar precio sugerido (última venta o precio con descuento o oficial).
+  const restaurarPrecio = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((i) => {
+        if (i.presentacion.id !== id) return i
+        const ctx = i.pricing
+        const suggested = ctx?.ultima_venta?.precio ?? ctx?.precio_con_descuento ?? ctx?.precio_oficial ?? i.presentacion.precio
+        const precio = suggested > 0 ? suggested : i.precio_unitario
+        return { ...i, precio_unitario: precio, subtotal: precio * i.cantidad - i.descuento }
+      }),
     }))
 
   // Computed totals
@@ -991,10 +1172,12 @@ export default function NuevoPedidoForm() {
         {step === 2 && (
           <StepProductos
             items={form.items}
+            clienteDescuentoPct={Number((form.cliente as any)?.descuento_porcentaje ?? 0)}
             onAdd={addItem}
             onRemove={removeItem}
             onChangeQty={changeQty}
             onChangePrice={changePrice}
+            onRestaurarPrecio={restaurarPrecio}
           />
         )}
         {step === 3 && (

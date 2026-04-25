@@ -22,6 +22,8 @@ import {
   Package,
   ArrowRight,
   AlertTriangle,
+  Tag,
+  History,
 } from 'lucide-react'
 
 interface PageProps {
@@ -80,6 +82,69 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     .eq('cliente_id', params.id)
     .in('estado', ['emitida', 'enviada'])
     .order('fecha_emision', { ascending: false })
+
+  // ── Historial de precios por producto (last 6 months) ───────────────────────
+  // We aggregate client-side into "per producto+presentacion" rows showing
+  // the last sale, # times sold, and average unit price.
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const sixMonthsAgoISO = sixMonthsAgo.toISOString().split('T')[0]
+
+  const { data: historialRaw } = await supabase
+    .from('historial_precios_cliente')
+    .select(`
+      id, fecha, precio_vendido, cantidad, producto_id, presentacion_id, factura_id,
+      producto:productos(id, nombre, categoria),
+      presentacion:presentaciones(id, nombre, precio)
+    `)
+    .eq('cliente_id', params.id)
+    .gte('fecha', sixMonthsAgoISO)
+    .order('fecha', { ascending: false })
+    .limit(500)
+
+  type HistRow = {
+    key: string
+    producto_nombre: string
+    presentacion_nombre: string
+    precio_oficial_actual: number
+    ultima_venta_precio: number
+    ultima_venta_fecha: string
+    veces_vendido: number
+    promedio_precio: number
+    total_unidades: number
+  }
+
+  const histMap: Record<string, HistRow & { _sumPrecio: number; _count: number }> = {}
+  for (const h of (historialRaw ?? []) as any[]) {
+    const key = h.presentacion_id ?? h.producto_id
+    if (!key) continue
+    if (!histMap[key]) {
+      histMap[key] = {
+        key,
+        producto_nombre: h.producto?.nombre ?? '—',
+        presentacion_nombre: h.presentacion?.nombre ?? '—',
+        precio_oficial_actual: Number(h.presentacion?.precio ?? 0),
+        ultima_venta_precio: Number(h.precio_vendido ?? 0),
+        ultima_venta_fecha: h.fecha,
+        veces_vendido: 0,
+        promedio_precio: 0,
+        total_unidades: 0,
+        _sumPrecio: 0,
+        _count: 0,
+      }
+    }
+    const row = histMap[key]
+    row.veces_vendido += 1
+    row.total_unidades += Number(h.cantidad ?? 0)
+    row._sumPrecio += Number(h.precio_vendido ?? 0)
+    row._count += 1
+    // first row wins for "última venta" thanks to fecha DESC ordering
+  }
+  const historial: HistRow[] = Object.values(histMap).map((r) => ({
+    ...r,
+    promedio_precio: r._count > 0 ? r._sumPrecio / r._count : 0,
+  }))
+  historial.sort((a, b) => b.ultima_venta_fecha.localeCompare(a.ultima_venta_fecha))
 
   const deudaTotal = (cliente as any).deuda_total ??
     (facturasUnpaid ?? []).reduce(
@@ -227,6 +292,29 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   label="Días de Crédito"
                   value={c.dias_credito != null ? `${c.dias_credito} días` : null}
                 />
+                {(() => {
+                  const dp = Number((c as any).descuento_porcentaje ?? 0)
+                  return (
+                    <div className="flex items-start gap-3 py-3">
+                      <span className="mt-0.5 shrink-0">
+                        <Tag className="h-4 w-4 text-violet-400" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-slate-500">Descuento global</p>
+                        <p className="mt-0.5 text-sm font-semibold break-words">
+                          {dp > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-inset ring-violet-200">
+                              <Tag className="h-3 w-3" />
+                              {dp.toFixed(dp % 1 === 0 ? 0 : 1)}% en todo
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Sin descuento (precios oficiales)</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
@@ -394,6 +482,103 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                       Total histórico: {formatCurrency(totalFacturado)}
                     </span>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Historial de precios por producto ── */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <History className="h-4 w-4 text-violet-600" />
+                  Historial de precios
+                  <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    Últimos 6 meses
+                  </span>
+                </h2>
+                <span className="text-xs text-slate-400">
+                  {historial.length} producto{historial.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              {historial.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <History className="h-8 w-8 text-slate-300" />
+                  <p className="mt-2 text-sm font-medium text-slate-500">Sin historial de precios</p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Al facturar productos a este cliente se registrará el precio vendido aquí.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Producto
+                        </th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Precio oficial
+                        </th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Última venta
+                        </th>
+                        <th className="text-center px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Veces
+                        </th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Promedio
+                        </th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Desc. aplicado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {historial.slice(0, 50).map((row) => {
+                        const desc = row.precio_oficial_actual > 0
+                          ? ((row.precio_oficial_actual - row.ultima_venta_precio) / row.precio_oficial_actual) * 100
+                          : 0
+                        return (
+                          <tr key={row.key} className="hover:bg-slate-50">
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-slate-900 truncate">{row.producto_nombre}</p>
+                              <p className="text-xs text-slate-500 truncate">{row.presentacion_nombre}</p>
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-600">
+                              {row.precio_oficial_actual > 0 ? formatCurrency(row.precio_oficial_actual) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <p className="font-semibold text-amber-700">{formatCurrency(row.ultima_venta_precio)}</p>
+                              <p className="text-xs text-slate-400">{formatDate(row.ultima_venta_fecha)}</p>
+                            </td>
+                            <td className="px-4 py-3 text-center text-slate-600">{row.veces_vendido}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">
+                              {formatCurrency(row.promedio_precio)}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {desc > 0.5 ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                                  <Tag className="h-3 w-3" />
+                                  -{desc.toFixed(1)}%
+                                </span>
+                              ) : desc < -0.5 ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                  +{Math.abs(desc).toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {historial.length > 50 && (
+                    <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-xs text-slate-500 text-center">
+                      Mostrando 50 de {historial.length} productos
+                    </div>
+                  )}
                 </div>
               )}
             </div>
