@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import { Cliente } from '@/lib/types'
 import { formatCurrency, formatDate, ESTADO_PEDIDO_LABELS, ESTADO_PEDIDO_COLORS } from '@/lib/utils'
 import {
@@ -30,6 +31,31 @@ import {
 } from 'lucide-react'
 import ClienteTabBar from '@/components/clientes/ClienteTabBar'
 
+/**
+ * Defensive helper: runs a Supabase query-builder promise with a guaranteed
+ * array fallback. Any error (missing table, RLS rejection, network hiccup)
+ * is swallowed to a warn log so the overall page render never aborts.
+ *
+ * The page renders with whatever data IS available — that's a better UX than
+ * a full server error boundary for a tab detail view.
+ */
+async function safeArray<T = any>(
+  promise: Promise<{ data: T[] | null; error: any }>,
+  context: string
+): Promise<T[]> {
+  try {
+    const { data, error } = await promise
+    if (error) {
+      console.warn(`[clientes/[id]] ${context}: ${error.message ?? error.code ?? 'unknown'}`)
+      return []
+    }
+    return data ?? []
+  } catch (err: any) {
+    console.warn(`[clientes/[id]] ${context} threw:`, err?.message ?? err)
+    return []
+  }
+}
+
 interface PageProps {
   params: { id: string }
   searchParams?: { tab?: string }
@@ -43,71 +69,92 @@ export const dynamic = 'force-dynamic'
 export default async function ClienteDetailPage({ params, searchParams }: PageProps) {
   const supabase = createClient()
 
-  const { data: cliente, error } = await supabase
-    .from('clientes')
-    .select('*')
-    .eq('id', params.id)
-    .single()
-
-  if (error || !cliente) {
-    notFound()
+  // ── Main fetch ──────────────────────────────────────────────────────────────
+  // 404 only when the cliente truly doesn't exist — never crash the render
+  // because of a transient query error.
+  let cliente: any = null
+  try {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle()
+    if (error) {
+      console.warn(`[clientes/[id]] main fetch: ${error.message}`)
+    }
+    cliente = data
+  } catch (err: any) {
+    console.warn(`[clientes/[id]] main fetch threw:`, err?.message ?? err)
   }
+  if (!cliente) notFound()
 
   const requestedTab = (searchParams?.tab as TabId) ?? 'info'
   const activeTab: TabId = VALID_TABS.includes(requestedTab) ? requestedTab : 'info'
 
   // ── Data fetching (all tabs — counts drive the badges) ─────────────────────
-  const [
-    { data: pedidosAll },
-    { data: facturasUnpaid },
-    { data: facturasAllCliente },
-    { data: historialRaw },
-  ] = await Promise.all([
-    supabase.from('pedidos')
-      .select('id, numero, estado, fecha_pedido, subtotal, descuento, impuesto, total, notas, direccion_entrega')
-      .eq('cliente_id', params.id)
-      .order('fecha_pedido', { ascending: false })
-      .limit(100),
-    supabase.from('facturas')
-      .select('id, numero, total, monto_pagado, fecha_emision, fecha_vencimiento, estado')
-      .eq('cliente_id', params.id)
-      .in('estado', ['emitida', 'enviada'])
-      .order('fecha_emision', { ascending: false }),
-    supabase.from('facturas')
-      .select('id, numero, total, monto_pagado, fecha_emision, estado')
-      .eq('cliente_id', params.id)
-      .order('fecha_emision', { ascending: false })
-      .limit(50),
-    (async () => {
-      const d = new Date()
-      d.setMonth(d.getMonth() - 6)
-      const since = d.toISOString().split('T')[0]
-      return supabase
-        .from('historial_precios_cliente')
+  // Each query is wrapped in safeArray so a missing table / RLS error /
+  // network blip can't take the whole page down. Worst case a tab shows
+  // "no data".
+  const sixMonthsAgo = (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - 6)
+    return d.toISOString().split('T')[0]
+  })()
+
+  const [pedidosAll, facturasUnpaid, facturasAllCliente, historialRaw] = await Promise.all([
+    safeArray(
+      supabase.from('pedidos')
+        .select('id, numero, estado, fecha_pedido, subtotal, descuento, impuesto, total, notas, direccion_entrega')
+        .eq('cliente_id', params.id)
+        .order('fecha_pedido', { ascending: false })
+        .limit(100),
+      'pedidos',
+    ),
+    safeArray(
+      supabase.from('facturas')
+        .select('id, numero, total, monto_pagado, fecha_emision, fecha_vencimiento, estado')
+        .eq('cliente_id', params.id)
+        .in('estado', ['emitida', 'enviada'])
+        .order('fecha_emision', { ascending: false }),
+      'facturas:unpaid',
+    ),
+    safeArray(
+      supabase.from('facturas')
+        .select('id, numero, total, monto_pagado, fecha_emision, estado')
+        .eq('cliente_id', params.id)
+        .order('fecha_emision', { ascending: false })
+        .limit(50),
+      'facturas:all',
+    ),
+    safeArray(
+      supabase.from('historial_precios_cliente')
         .select(`
           id, fecha, precio_vendido, cantidad, producto_id, presentacion_id, factura_id,
           producto:productos(id, nombre, categoria),
           presentacion:presentaciones(id, nombre, precio)
         `)
         .eq('cliente_id', params.id)
-        .gte('fecha', since)
+        .gte('fecha', sixMonthsAgo)
         .order('fecha', { ascending: false })
-        .limit(500)
-    })(),
+        .limit(500),
+      'historial_precios_cliente',
+    ),
   ])
 
-  const pedidos = pedidosAll ?? []
+  const pedidos = pedidosAll
   const totalPedidos = pedidos.length
-  const totalFacturado = pedidos.reduce((sum, p: any) => sum + (p.total ?? 0), 0)
+  const totalFacturado = pedidos.reduce((sum, p: any) => sum + Number(p.total ?? 0), 0)
   const pedidosActivos = pedidos.filter((p: any) =>
     ['confirmado', 'en_ruta'].includes(p.estado)
   ).length
 
-  const deudaTotal = (cliente as any).deuda_total ??
-    (facturasUnpaid ?? []).reduce(
-      (s: number, f: any) => s + (Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)),
-      0
-    )
+  const deudaTotal = Number(
+    (cliente as any).deuda_total ??
+      facturasUnpaid.reduce(
+        (s: number, f: any) => s + (Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)),
+        0
+      )
+  ) || 0
 
   // Historial aggregation per producto/presentacion.
   type HistRow = {
@@ -122,17 +169,17 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     total_unidades: number
   }
   const histMap: Record<string, HistRow & { _sumPrecio: number; _count: number }> = {}
-  for (const h of (historialRaw ?? []) as any[]) {
-    const key = h.presentacion_id ?? h.producto_id
+  for (const h of historialRaw as any[]) {
+    const key = h?.presentacion_id ?? h?.producto_id
     if (!key) continue
     if (!histMap[key]) {
       histMap[key] = {
         key,
-        producto_nombre: h.producto?.nombre ?? '—',
-        presentacion_nombre: h.presentacion?.nombre ?? '—',
-        precio_oficial_actual: Number(h.presentacion?.precio ?? 0),
-        ultima_venta_precio: Number(h.precio_vendido ?? 0),
-        ultima_venta_fecha: h.fecha,
+        producto_nombre: h?.producto?.nombre ?? '—',
+        presentacion_nombre: h?.presentacion?.nombre ?? '—',
+        precio_oficial_actual: Number(h?.presentacion?.precio ?? 0),
+        ultima_venta_precio: Number(h?.precio_vendido ?? 0),
+        ultima_venta_fecha: h?.fecha ?? '',
         veces_vendido: 0,
         promedio_precio: 0,
         total_unidades: 0,
@@ -142,18 +189,18 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     }
     const row = histMap[key]
     row.veces_vendido += 1
-    row.total_unidades += Number(h.cantidad ?? 0)
-    row._sumPrecio += Number(h.precio_vendido ?? 0)
+    row.total_unidades += Number(h?.cantidad ?? 0)
+    row._sumPrecio += Number(h?.precio_vendido ?? 0)
     row._count += 1
   }
   const historial: HistRow[] = Object.values(histMap).map((r) => ({
     ...r,
     promedio_precio: r._count > 0 ? r._sumPrecio / r._count : 0,
   }))
-  historial.sort((a, b) => b.ultima_venta_fecha.localeCompare(a.ultima_venta_fecha))
+  historial.sort((a, b) => (b.ultima_venta_fecha ?? '').localeCompare(a.ultima_venta_fecha ?? ''))
 
   const c = cliente as Cliente & { deuda_total?: number }
-  const descuentoPct = Number((c as any).descuento_porcentaje ?? 0)
+  const descuentoPct = Number((c as any).descuento_porcentaje ?? 0) || 0
 
   // Aging buckets for estado de cuenta.
   const today = new Date()
@@ -165,15 +212,19 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
     '61_90': 0,
     mas_90: 0,
   }
-  for (const f of (facturasUnpaid ?? []) as any[]) {
-    const saldo = Number(f.total ?? 0) - Number(f.monto_pagado ?? 0)
+  for (const f of facturasUnpaid as any[]) {
+    const saldo = Number(f?.total ?? 0) - Number(f?.monto_pagado ?? 0)
     if (saldo <= 0) continue
-    const dueRaw = f.fecha_vencimiento ?? f.fecha_emision
+    const dueRaw = f?.fecha_vencimiento ?? f?.fecha_emision
     if (!dueRaw) {
       aging.corriente += saldo
       continue
     }
     const dueDate = new Date(dueRaw)
+    if (Number.isNaN(dueDate.getTime())) {
+      aging.corriente += saldo
+      continue
+    }
     const diff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
     if (diff <= 0) aging.corriente += saldo
     else if (diff <= 30) aging['1_30'] += saldo
@@ -186,7 +237,7 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
   const tabs = [
     { id: 'info',     label: 'Información',           icon: User },
     { id: 'pedidos',  label: 'Historial de pedidos',  icon: ShoppingCart, count: totalPedidos },
-    { id: 'cuenta',   label: 'Estado de cuenta',      icon: CreditCard, count: (facturasUnpaid ?? []).length, tone: (facturasUnpaid ?? []).length > 0 ? 'danger' as const : undefined },
+    { id: 'cuenta',   label: 'Estado de cuenta',      icon: CreditCard, count: facturasUnpaid.length, tone: facturasUnpaid.length > 0 ? 'danger' as const : undefined },
     { id: 'precios',  label: 'Historial de precios',  icon: History, count: historial.length, tone: historial.length > 0 ? 'violet' as const : undefined },
     { id: 'notas',    label: 'Notas',                 icon: StickyNote, tone: undefined },
   ]
@@ -201,17 +252,17 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
             Clientes
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-slate-900 font-medium truncate max-w-xs">{c.nombre}</span>
+          <span className="text-slate-900 font-medium truncate max-w-xs">{c.nombre ?? '—'}</span>
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3 min-w-0">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-600 text-white text-lg font-bold shrink-0">
-              {c.nombre.charAt(0).toUpperCase()}
+              {(c.nombre ?? '?').charAt(0).toUpperCase() || '?'}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-semibold text-slate-900 truncate">{c.nombre}</h1>
+                <h1 className="text-xl font-semibold text-slate-900 truncate">{c.nombre ?? 'Cliente sin nombre'}</h1>
                 {c.activo ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
                     <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
@@ -275,7 +326,10 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
       </div>
 
       {/* ── Tabs ── */}
-      <ClienteTabBar tabs={tabs} activeTab={activeTab} />
+      {/* Suspense is required for client components that call useSearchParams */}
+      <Suspense fallback={<div className="border-b border-slate-200 bg-white h-12" />}>
+        <ClienteTabBar tabs={tabs} activeTab={activeTab} />
+      </Suspense>
 
       {/* ── Tab content ── */}
       <div className="p-4 sm:p-6 space-y-5 max-w-6xl">
@@ -290,8 +344,8 @@ export default async function ClienteDetailPage({ params, searchParams }: PagePr
         {activeTab === 'cuenta' && (
           <CuentaTab
             deudaTotal={deudaTotal}
-            facturasUnpaid={(facturasUnpaid ?? []) as any[]}
-            facturasAll={(facturasAllCliente ?? []) as any[]}
+            facturasUnpaid={facturasUnpaid as any[]}
+            facturasAll={facturasAllCliente as any[]}
             aging={aging}
           />
         )}

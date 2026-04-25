@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { Cliente } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
+import ClientesFilterBar from '@/components/clientes/ClientesFilterBar'
 import {
   Users,
   Plus,
@@ -22,20 +24,40 @@ interface PageProps {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+function escapeOrValue(v: string): string {
+  // Supabase .or() strings use commas as OR separators — escape any commas
+  // in the user input so ',' inside the term doesn't split the expression.
+  // We also strip % which would be treated as a wildcard out of the user's
+  // control.
+  return v.replace(/[,%]/g, ' ').trim()
+}
+
 export default async function ClientesPage({ searchParams }: PageProps) {
   const supabase = createClient()
-  const search = searchParams.search || ''
-  const activoFilter = searchParams.activo
+  const rawSearch = (searchParams.search ?? '').trim()
+  const activoFilter = searchParams.activo ?? ''
+
+  // We count the full catalog once for the "X de Y" counter.
+  const totalCountQ = await supabase
+    .from('clientes')
+    .select('id', { count: 'exact', head: true })
+  const totalClientes = totalCountQ.count ?? 0
 
   let query = supabase
     .from('clientes')
     .select('*')
     .order('nombre', { ascending: true })
+    .limit(1000)
 
-  if (search) {
-    query = query.or(
-      `nombre.ilike.%${search}%,rif.ilike.%${search}%,ciudad.ilike.%${search}%,email.ilike.%${search}%`
-    )
+  if (rawSearch) {
+    const s = escapeOrValue(rawSearch)
+    if (s) {
+      // Searches across nombre / rif / email / telefono / ciudad — PostgREST
+      // `.or()` uses commas to separate the conditions.
+      query = query.or(
+        `nombre.ilike.%${s}%,rif.ilike.%${s}%,ciudad.ilike.%${s}%,email.ilike.%${s}%,telefono.ilike.%${s}%`
+      )
+    }
   }
 
   if (activoFilter === 'true') {
@@ -48,6 +70,7 @@ export default async function ClientesPage({ searchParams }: PageProps) {
 
   const totalActivos = clientes?.filter((c) => c.activo).length ?? 0
   const totalInactivos = clientes?.filter((c) => !c.activo).length ?? 0
+  const showing = clientes?.length ?? 0
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -113,44 +136,15 @@ export default async function ClientesPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <form method="GET" className="flex flex-1 gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                name="search"
-                defaultValue={search}
-                placeholder="Buscar por nombre, RIF, ciudad o correo..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-              />
-            </div>
-            <select
-              name="activo"
-              defaultValue={activoFilter || ''}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-            >
-              <option value="">Todos</option>
-              <option value="true">Activos</option>
-              <option value="false">Inactivos</option>
-            </select>
-            <button
-              type="submit"
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-            >
-              Filtrar
-            </button>
-            {(search || activoFilter) && (
-              <Link
-                href="/clientes"
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 shadow-sm transition-colors hover:bg-slate-50"
-              >
-                Limpiar
-              </Link>
-            )}
-          </form>
-        </div>
+        {/* Filters — debounced client component, URL-persisted */}
+        <Suspense fallback={<div className="h-10" />}>
+          <ClientesFilterBar
+            initialSearch={rawSearch}
+            initialActivo={activoFilter}
+            showing={showing}
+            total={totalClientes}
+          />
+        </Suspense>
 
         {/* Error state */}
         {error && (
@@ -167,14 +161,28 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                 <Users className="h-7 w-7 text-slate-400" />
               </div>
               <h3 className="mt-4 text-base font-medium text-slate-900">
-                {search ? 'Sin resultados' : 'No hay clientes'}
+                {rawSearch
+                  ? `No se encontraron clientes con "${rawSearch}"`
+                  : activoFilter
+                  ? 'Sin resultados con el filtro actual'
+                  : 'No hay clientes'}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                {search
-                  ? 'Intente con otros términos de búsqueda.'
+                {rawSearch
+                  ? 'Prueba con otro término o limpia los filtros.'
+                  : activoFilter
+                  ? `Estás filtrando por estado "${activoFilter === 'true' ? 'activo' : 'inactivo'}".`
                   : 'Comience agregando su primer cliente.'}
               </p>
-              {!search && (
+              {(rawSearch || activoFilter) && (
+                <Link
+                  href="/clientes"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+                >
+                  Limpiar filtros
+                </Link>
+              )}
+              {!rawSearch && !activoFilter && (
                 <Link
                   href="/clientes/nuevo"
                   className="mt-5 flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
