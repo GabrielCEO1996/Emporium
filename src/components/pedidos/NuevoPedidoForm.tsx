@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Cliente, Presentacion } from '@/lib/types'
@@ -259,17 +260,27 @@ function StepProductos({
   onChangePrice: (id: string, precio: number) => void
   onRestaurarPrecio: (id: string) => void
 }) {
+  type MappedPres = Presentacion & {
+    producto?: { nombre: string; categoria?: string }
+    stock_expired?: number
+    all_expired?: boolean
+  }
+
+  // We load ALL active presentaciones once and filter client-side. With ~350
+  // rows the payload is small (~70KB) and filtering stays instant. Previously
+  // the query was capped at .limit(12) which hid most of the catalog.
+  const [allProducts, setAllProducts] = useState<MappedPres[]>([])
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<
-    (Presentacion & { producto?: { nombre: string; categoria?: string } })[]
-  >([])
-  const [loading, setLoading] = useState(false)
+  const [categoria, setCategoria] = useState<string>('all')
+  const [hideSinStock, setHideSinStock] = useState(false)
+  const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  const search = useCallback(
-    async (q: string) => {
+  useEffect(() => {
+    let cancelled = false
+    const fetchAll = async () => {
       setLoading(true)
-      let dbQuery = supabase
+      const { data } = await supabase
         .from('presentaciones')
         .select(`
           *,
@@ -278,18 +289,11 @@ function StepProductos({
         `)
         .eq('activo', true)
         .order('nombre')
-        .limit(12)
+        .range(0, 999) // Supabase hard max. Current catalog is ~350 rows.
 
-      if (q.trim()) {
-        dbQuery = dbQuery.or(
-          `nombre.ilike.%${q}%,codigo_barras.ilike.%${q}%`
-        )
-      }
-
-      const { data } = await dbQuery
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const mapped = ((data as any[]) ?? []).map((pres: any) => {
+      const mapped: MappedPres[] = ((data as any[]) ?? []).map((pres: any) => {
         // Aggregate stock across non-expired lots (never expose lot info to the vendor).
         const invRows: any[] = Array.isArray(pres.inventario)
           ? pres.inventario
@@ -324,20 +328,44 @@ function StepProductos({
           all_expired: invRows.length > 0 && stockFresh <= 0 && stockExpired > 0,
         }
       })
-      setResults(mapped)
-      setLoading(false)
-    },
-    [supabase]
+      if (!cancelled) {
+        setAllProducts(mapped)
+        setLoading(false)
+      }
+    }
+    fetchAll()
+    return () => { cancelled = true }
+  }, [supabase])
+
+  // Unique category list derived from loaded products.
+  const categorias = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of allProducts) {
+      const cat = (p as any).producto?.categoria
+      if (cat) set.add(cat)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [allProducts])
+
+  // Client-side filtering: search across producto nombre + presentacion nombre + código.
+  const results = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    return allProducts.filter((p) => {
+      const cat = (p as any).producto?.categoria
+      if (categoria !== 'all' && cat !== categoria) return false
+      if (hideSinStock && (p.stock ?? 0) <= 0) return false
+      if (q) {
+        const haystack = `${(p as any).producto?.nombre ?? ''} ${p.nombre ?? ''} ${(p as any).codigo_barras ?? ''} ${(p as any).producto?.codigo ?? ''}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [allProducts, query, categoria, hideSinStock])
+
+  const totalConStock = useMemo(
+    () => allProducts.filter((p) => (p.stock ?? 0) > 0).length,
+    [allProducts]
   )
-
-  useEffect(() => {
-    const timer = setTimeout(() => search(query), 300)
-    return () => clearTimeout(timer)
-  }, [query, search])
-
-  useEffect(() => {
-    search('')
-  }, [search])
 
   const inCart = (id: string) => items.find((i) => i.presentacion.id === id)
 
@@ -351,18 +379,57 @@ function StepProductos({
           </span>
         </div>
       )}
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar producto o presentación..."
-          className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-        />
-        {loading && (
-          <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-slate-400" />
+      {/* Toolbar: Search + Category + Counter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nombre, presentación o código..."
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          />
+          {loading && (
+            <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-slate-400" />
+          )}
+        </div>
+        <select
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+          className="rounded-lg border border-slate-200 py-2 px-3 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white"
+        >
+          <option value="all">Todas las categorías</option>
+          {categorias.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap px-2">
+          <input
+            type="checkbox"
+            checked={hideSinStock}
+            onChange={(e) => setHideSinStock(e.target.checked)}
+            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+          />
+          Ocultar sin stock
+        </label>
+      </div>
+
+      {/* Counter */}
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>
+          Mostrando <span className="font-semibold text-slate-700">{results.length}</span>{' '}
+          de <span className="font-semibold text-slate-700">{allProducts.length}</span> presentaciones
+          {' '}· <span className="text-emerald-600 font-semibold">{totalConStock}</span> con stock
+        </span>
+        {(query || categoria !== 'all' || hideSinStock) && (
+          <button
+            type="button"
+            onClick={() => { setQuery(''); setCategoria('all'); setHideSinStock(false) }}
+            className="text-teal-600 hover:underline"
+          >
+            Limpiar filtros
+          </button>
         )}
       </div>
 
@@ -372,7 +439,7 @@ function StepProductos({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Presentaciones disponibles
           </p>
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+          <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
             {results.length === 0 && !loading && (
               <p className="p-4 text-center text-sm text-slate-400">
                 {query ? 'Sin resultados' : 'Cargando...'}
@@ -912,6 +979,139 @@ function VentaDirectaModal({
   )
 }
 
+// ─── Cliente Context Panel ───────────────────────────────────────────────────
+
+function ClienteContextoPanel({
+  clienteId,
+  clienteNombre,
+  contexto,
+}: {
+  clienteId: string
+  clienteNombre: string
+  contexto: {
+    cliente: { descuento_porcentaje: number; limite_credito: number; dias_credito: number }
+    deuda: { total: number; facturas_pendientes: number; facturas_vencidas: number; monto_vencido: number }
+    pedidos_recientes: { id: string; numero: string; estado: string; total: number; fecha_pedido: string }[]
+    total_pedidos: number
+  }
+}) {
+  const { cliente, deuda, pedidos_recientes, total_pedidos } = contexto
+  const dp = cliente.descuento_porcentaje
+  const hasDeuda = deuda.total > 0
+  const hasVencido = deuda.facturas_vencidas > 0
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white">
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-teal-600" />
+          <span className="text-sm font-semibold text-slate-900 truncate">{clienteNombre}</span>
+        </div>
+        <Link
+          href={`/clientes/${clienteId}`}
+          target="_blank"
+          className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700"
+        >
+          Ver ficha completa
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100">
+        {/* Descuento global */}
+        <div className="p-3">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+            <Tag className="h-3 w-3 text-violet-500" />
+            Descuento global
+          </div>
+          {dp > 0 ? (
+            <p className="text-lg font-bold text-violet-700">
+              {dp.toFixed(dp % 1 === 0 ? 0 : 1)}%
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400">Sin descuento</p>
+          )}
+        </div>
+
+        {/* Deuda */}
+        <div className="p-3">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+            <AlertCircle className={cn('h-3 w-3', hasDeuda ? 'text-red-500' : 'text-emerald-500')} />
+            Deuda pendiente
+          </div>
+          {hasDeuda ? (
+            <>
+              <p className="text-lg font-bold text-red-600">{formatCurrency(deuda.total)}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {deuda.facturas_pendientes} factura{deuda.facturas_pendientes === 1 ? '' : 's'}
+                {hasVencido && (
+                  <span className="text-red-600 font-semibold">
+                    {' '}· {deuda.facturas_vencidas} vencida{deuda.facturas_vencidas === 1 ? '' : 's'}
+                  </span>
+                )}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-emerald-600 font-semibold">Al día ✓</p>
+          )}
+        </div>
+
+        {/* Límite crédito */}
+        <div className="p-3">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+            <CreditCard className="h-3 w-3 text-slate-400" />
+            Crédito
+          </div>
+          <p className="text-sm font-semibold text-slate-700">
+            {cliente.limite_credito > 0 ? formatCurrency(cliente.limite_credito) : 'Sin crédito'}
+          </p>
+          {cliente.dias_credito > 0 && (
+            <p className="text-[10px] text-slate-400 mt-0.5">{cliente.dias_credito} días</p>
+          )}
+        </div>
+
+        {/* Total pedidos */}
+        <div className="p-3">
+          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+            <ShoppingCart className="h-3 w-3 text-teal-500" />
+            Historial
+          </div>
+          <p className="text-sm font-semibold text-slate-700">
+            {total_pedidos} pedido{total_pedidos === 1 ? '' : 's'}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            {total_pedidos === 0 ? 'Primera venta' : 'Total histórico'}
+          </p>
+        </div>
+      </div>
+
+      {/* Recent pedidos */}
+      {pedidos_recientes.length > 0 && (
+        <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-2.5">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">
+            Últimos pedidos
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {pedidos_recientes.map((p) => (
+              <Link
+                key={p.id}
+                href={`/pedidos/${p.id}`}
+                target="_blank"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] hover:bg-teal-50 hover:border-teal-200 transition-colors"
+                title={`${p.estado} · ${new Date(p.fecha_pedido).toLocaleDateString('es-VE')}`}
+              >
+                <span className="font-mono font-semibold text-slate-700">#{p.numero}</span>
+                <span className="text-slate-400">·</span>
+                <span className="font-semibold text-slate-700">{formatCurrency(p.total)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Form ────────────────────────────────────────────────────────────────
 
 export default function NuevoPedidoForm() {
@@ -932,6 +1132,33 @@ export default function NuevoPedidoForm() {
     direccion_entrega: '',
     fecha_entrega_estimada: '',
   })
+
+  // Contextual snapshot loaded whenever a cliente is selected. Populates the
+  // sticky "Quién es este cliente" panel during Steps 2 and 3 so Mache can
+  // see descuento, deuda, and recent orders while quoting.
+  const [clienteContexto, setClienteContexto] = useState<null | {
+    cliente: { descuento_porcentaje: number; limite_credito: number; dias_credito: number }
+    deuda: { total: number; facturas_pendientes: number; facturas_vencidas: number; monto_vencido: number }
+    pedidos_recientes: { id: string; numero: string; estado: string; total: number; fecha_pedido: string }[]
+    total_pedidos: number
+  }>(null)
+
+  useEffect(() => {
+    const clienteId = form.cliente?.id
+    if (!clienteId) {
+      setClienteContexto(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/clientes/${clienteId}/contexto`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data && !data.error) setClienteContexto(data)
+      })
+      .catch((err) => console.warn('[contexto]', err))
+    return () => { cancelled = true }
+  }, [form.cliente?.id])
 
   // Pre-load client if ID is in query string
   useEffect(() => {
@@ -1160,6 +1387,15 @@ export default function NuevoPedidoForm() {
       <div className="flex justify-center">
         <StepIndicator current={step} />
       </div>
+
+      {/* Client context panel — visible once cliente is selected and we're past step 1 */}
+      {step >= 2 && form.cliente && clienteContexto && (
+        <ClienteContextoPanel
+          clienteId={form.cliente.id}
+          clienteNombre={form.cliente.nombre}
+          contexto={clienteContexto}
+        />
+      )}
 
       {/* Step content */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

@@ -12,6 +12,7 @@ import {
   Building2,
   Phone,
   FileText,
+  ShoppingCart,
 } from 'lucide-react'
 
 interface PageProps {
@@ -282,13 +283,23 @@ export default async function ClientesPage({ searchParams }: PageProps) {
                           )}
                         </td>
                         <td className="px-5 py-4">
-                          <Link
-                            href={`/clientes/${cliente.id}`}
-                            className="flex items-center justify-end gap-1 text-xs font-medium text-teal-600 opacity-0 transition-opacity group-hover:opacity-100"
-                          >
-                            Ver detalle
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Link>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={`/pedidos/nuevo?cliente=${cliente.id}`}
+                              title="Crear pedido para este cliente"
+                              className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
+                            >
+                              <ShoppingCart className="h-3 w-3" />
+                              Pedido
+                            </Link>
+                            <Link
+                              href={`/clientes/${cliente.id}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                            >
+                              Ver
+                              <ChevronRight className="h-3 w-3" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}

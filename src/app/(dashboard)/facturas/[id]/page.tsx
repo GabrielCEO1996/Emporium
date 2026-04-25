@@ -279,7 +279,16 @@ export default async function FacturaDetailPage({ params }: PageProps) {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    <span className="font-semibold text-slate-900">{f.cliente.nombre}</span>
+                    {f.cliente.id ? (
+                      <Link
+                        href={`/clientes/${f.cliente.id}`}
+                        className="font-semibold text-teal-700 hover:text-teal-800 hover:underline"
+                      >
+                        {f.cliente.nombre}
+                      </Link>
+                    ) : (
+                      <span className="font-semibold text-slate-900">{f.cliente.nombre}</span>
+                    )}
                   </div>
                   {f.cliente.rif && (
                     <div className="flex items-center gap-2 text-sm">

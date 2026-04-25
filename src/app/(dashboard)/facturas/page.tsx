@@ -367,9 +367,18 @@ export default async function FacturasPage({ searchParams }: PageProps) {
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900">
-                          {factura.cliente?.nombre ?? '—'}
-                        </div>
+                        {factura.cliente?.id ? (
+                          <Link
+                            href={`/clientes/${factura.cliente.id}`}
+                            className="font-medium text-teal-700 hover:text-teal-800 hover:underline"
+                          >
+                            {factura.cliente.nombre}
+                          </Link>
+                        ) : (
+                          <div className="font-medium text-slate-900">
+                            {factura.cliente?.nombre ?? '—'}
+                          </div>
+                        )}
                         {factura.cliente?.rif && (
                           <div className="text-xs text-slate-500">{factura.cliente.rif}</div>
                         )}

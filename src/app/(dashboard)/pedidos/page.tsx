@@ -340,9 +340,18 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                         </td>
                         <td className="px-5 py-4">
                           <div>
-                            <p className="font-medium text-slate-900">
-                              {pedido.cliente?.nombre ?? '—'}
-                            </p>
+                            {pedido.cliente?.id ? (
+                              <Link
+                                href={`/clientes/${pedido.cliente.id}`}
+                                className="font-medium text-teal-700 hover:text-teal-800 hover:underline"
+                              >
+                                {pedido.cliente.nombre}
+                              </Link>
+                            ) : (
+                              <p className="font-medium text-slate-900">
+                                {pedido.cliente?.nombre ?? '—'}
+                              </p>
+                            )}
                             {pedido.cliente?.rif && (
                               <p className="text-xs text-slate-500">
                                 {pedido.cliente.rif}
