@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import TiendaLanding from './TiendaLanding'
 import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2461,8 +2462,8 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         </div>
       </header>
 
-      {/* ── Hero ── */}
-      <Hero nombre={profile.nombre} />
+      {/* ── Cinematic landing (Hero + Stats + Categories + Featured + How + CTA) ── */}
+      <TiendaLanding profile={profile as any} productos={productos as any} />
 
       {/* ── Search + Categories — editorial strip ── */}
       <section id="catalogo" className="sticky top-[73px] z-20 bg-brand-cream/90 backdrop-blur-md border-y border-stone-200/70">
