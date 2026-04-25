@@ -755,12 +755,16 @@ function ConfirmModal({
     !proofUrl
   const ctaDisabled = loading || creditoInsuficiente || refFaltante || proofMissing
 
+  // Efectivo and other deferred-payment methods reuse the "Generar orden"
+  // copy because the order lands in /ordenes pending Mache's processing —
+  // it isn't a finalized payment at click time. Stripe is the only branch
+  // that immediately settles, so it keeps "Pagar con tarjeta".
   const ctaLabel =
     tipoPago === 'stripe'   ? 'Pagar con tarjeta' :
-    tipoPago === 'credito'  ? 'Confirmar con crédito' :
-    tipoPago === 'zelle'    ? 'Confirmar — pago por Zelle' :
-    tipoPago === 'cheque'   ? 'Confirmar — pago con cheque' :
-                              'Confirmar — pago en efectivo'
+    tipoPago === 'credito'  ? 'Generar orden — crédito' :
+    tipoPago === 'zelle'    ? 'Generar orden — Zelle' :
+    tipoPago === 'cheque'   ? 'Generar orden — cheque' :
+                              'Generar orden — efectivo'
 
   return (
     <AnimatePresence>
