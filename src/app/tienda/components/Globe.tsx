@@ -425,21 +425,6 @@ function EarthScene() {
   const cameraOffset = useRef({ x: 0, y: 0 })
   const { camera } = useThree()
 
-  // Hero visibility — skip useFrame work when the hero scrolls out of view.
-  // Without this the GPU stays at full load animating arcs nobody can see.
-  const heroVisibleRef = useRef(true)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const hero = document.querySelector('.tienda-hero')
-    if (!hero) return
-    const obs = new IntersectionObserver(
-      (entries) => { heroVisibleRef.current = entries[0]?.isIntersecting ?? true },
-      { threshold: 0.01 },
-    )
-    obs.observe(hero)
-    return () => obs.disconnect()
-  }, [])
-
   // Generate textures + materials once per mount
   const earthMaterial = useMemo(() => {
     const earthTex = createEarthTexture()
@@ -532,7 +517,6 @@ function EarthScene() {
 
   // Per-frame: time, parallax, earth rotation, arcs phases, hq pulse
   useFrame((state) => {
-    if (!heroVisibleRef.current) return // hero off-screen — freeze
     const t = state.clock.getElapsedTime()
     earthMaterial.uniforms.uTime.value = t
 
@@ -611,7 +595,7 @@ function EarthScene() {
     <>
       {/* Atmosphere — fresnel teal, additive */}
       <mesh ref={atmosphereRef} position={[1.6, 0, 0]} material={atmosphereMaterial}>
-        <sphereGeometry args={[1.55, 48, 48]} />
+        <sphereGeometry args={[1.55, 64, 64]} />
       </mesh>
 
       {/* Earth */}
@@ -621,9 +605,7 @@ function EarthScene() {
         rotation={initialRot}
         material={earthMaterial}
       >
-        {/* 64×64 instead of 96×96 — visually identical at this radius +
-            camera distance, ~50% fewer triangles. */}
-        <sphereGeometry args={[SPHERE_RADIUS, 64, 64]} />
+        <sphereGeometry args={[SPHERE_RADIUS, 96, 96]} />
 
         {/* Chicago HQ — dot + pulsing ring */}
         <mesh position={chicagoLocal}>
