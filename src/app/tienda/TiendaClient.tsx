@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import TiendaLanding from './TiendaLanding'
 import Nav from './components/Nav'
 import EmporiumBot from './components/EmporiumBot'
+import CheckoutModal from './components/CheckoutModal'
 import Microinteractions from './components/Microinteractions'
 import { useRouter } from 'next/navigation'
 
@@ -2026,11 +2027,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     profile.rol === 'comprador' && stripeEnabled ? 'stripe' : 'zelle'
   )
   const [numeroRef, setNumeroRef] = useState('')
-  // Uploaded proof URL (Zelle screenshot / Cheque front photo). Required for
-  // comprador on zelle/cheque — enforced server-side in /api/tienda/pedido.
+  // Uploaded proof URL — Zelle screenshot. Required server-side en
+  // /api/checkout/zelle. (cheque y métodos in-person ya no están en el
+  // checkout de la tienda — eso queda solo en venta directa del admin.)
   const [proofUrl, setProofUrl] = useState<string>('')
-  // Optional: cheque issuer bank name. Appended to the orden notas.
-  const [bancoNombre, setBancoNombre] = useState<string>('')
 
   // BUG 4 — product detail modal state
   const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
@@ -2184,66 +2184,55 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     }
   }
 
-  const handleConfirmOrder = async () => {
+  // ── Checkout handlers — Fase E ──────────────────────────────────────────
+  // Tres handlers explícitos. Cada CTA del CheckoutModal invoca exactamente
+  // UNO de estos, que llama a UN endpoint:
+  //   "Generar orden"   → /api/ordenes/crear   (B2B sin método de pago)
+  //   "Comprar ahora" → "Tarjeta" → /api/checkout/stripe (redirige a Stripe)
+  //   "Comprar ahora" → "Zelle"   → /api/checkout/zelle  (orden con
+  //                                                       comprobante)
+  // No hay state intermedio (`tipoPago`) que pueda mutar entre la elección
+  // del usuario y el envío del request — eso era la causa del bypass viejo.
+
+  const buildBaseBody = () => {
+    const items = cart.map(i => ({
+      presentacion_id: i.presentacionId,
+      productoNombre: i.productoNombre,
+      presentacionNombre: i.presentacionNombre,
+      cantidad: i.cantidad,
+      precio_unitario: i.precio,
+    }))
+    const cliente_data = isShippingComplete
+      ? {
+          nombre:       shipping.nombre.trim(),
+          telefono:     shipping.telefono.trim(),
+          direccion:    shipping.direccion.trim(),
+          ciudad:       shipping.ciudad.trim(),
+          whatsapp:     shipping.whatsapp.trim(),
+          tipo_cliente: shipping.tipo_cliente,
+        }
+      : undefined
+    return {
+      items,
+      notas,
+      direccion_entrega: direccion || shipping.direccion,
+      cliente_data,
+    }
+  }
+
+  const handleGenerarOrden = async () => {
     setOrdering(true)
     try {
-      const items = cart.map(i => ({
-        presentacion_id: i.presentacionId,
-        productoNombre: i.productoNombre,
-        presentacionNombre: i.presentacionNombre,
-        cantidad: i.cantidad,
-        precio_unitario: i.precio,
-      }))
-
-      const cliente_data = isShippingComplete
-        ? {
-            nombre:       shipping.nombre.trim(),
-            telefono:     shipping.telefono.trim(),
-            direccion:    shipping.direccion.trim(),
-            ciudad:       shipping.ciudad.trim(),
-            whatsapp:     shipping.whatsapp.trim(),
-            tipo_cliente: shipping.tipo_cliente,
-          }
-        : undefined
-
-      const res = await fetch('/api/tienda/pedido', {
+      const res = await fetch('/api/ordenes/crear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items,
-          notas,
-          direccion_entrega: direccion || shipping.direccion,
-          cliente_data,
-          tipo_pago: tipoPago,
-          numero_referencia:
-            (tipoPago === 'zelle' || tipoPago === 'cheque')
-              ? numeroRef.trim()
-              : undefined,
-          payment_proof_url:
-            (tipoPago === 'zelle' || tipoPago === 'cheque') && proofUrl
-              ? proofUrl
-              : undefined,
-          banco_nombre:
-            tipoPago === 'cheque' && bancoNombre.trim()
-              ? bancoNombre.trim()
-              : undefined,
-        }),
+        body: JSON.stringify(buildBaseBody()),
       })
-
       const data = await res.json().catch(() => ({} as any))
-
       if (!res.ok || !data.success) {
-        toast.error(data.error || 'Error al enviar la orden')
-        setOrdering(false)
+        toast.error(data.error || 'Error al generar la orden')
         return
       }
-
-      if (data.tipo === 'pago' && data.url) {
-        toast.success('Redirigiendo al pago seguro…')
-        window.location.href = data.url
-        return
-      }
-
       setCart([])
       setConfirmOpen(false)
       setCartOpen(false)
@@ -2251,16 +2240,70 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setNumeroRef('')
       setProofUrl('')
       router.push('/tienda/mis-pedidos')
-      const msg =
-        tipoPago === 'credito'  ? `Orden ${data.numero ?? ''} creada con crédito` :
-        tipoPago === 'zelle'    ? `Orden ${data.numero ?? ''} enviada — confirma tu pago por Zelle` :
-        tipoPago === 'cheque'   ? `Orden ${data.numero ?? ''} enviada — coordinaremos la entrega del cheque` :
-        tipoPago === 'efectivo' ? `Orden ${data.numero ?? ''} enviada — paga al recibir` :
-                                  `Orden ${data.numero ?? ''} enviada correctamente`
-      toast.success(msg)
+      toast.success(`Orden ${data.numero ?? ''} generada — pendiente de aprobación`)
     } catch (err: any) {
-      console.error('[tienda] handleConfirmOrder threw:', err)
-      toast.error(err?.message ?? 'Error de conexión. Intenta de nuevo.')
+      console.error('[tienda] handleGenerarOrden threw:', err)
+      toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')
+    } finally {
+      setOrdering(false)
+    }
+  }
+
+  const handleComprarStripe = async () => {
+    setOrdering(true)
+    try {
+      const res = await fetch('/api/checkout/stripe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildBaseBody()),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data.success || !data.url) {
+        toast.error(data.error || 'Error al iniciar el pago')
+        return
+      }
+      // GARANTÍA: este endpoint nunca crea pedido. La única salida exitosa
+      // es la URL de Stripe Checkout. Redirigimos y el cliente paga ahí;
+      // el webhook crea el pedido al recibir checkout.session.completed.
+      toast.success('Redirigiendo al pago seguro…')
+      window.location.href = data.url
+    } catch (err: any) {
+      console.error('[tienda] handleComprarStripe threw:', err)
+      toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')
+      setOrdering(false)
+    }
+    // No setOrdering(false) en el path success — la página se está
+    // redirigiendo, mantener el spinner.
+  }
+
+  const handleComprarZelle = async () => {
+    setOrdering(true)
+    try {
+      const res = await fetch('/api/checkout/zelle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...buildBaseBody(),
+          numero_referencia: numeroRef.trim(),
+          payment_proof_url: proofUrl,
+        }),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data.success) {
+        toast.error(data.error || 'Error al confirmar pago Zelle')
+        return
+      }
+      setCart([])
+      setConfirmOpen(false)
+      setCartOpen(false)
+      setNotas('')
+      setNumeroRef('')
+      setProofUrl('')
+      router.push('/tienda/mis-pedidos')
+      toast.success(`Orden ${data.numero ?? ''} enviada — confirmamos el pago en minutos`)
+    } catch (err: any) {
+      console.error('[tienda] handleComprarZelle threw:', err)
+      toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')
     } finally {
       setOrdering(false)
     }
@@ -2452,29 +2495,25 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         }}
       />
 
-      <ConfirmModal
+      <CheckoutModal
         items={cart}
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={handleConfirmOrder}
         loading={ordering}
         notas={notas}
         setNotas={setNotas}
         direccion={direccion}
         setDireccion={setDireccion}
-        tipoPago={tipoPago}
-        setTipoPago={setTipoPago}
         numeroRef={numeroRef}
         setNumeroRef={setNumeroRef}
         proofUrl={proofUrl}
         setProofUrl={setProofUrl}
-        bancoNombre={bancoNombre}
-        setBancoNombre={setBancoNombre}
         rol={profile.rol}
         stripeEnabled={stripeEnabled}
-        creditoAutorizado={creditoAutorizado}
-        creditoDisponible={creditoDisponible}
         empresaPayment={empresaPayment}
+        onGenerarOrden={handleGenerarOrden}
+        onComprarStripe={handleComprarStripe}
+        onComprarZelle={handleComprarZelle}
         onBack={() => { setConfirmOpen(false); setShippingOpen(true) }}
         onClearCart={() => {
           setCart([])
@@ -2488,6 +2527,9 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
           ciudad: shipping.ciudad,
           telefono: shipping.telefono,
         } : null}
+        renderProofUpload={({ value, onChange }) => (
+          <PaymentProofUpload value={value} onChange={onChange} />
+        )}
       />
 
       <ProductDetailModal
