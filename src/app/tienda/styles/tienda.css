@@ -420,3 +420,129 @@
     font-size: clamp(40px, 8vw, 60px);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * CÓMO FUNCIONA (Pre-Fase 5)
+ * Sección con bg navy oscuro local — tapa el SpaceBackground al scrollearla
+ * (la regla `.tienda-landing-root > section:not(.tienda-hero)` ya le da
+ * z-index:1). Cards glass con borde teal-soft, números serif italic teal,
+ * texto cream sobre navy.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-howitworks {
+  background: var(--brand-navy-deep);
+  color: var(--bg-cream);
+  padding: 96px 0;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .tienda-howitworks { padding: 128px 0; }
+}
+
+.tienda-howitworks-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 6vw;
+}
+
+.tienda-howitworks-heading {
+  margin-bottom: 64px;
+  max-width: 640px;
+}
+
+@media (min-width: 1024px) {
+  .tienda-howitworks-heading { margin-bottom: 80px; }
+}
+
+.tienda-howitworks-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--brand-teal-soft);
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.tienda-howitworks-title {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-weight: 300;
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--bg-cream);
+  margin: 0;
+}
+
+.tienda-howitworks-title em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--brand-teal-soft);
+}
+
+.tienda-howitworks-lead {
+  margin-top: 20px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(250, 250, 247, 0.55);
+}
+
+.tienda-howitworks-steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .tienda-howitworks-steps {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+}
+
+.tienda-howitworks-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 0.5px solid rgba(94, 191, 182, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 32px;
+  transition: border-color 0.5s var(--ease-out-expo),
+              transform 0.5s var(--ease-out-expo),
+              background 0.5s var(--ease-out-expo);
+}
+
+.tienda-howitworks-card:hover {
+  border-color: rgba(94, 191, 182, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.tienda-howitworks-num {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(36px, 4vw, 48px);
+  font-weight: 300;
+  color: var(--brand-teal);
+  margin-bottom: 24px;
+  line-height: 1;
+  font-feature-settings: 'tnum';
+}
+
+.tienda-howitworks-step-title {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-weight: 400;
+  font-size: clamp(24px, 2.5vw, 32px);
+  letter-spacing: -0.01em;
+  color: var(--bg-cream);
+  margin: 0 0 16px;
+  line-height: 1.1;
+}
+
+.tienda-howitworks-copy {
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(250, 250, 247, 0.6);
+  max-width: 36ch;
+  margin: 0;
+}
