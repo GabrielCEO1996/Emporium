@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
 import { releaseOrdenStock } from '@/lib/orden-stock'
+import { sendCambioEstadoEmail } from '@/lib/email/cambio-estado'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -180,6 +181,11 @@ export async function POST(_req: Request, { params }: RouteContext) {
           stock_total: releaseRes.itemsTotal,
         },
       })
+
+      // Notify the customer that their manual payment was verified.
+      void sendCambioEstadoEmail(supabase, orden.id, 'pago_verificado', {
+        pedidoNumero: pedido.numero,
+      }).catch(e => console.error('[ordenes/confirmar-pago] email failed:', e))
 
       return NextResponse.json({
         message: `Pago confirmado para orden ${orden.numero}. Pedido ${pedido.numero} creado.`,

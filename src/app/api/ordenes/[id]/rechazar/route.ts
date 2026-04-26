@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
 import { releaseOrdenStock } from '@/lib/orden-stock'
+import { sendCambioEstadoEmail } from '@/lib/email/cambio-estado'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -99,6 +100,11 @@ export async function POST(req: Request, { params }: RouteContext) {
           stock_total: releaseRes.itemsTotal,
         },
       })
+
+      // Notify the customer (best-effort, never blocks the response).
+      void sendCambioEstadoEmail(supabase, orden.id, 'rechazada', {
+        motivo,
+      }).catch(e => console.error('[ordenes/rechazar] email failed:', e))
 
       return NextResponse.json({
         message: `Orden ${orden.numero} rechazada`,
