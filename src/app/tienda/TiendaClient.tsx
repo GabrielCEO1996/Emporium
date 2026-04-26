@@ -2379,25 +2379,27 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         )}
       </main>
 
-      {/* ── Footer — editorial ── */}
+      {/* ── Footer — editorial. Mobile colapsa a logo + copyright ── */}
       <footer data-reveal className="border-t border-stone-200/80 bg-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 grid md:grid-cols-3 gap-8">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 md:py-12 grid md:grid-cols-3 gap-8">
           <div>
             <p className="font-serif text-2xl text-brand-navy">Emporium</p>
-            <p className="text-[11px] uppercase tracking-luxe text-brand-gold mt-2">Distribución premium</p>
-            <p className="text-sm text-brand-charcoal/70 mt-4 leading-relaxed max-w-xs">
+            <p className="text-[11px] uppercase tracking-luxe text-brand-teal mt-2">Distribución premium</p>
+            <p className="hidden md:block text-sm text-brand-charcoal/70 mt-4 leading-relaxed max-w-xs">
               Productos seleccionados con precisión. Entrega confiable para negocios y hogares.
             </p>
           </div>
-          <div>
+          {/* Enlaces — ocultos en mobile (redundantes con el drawer hamburger) */}
+          <div className="hidden md:block">
             <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">Enlaces</p>
             <ul className="space-y-2 text-sm text-brand-navy">
-              <li><a href="#catalogo" className="hover:text-brand-gold transition">Catálogo</a></li>
-              <li><Link href="/tienda/mis-pedidos" className="hover:text-brand-gold transition">Mis pedidos</Link></li>
-              <li><Link href="/tienda/perfil" className="hover:text-brand-gold transition">Mi cuenta</Link></li>
+              <li><a href="#catalogo" className="hover:text-brand-teal transition">Catálogo</a></li>
+              <li><Link href="/tienda/mis-pedidos" className="hover:text-brand-teal transition">Mis pedidos</Link></li>
+              <li><Link href="/tienda/perfil" className="hover:text-brand-teal transition">Mi cuenta</Link></li>
             </ul>
           </div>
-          <div>
+          {/* Asistencia — ocultos en mobile (EmporiumBot ya está visible) */}
+          <div className="hidden md:block">
             <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">Asistencia</p>
             <p className="text-sm text-brand-charcoal/70 leading-relaxed">
               Nuestro concierge digital está disponible 24/7. Abre el chat en la esquina inferior derecha.
@@ -2409,65 +2411,9 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         </div>
       </footer>
 
-      {/* ── Bottom nav (mobile) ── */}
-      <nav className="fixed bottom-0 inset-x-0 bg-brand-cream/95 backdrop-blur-md border-t border-stone-200/80 flex items-center justify-around px-4 py-3 z-20 md:hidden">
-        <Link href="/tienda" className="flex flex-col items-center gap-1 py-1 text-brand-navy">
-          <ShoppingBag className="w-5 h-5" />
-          <span className="text-[9px] uppercase tracking-luxe">Tienda</span>
-        </Link>
-        <motion.button
-          key={`mobile-cart-pulse-${cartPulse}`}
-          initial={false}
-          animate={cartPulse > 0 ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-          onClick={() => setCartOpen(true)}
-          className="relative flex flex-col items-center gap-1 py-1 text-brand-charcoal hover:text-brand-navy transition"
-        >
-          <div className="relative">
-            <ShoppingBag className="w-5 h-5" />
-            {cartCount > 0 && (
-              <motion.span
-                key={`mobile-badge-${cartPulse}`}
-                initial={false}
-                animate={cartPulse > 0 ? { scale: [1, 1.3, 1] } : { scale: 1 }}
-                transition={{ duration: 0.4 }}
-                className="absolute -top-1.5 -right-2 bg-brand-gold text-brand-navy text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
-              >
-                {cartCount > 9 ? '9+' : cartCount}
-              </motion.span>
-            )}
-          </div>
-          <span className="text-[9px] uppercase tracking-luxe">Carrito</span>
-        </motion.button>
-        <Link href="/tienda/mis-pedidos" className="flex flex-col items-center gap-1 py-1 text-brand-charcoal hover:text-brand-navy transition">
-          <ClipboardList className="w-5 h-5" />
-          <span className="text-[9px] uppercase tracking-luxe">Pedidos</span>
-        </Link>
-        <Link href="/tienda/perfil" className="flex flex-col items-center gap-1 py-1 text-brand-charcoal hover:text-brand-navy transition">
-          <User className="w-5 h-5" />
-          <span className="text-[9px] uppercase tracking-luxe">Cuenta</span>
-        </Link>
-      </nav>
-
-      {/* ── Chat FAB ── */}
-      <motion.button
-        whileTap={{ scale: 0.92 }}
-        whileHover={{ scale: 1.04 }}
-        onClick={() => setChatOpen(v => !v)}
-        className="fixed bottom-24 right-5 md:bottom-8 md:right-8 w-14 h-14 bg-brand-navy hover:bg-brand-navy/90 text-brand-gold rounded-full shadow-[0_15px_35px_-10px_rgba(15,23,42,0.45)] flex items-center justify-center z-30 transition-colors"
-        aria-label="Abrir chat"
-      >
-        <AnimatePresence mode="wait">
-          {chatOpen
-            ? <motion.div key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
-                <X className="w-5 h-5" />
-              </motion.div>
-            : <motion.div key="msg" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }}>
-                <MessageCircle className="w-5 h-5" />
-              </motion.div>
-          }
-        </AnimatePresence>
-      </motion.button>
+      {/* Bottom nav (mobile) eliminado en Fase 9 — ahora redundante con
+          el Nav top + drawer hamburger. Carrito vive en el Nav top.
+          Chat FAB viejo (paleta dorada) reemplazado por <EmporiumBot />. */}
 
       {/* ── Modals / Drawers ── */}
       <CartPanel

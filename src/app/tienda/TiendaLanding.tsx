@@ -266,8 +266,12 @@ export default function TiendaLanding({ profile, clientStats }: Props) {
           última factura, productos nuevos 30d).
           ════════════════════════════════════════════════════════════════════ */}
       <section className="tienda-hero">
-        <GlobeStage />
-        <PinOverlay />
+        {/* Globo + pin envueltos para que en mobile pasen a un bloque
+            relativo debajo del texto en lugar de cubrir la sección entera. */}
+        <div className="tienda-hero-globe">
+          <GlobeStage />
+          <PinOverlay />
+        </div>
 
         <div className="tienda-hero-content">
           <div className="tienda-hero-eyebrow">Hola · {fechaHoy}</div>
@@ -277,6 +281,31 @@ export default function TiendaLanding({ profile, clientStats }: Props) {
             <em>{firstName}.</em>
           </h1>
           <p className="tienda-hero-subtitle">{subtitleFor(clientStats)}</p>
+
+          {/* Meta line — mobile only. La columna lateral se oculta y los
+              stats clave se muestran como una línea simple debajo del
+              subtitle, antes de los CTAs. */}
+          <p className="tienda-hero-meta-line">
+            {showCredito ? (
+              <>
+                <span className="tienda-hero-meta-line-label">Crédito</span>{' '}
+                <strong>{formatCurrency(creditoDisponible ?? 0)}</strong>
+              </>
+            ) : (
+              <>
+                <span className="tienda-hero-meta-line-label">Pedidos</span>{' '}
+                <strong>{pedidosTotales}</strong>
+              </>
+            )}
+            {ultimaCompra && (
+              <>
+                <span className="tienda-hero-meta-line-divider">·</span>
+                <span className="tienda-hero-meta-line-label">Última compra</span>{' '}
+                <strong>{relativeFromFecha(ultimaCompra.fecha)}</strong>
+              </>
+            )}
+          </p>
+
           <div className="tienda-hero-actions">
             <a href="#catalogo" className="tienda-cta-primary">
               Ver catálogo
