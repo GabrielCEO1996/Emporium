@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { rateLimit, rateLimitResponse, logActivity } from '@/lib/security'
 import { reserveOrdenStock, rollbackOrdenStock } from '@/lib/orden-stock'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 // Disable all caching for this route handler.
 export const dynamic = 'force-dynamic'
@@ -241,25 +242,42 @@ export async function POST(req: Request) {
       ordenNumero = `ORD-${year}-${String(lastN + 1).padStart(4, '0')}`
     }
 
+    // ── Generate master transaccion_id (EMP-YYYY-NNNN) ────────────────────
+    // Soft-fail: si la secuencia no está instalada (DB no migrada todavía)
+    // la orden se crea sin handle maestro. Logueamos para investigar.
+    const transaccionId = await generateTransaccionId(supabase)
+
     // ── Insert orden ───────────────────────────────────────────────────────
     // tipo_pago = NULL (no decidido)
     // estado_pago = 'no_aplica' (pago se decide en facturación)
     // estado = 'pendiente' (espera aprobación admin)
-    const { data: orden, error: ordenErr } = await supabase
+    const ordenPayload: Record<string, any> = {
+      numero: ordenNumero,
+      cliente_id,
+      user_id: user.id,
+      estado: 'pendiente',
+      tipo_pago: null,
+      estado_pago: 'no_aplica',
+      notas: notas?.trim() || null,
+      direccion_entrega: direccion_entrega?.trim() || null,
+      total,
+    }
+    if (transaccionId) ordenPayload.transaccion_id = transaccionId
+
+    let { data: orden, error: ordenErr } = await supabase
       .from('ordenes')
-      .insert({
-        numero: ordenNumero,
-        cliente_id,
-        user_id: user.id,
-        estado: 'pendiente',
-        tipo_pago: null,
-        estado_pago: 'no_aplica',
-        notas: notas?.trim() || null,
-        direccion_entrega: direccion_entrega?.trim() || null,
-        total,
-      })
+      .insert(ordenPayload)
       .select()
       .single()
+    // Defensive: si la columna transaccion_id no existe (migration v1 sin
+    // aplicar), reintentar sin ella.
+    if (ordenErr && /transaccion_id/i.test(ordenErr.message || '')) {
+      console.warn('[ordenes/crear] transaccion_id column missing — retrying without')
+      delete ordenPayload.transaccion_id
+      const retry = await supabase.from('ordenes').insert(ordenPayload).select().single()
+      orden = retry.data
+      ordenErr = retry.error
+    }
 
     if (ordenErr || !orden) {
       // Rollback the inventory reservation we just made

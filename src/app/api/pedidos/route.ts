@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -84,9 +85,10 @@ export async function POST(request: NextRequest) {
       const subtotal = items.reduce((acc: number, item: any) => acc + item.subtotal, 0)
       const total = subtotal - descuento
 
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('pedidos')
-        .insert({
+      // Master transaccion_id — pedido admin directo no tiene orden parent.
+      const transaccionId = await generateTransaccionId(supabase)
+      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: numData,
           cliente_id,
           vendedor_id: effectiveVendedorId,
@@ -98,9 +100,18 @@ export async function POST(request: NextRequest) {
           notas,
           direccion_entrega,
           fecha_entrega_estimada: fecha_entrega_estimada || null,
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+        return base
+      }
+      let { data: pedido, error: pedidoError } = await supabase
+        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+      if (pedidoError && /transaccion_id/i.test(pedidoError.message || '')) {
+        console.warn('[POST /api/pedidos] pedidos.transaccion_id missing — retrying without')
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        pedido = r.data
+        pedidoError = r.error
+      }
 
       if (pedidoError) return NextResponse.json({ error: pedidoError.message }, { status: 500 })
 

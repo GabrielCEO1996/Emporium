@@ -36,12 +36,13 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: 'Solo administradores pueden confirmar pagos' }, { status: 403 })
       }
 
-      // Load the orden
+      // Load the orden — transaccion_id se hereda al pedido para
+      // mantener tracking end-to-end.
       const { data: orden, error: fetchErr } = await supabase
         .from('ordenes')
         .select(`
           id, numero, estado, cliente_id, notas, direccion_entrega, total,
-          tipo_pago, pago_confirmado, numero_referencia,
+          tipo_pago, pago_confirmado, numero_referencia, transaccion_id,
           items:orden_items(id, presentacion_id, cantidad, precio_unitario, subtotal)
         `)
         .eq('id', params.id)
@@ -76,9 +77,9 @@ export async function POST(_req: Request, { params }: RouteContext) {
 
       // Create pedido in 'borrador' linked to the orden
       const subtotal = (orden.items as any[]).reduce((s, i) => s + Number(i.subtotal), 0)
-      const { data: pedido, error: pedidoErr } = await supabase
-        .from('pedidos')
-        .insert({
+      const ordenTxId = (orden as any).transaccion_id as string | null | undefined
+      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: pedidoNumero,
           cliente_id: orden.cliente_id,
           vendedor_id: user.id,
@@ -90,9 +91,18 @@ export async function POST(_req: Request, { params }: RouteContext) {
           notas: orden.notas,
           direccion_entrega: orden.direccion_entrega,
           orden_id: orden.id,
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+        return base
+      }
+      let { data: pedido, error: pedidoErr } = await supabase
+        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+      if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
+        console.warn('[ordenes/confirmar-pago] pedidos.transaccion_id missing — retrying without')
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        pedido = r.data
+        pedidoErr = r.error
+      }
 
       if (pedidoErr || !pedido) {
         return NextResponse.json(

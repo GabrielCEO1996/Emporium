@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { rateLimit, rateLimitResponse, logActivity } from '@/lib/security'
 import { reserveOrdenStock, rollbackOrdenStock } from '@/lib/orden-stock'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -199,10 +200,14 @@ export async function POST(req: Request) {
       ordenNumero = `ORD-${year}-${String(Date.now()).slice(-4)}`
     }
 
+    // ── Generate master transaccion_id ────────────────────────────────────
+    const transaccionId = await generateTransaccionId(supabase)
+
     // ── Insert orden ──────────────────────────────────────────────────────
-    // Defensive: payment_proof_url puede no existir en la columna si la
-    // migration payment_proofs.sql no se aplicó. Retry sin esos campos.
-    const buildPayload = (includeProofCols: boolean) => {
+    // Defensive cascade: payment_proof_url + transaccion_id pueden faltar
+    // si las migrations correspondientes no se aplicaron. Retry sin esos
+    // campos en cada caso.
+    const buildPayload = (includeProofCols: boolean, includeTxId: boolean) => {
       const base: Record<string, any> = {
         numero: ordenNumero,
         cliente_id,
@@ -219,15 +224,22 @@ export async function POST(req: Request) {
         base.payment_proof_url = proofUrl
         base.payment_reference = referencia
       }
+      if (includeTxId && transaccionId) base.transaccion_id = transaccionId
       return base
     }
 
     let { data: orden, error: ordenErr } = await supabase
-      .from('ordenes').insert(buildPayload(true)).select().single()
+      .from('ordenes').insert(buildPayload(true, true)).select().single()
 
+    if (ordenErr && /transaccion_id/i.test(ordenErr.message || '')) {
+      console.warn('[checkout/zelle] transaccion_id column missing — retrying without')
+      const r = await supabase.from('ordenes').insert(buildPayload(true, false)).select().single()
+      orden = r.data
+      ordenErr = r.error
+    }
     if (ordenErr && /payment_proof_url|payment_reference/i.test(ordenErr.message || '')) {
       console.warn('[checkout/zelle] payment_proofs columns missing — retrying without')
-      const r = await supabase.from('ordenes').insert(buildPayload(false)).select().single()
+      const r = await supabase.from('ordenes').insert(buildPayload(false, false)).select().single()
       orden = r.data
       ordenErr = r.error
     }

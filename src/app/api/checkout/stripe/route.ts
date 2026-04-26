@@ -4,6 +4,7 @@ import Stripe from 'stripe'
 import { rateLimit, rateLimitResponse, logActivity } from '@/lib/security'
 import { isStripeConfigured } from '@/lib/stripe'
 import { reserveOrdenStock, rollbackOrdenStock } from '@/lib/orden-stock'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -184,10 +185,12 @@ export async function POST(req: Request) {
       ordenNumero = `ORD-${year}-${String(Date.now()).slice(-4)}`
     }
 
+    // ── Generate master transaccion_id ─────────────────────────────────────
+    const transaccionId = await generateTransaccionId(supabase)
+
     // ── Insert orden temporal (estado='pendiente', tipo_pago='stripe') ────
-    const { data: orden, error: ordenErr } = await supabase
-      .from('ordenes')
-      .insert({
+    const buildOrdenPayload = (includeTxId: boolean) => {
+      const base: Record<string, any> = {
         numero: ordenNumero,
         cliente_id,
         user_id: user.id,
@@ -197,9 +200,19 @@ export async function POST(req: Request) {
         notas: notas?.trim() || null,
         direccion_entrega: direccion_entrega?.trim() || null,
         total,
-      })
-      .select()
-      .single()
+      }
+      if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+      return base
+    }
+
+    let { data: orden, error: ordenErr } = await supabase
+      .from('ordenes').insert(buildOrdenPayload(true)).select().single()
+    if (ordenErr && /transaccion_id/i.test(ordenErr.message || '')) {
+      console.warn('[checkout/stripe] transaccion_id column missing — retrying without')
+      const r = await supabase.from('ordenes').insert(buildOrdenPayload(false)).select().single()
+      orden = r.data
+      ordenErr = r.error
+    }
 
     if (ordenErr || !orden) {
       await rollbackOrdenStock(supabase, stockItems)
@@ -259,6 +272,10 @@ export async function POST(req: Request) {
         metadata: {
           orden_id: orden.id,
           orden_numero: orden.numero,
+          // EMP-XXXX que va a heredar el pedido + factura cuando el webhook
+          // dispare. El webhook puede levantarlo de la orden, lo metemos
+          // acá también por simplicidad y como audit trail.
+          transaccion_id: transaccionId ?? '',
           cliente_id,
           user_id: user.id,
           user_email: user.email ?? '',

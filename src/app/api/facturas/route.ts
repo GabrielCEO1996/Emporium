@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { requireAdminOrVendedor, requireUser } from '@/lib/auth'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -181,10 +182,22 @@ export async function POST(request: Request) {
     }
     const numero = seqData
 
+    // Resolver transaccion_id: si la factura tiene pedido_id, hereda el
+    // handle del pedido. Si es factura suelta (sin pedido), generamos uno
+    // nuevo. Mantiene la regla "facturas siempre tienen transaccion_id".
+    let transaccionId: string | null = null
+    if (pedido_id) {
+      const { data: pedidoTx } = await supabase
+        .from('pedidos').select('transaccion_id').eq('id', pedido_id).maybeSingle()
+      transaccionId = (pedidoTx as any)?.transaccion_id ?? null
+    }
+    if (!transaccionId) {
+      transaccionId = await generateTransaccionId(supabase)
+    }
+
     // Create factura
-    const { data: factura, error: facturaError } = await supabase
-      .from('facturas')
-      .insert({
+    const buildFacturaPayload = (includeTxId: boolean): Record<string, any> => {
+      const base: Record<string, any> = {
         numero,
         pedido_id: pedido_id ?? null,
         cliente_id,
@@ -200,9 +213,18 @@ export async function POST(request: Request) {
         total,
         monto_pagado: 0,
         notas: notas ?? null,
-      })
-      .select()
-      .single()
+      }
+      if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+      return base
+    }
+    let { data: factura, error: facturaError } = await supabase
+      .from('facturas').insert(buildFacturaPayload(true)).select().single()
+    if (facturaError && /transaccion_id/i.test(facturaError.message || '')) {
+      console.warn('[POST /api/facturas] facturas.transaccion_id missing — retrying without')
+      const r = await supabase.from('facturas').insert(buildFacturaPayload(false)).select().single()
+      factura = r.data
+      facturaError = r.error
+    }
 
     if (facturaError) {
       return NextResponse.json({ error: facturaError.message }, { status: 500 })

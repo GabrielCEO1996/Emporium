@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -91,12 +92,15 @@ export async function POST(request: NextRequest) {
       const { data: facNum } = await supabase.rpc('get_next_sequence', { seq_name: 'facturas' })
       const facturaNumero = (facNum as string) || `FAC-${Date.now()}`
 
+      // Master transaccion_id — venta directa no tiene orden parent, así
+      // que generamos un EMP-XXXX fresco que comparten pedido + factura.
+      const transaccionId = await generateTransaccionId(supabase)
+
       // ── 3. Create pedido in 'entregada' state (skip middle states) ────────
       const vendedorId = rol === 'vendedor' ? authUser.id : (body.vendedor_id || authUser.id)
 
-      const { data: pedido, error: pedidoErr } = await supabase
-        .from('pedidos')
-        .insert({
+      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: pedidoNumero,
           cliente_id,
           vendedor_id: vendedorId,
@@ -108,9 +112,18 @@ export async function POST(request: NextRequest) {
           notas,
           direccion_entrega,
           fecha_entrega_real: new Date().toISOString().split('T')[0],
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+        return base
+      }
+      let { data: pedido, error: pedidoErr } = await supabase
+        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+      if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
+        console.warn('[pedidos/venta-directa] pedidos.transaccion_id missing — retrying without')
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        pedido = r.data
+        pedidoErr = r.error
+      }
 
       if (pedidoErr || !pedido) {
         return NextResponse.json({ error: pedidoErr?.message ?? 'Error al crear pedido' }, { status: 500 })
@@ -138,9 +151,8 @@ export async function POST(request: NextRequest) {
       const dbTipoPago: string =
         metodo_pago === 'tarjeta' ? 'stripe' : metodo_pago
 
-      const { data: factura, error: facturaErr } = await supabase
-        .from('facturas')
-        .insert({
+      const buildFacturaPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: facturaNumero,
           pedido_id: pedido.id,
           cliente_id,
@@ -155,9 +167,19 @@ export async function POST(request: NextRequest) {
           total,
           monto_pagado: total,
           notas: `Venta directa — ${metodo_pago.toUpperCase()}${numero_referencia ? ` / Ref: ${numero_referencia}` : ''}`,
-        })
-        .select()
-        .single()
+        }
+        // Factura hereda transaccion_id del pedido (que se generó arriba).
+        if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+        return base
+      }
+      let { data: factura, error: facturaErr } = await supabase
+        .from('facturas').insert(buildFacturaPayload(true)).select().single()
+      if (facturaErr && /transaccion_id/i.test(facturaErr.message || '')) {
+        console.warn('[pedidos/venta-directa] facturas.transaccion_id missing — retrying without')
+        const r = await supabase.from('facturas').insert(buildFacturaPayload(false)).select().single()
+        factura = r.data
+        facturaErr = r.error
+      }
 
       if (facturaErr || !factura) {
         await supabase.from('pedido_items').delete().eq('pedido_id', pedido.id)

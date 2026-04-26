@@ -16,7 +16,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       if (!gate.ok) return gate.response
       const { user } = gate
 
-      // Get full pedido with items
+      // Get full pedido with items. transaccion_id se hereda a la factura
+      // — un pedido y su factura siempre comparten el handle maestro.
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
         .select(`
@@ -57,10 +58,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       const impuesto = 0
       const total = base_imponible
 
-      // Create factura
-      const { data: factura, error: facturaError } = await supabase
-        .from('facturas')
-        .insert({
+      // Create factura — hereda transaccion_id del pedido si existe.
+      const pedidoTxId = (pedido as any).transaccion_id as string | null | undefined
+      const buildFacturaPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: numData,
           pedido_id: pedido.id,
           cliente_id: pedido.cliente_id,
@@ -73,9 +74,18 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
           impuesto,
           total,
           fecha_vencimiento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && pedidoTxId) base.transaccion_id = pedidoTxId
+        return base
+      }
+      let { data: factura, error: facturaError } = await supabase
+        .from('facturas').insert(buildFacturaPayload(true)).select().single()
+      if (facturaError && /transaccion_id/i.test(facturaError.message || '')) {
+        console.warn('[pedidos/[id]/facturar] facturas.transaccion_id missing — retrying without')
+        const r = await supabase.from('facturas').insert(buildFacturaPayload(false)).select().single()
+        factura = r.data
+        facturaError = r.error
+      }
 
       if (facturaError) {
         console.error('[pedidos/[id]/facturar] factura insert failed:', facturaError)

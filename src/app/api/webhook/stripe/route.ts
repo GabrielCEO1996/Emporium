@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { sendNuevaOrdenEmail } from '@/lib/email/nueva-orden'
 import { releaseOrdenStock } from '@/lib/orden-stock'
+import { generateTransaccionId } from '@/lib/transaccion'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2025-08-27.basil',
@@ -76,11 +77,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (ordenId) {
     console.log('[webhook/stripe] processing orden', ordenId, 'for session', session.id)
 
-    // Load orden + items
+    // Load orden + items. transaccion_id se hereda al pedido + factura para
+    // mantener trazabilidad end-to-end.
     const { data: orden, error: ordenErr } = await supabase
       .from('ordenes')
       .select(`
         id, numero, estado, cliente_id, user_id, notas, direccion_entrega, total,
+        transaccion_id,
         items:orden_items(id, presentacion_id, cantidad, precio_unitario, subtotal)
       `)
       .eq('id', ordenId)
@@ -110,9 +113,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .rpc('get_next_sequence', { seq_name: 'pedidos' })
     const pedidoNumero = (pedidoNumData as string) ?? `PED-${Date.now()}`
 
-    const { data: pedido, error: pedidoErr } = await supabase
-      .from('pedidos')
-      .insert({
+    const ordenTxId = (orden as any).transaccion_id as string | null | undefined
+    const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+      const base: Record<string, any> = {
         numero: pedidoNumero,
         cliente_id: orden.cliente_id,
         vendedor_id: null,
@@ -125,9 +128,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         notas: orden.notas ?? `Pagado vía Stripe. Session: ${session.id}`,
         direccion_entrega: orden.direccion_entrega ?? null,
         orden_id: orden.id,
-      })
-      .select()
-      .single()
+      }
+      if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+      return base
+    }
+    let { data: pedido, error: pedidoErr } = await supabase
+      .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+    if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
+      console.warn('[webhook/stripe] pedidos.transaccion_id missing — retrying without')
+      const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+      pedido = r.data
+      pedidoErr = r.error
+    }
 
     if (pedidoErr || !pedido) {
       console.error('[webhook/stripe] pedido insert failed:', pedidoErr)
@@ -154,9 +166,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         .rpc('get_next_sequence', { seq_name: 'facturas' })
       const facturaNumero = (facNumData as string) ?? `FAC-${Date.now()}`
 
-      const { data: factura, error: facErr } = await supabase
-        .from('facturas')
-        .insert({
+      const buildFacturaPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: facturaNumero,
           pedido_id: pedido.id,
           cliente_id: orden.cliente_id,
@@ -170,9 +181,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
           total: orden.total ?? subtotal,
           monto_pagado: orden.total ?? subtotal,
           notas: `Pagado vía Stripe. Session: ${session.id}`,
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+        return base
+      }
+      let { data: factura, error: facErr } = await supabase
+        .from('facturas').insert(buildFacturaPayload(true)).select().single()
+      if (facErr && /transaccion_id/i.test(facErr.message || '')) {
+        console.warn('[webhook/stripe] facturas.transaccion_id missing — retrying without')
+        const r = await supabase.from('facturas').insert(buildFacturaPayload(false)).select().single()
+        factura = r.data
+        facErr = r.error
+      }
 
       if (facErr) {
         console.error('[webhook/stripe] factura insert failed (non-fatal):', facErr)
@@ -295,9 +315,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     0
   )
 
-  const { data: pedido, error: pedidoError } = await supabase
-    .from('pedidos')
-    .insert({
+  // Legacy fallback no tiene orden parent — generamos EMP-XXXX nuevo.
+  const legacyTxId = await generateTransaccionId(supabase)
+  const buildLegacyPayload = (includeTxId: boolean): Record<string, any> => {
+    const base: Record<string, any> = {
       numero: numData,
       cliente_id: clienteData?.id ?? null,
       estado: 'aprobada',
@@ -308,9 +329,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       total: subtotal,
       notas: meta.notas || `Pagado vía Stripe. Session: ${session.id}`,
       direccion_entrega: meta.direccion_entrega || null,
-    })
-    .select()
-    .single()
+    }
+    if (includeTxId && legacyTxId) base.transaccion_id = legacyTxId
+    return base
+  }
+  let { data: pedido, error: pedidoError } = await supabase
+    .from('pedidos').insert(buildLegacyPayload(true)).select().single()
+  if (pedidoError && /transaccion_id/i.test(pedidoError.message || '')) {
+    console.warn('[webhook/stripe] legacy pedido transaccion_id missing — retrying without')
+    const r = await supabase.from('pedidos').insert(buildLegacyPayload(false)).select().single()
+    pedido = r.data
+    pedidoError = r.error
+  }
 
   if (pedidoError) {
     console.error('[webhook/stripe] legacy pedido insert failed:', pedidoError)

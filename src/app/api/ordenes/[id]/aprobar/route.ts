@@ -38,11 +38,13 @@ export async function POST(_req: Request, { params }: RouteContext) {
       // anti-bypass que bloquea aprobaciones manuales de órdenes Stripe sin
       // pago verificado. Defensivo: pago_confirmado y estado_pago pueden no
       // existir en DBs sin las migrations checkout_v2/payment_proofs.
+      // transaccion_id viene de transacciones_maestras.sql — lo heredamos
+      // al pedido para mantener trazabilidad end-to-end.
       const { data: orden, error: fetchErr } = await supabase
         .from('ordenes')
         .select(`
           id, numero, estado, cliente_id, notas, direccion_entrega, total,
-          tipo_pago, pago_confirmado, estado_pago,
+          tipo_pago, pago_confirmado, estado_pago, transaccion_id,
           items:orden_items(id, presentacion_id, cantidad, precio_unitario, subtotal)
         `)
         .eq('id', params.id)
@@ -106,9 +108,9 @@ export async function POST(_req: Request, { params }: RouteContext) {
 
       // Create pedido in 'borrador' linked to the orden
       const subtotal = (orden.items as any[]).reduce((s, i) => s + Number(i.subtotal), 0)
-      const { data: pedido, error: pedidoErr } = await supabase
-        .from('pedidos')
-        .insert({
+      const ordenTxId = (orden as any).transaccion_id as string | null | undefined
+      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+        const base: Record<string, any> = {
           numero: pedidoNumero,
           cliente_id: orden.cliente_id,
           vendedor_id: user.id,
@@ -120,9 +122,18 @@ export async function POST(_req: Request, { params }: RouteContext) {
           notas: orden.notas,
           direccion_entrega: orden.direccion_entrega,
           orden_id: orden.id,
-        })
-        .select()
-        .single()
+        }
+        if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+        return base
+      }
+      let { data: pedido, error: pedidoErr } = await supabase
+        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+      if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
+        console.warn('[ordenes/aprobar] pedidos.transaccion_id missing — retrying without')
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        pedido = r.data
+        pedidoErr = r.error
+      }
 
       if (pedidoErr || !pedido) {
         return NextResponse.json(
