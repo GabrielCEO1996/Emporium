@@ -42,8 +42,16 @@
 .tienda-screen {
   font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
   font-weight: 300;
-  /* Bg cream lo da el wrapper Tailwind (bg-brand-cream) — el sistema
-     vuelve al prototipo: cream + texto navy + orb forest/gold. */
+  /* Cream con dos zonas de calor sutiles para romper la sensación de
+     "hoja de block" plana. Una warm-gold cerca del orb (top-right) y
+     un toque forest frío en el bottom-left para balancear. Ambos
+     debajo de 8% de opacidad — invisible como capa, presente como
+     atmósfera. El bg-brand-cream del Tailwind queda como fallback. */
+  background:
+    radial-gradient(ellipse 900px 700px at 72% 28%, rgba(212, 165, 116, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 700px 600px at 22% 78%, rgba(45, 74, 62, 0.05) 0%, transparent 55%),
+    var(--bg-cream);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Safety net contra scroll horizontal accidental. */
@@ -229,9 +237,6 @@
 
 .tienda-hero {
   position: relative;
-  /* No background — let SpaceBackground show through. The .tienda-screen
-   * wrapper still has bg-brand-cream as a fallback in case Three.js fails
-   * to load (offline, low-end devices skipping the Canvas). */
   background: transparent;
   width: 100%;
   min-height: 100vh;
@@ -241,6 +246,29 @@
   padding: 0 8vw;
   overflow: hidden;
   isolation: isolate;
+}
+
+/* Halo detrás del orb — un radial gold cálido que da la sensación de
+   que el orb flota e ilumina. Posicionado sobre la mitad derecha donde
+   vive el orb. Sin filter:blur (caro) — el radial natural ya difumina. */
+.tienda-hero::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -8%;
+  width: 70vw;
+  max-width: 850px;
+  aspect-ratio: 1;
+  background: radial-gradient(
+    circle at center,
+    rgba(212, 165, 116, 0.20) 0%,
+    rgba(212, 165, 116, 0.08) 22%,
+    rgba(45, 74, 62, 0.05) 45%,
+    transparent 70%
+  );
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Globe wrapper: en desktop cubre toda la sección como background; en
@@ -273,6 +301,20 @@
   text-transform: uppercase;
   color: var(--brand-teal);
   margin-bottom: 24px;
+  /* Cascada del prototipo: eyebrow entra primero (2.4s), después
+     title (2.6/2.85s), subtitle (3.2s), actions (3.5s), meta (3.8s).
+     El Loader cinemático cubre los primeros ~2.4s así que el usuario
+     no ve el estado oculto — solo ve la cascada después del fade. */
+  opacity: 0;
+  transform: translateY(20px);
+  animation: tiendaHeroReveal 1.2s var(--ease-out-expo) 2.4s forwards;
+}
+
+@keyframes tiendaHeroReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tienda-hero-eyebrow::before {
@@ -299,6 +341,30 @@
   color: var(--brand-teal);
 }
 
+/* Word reveal animation — cada `.word` es un contenedor con overflow
+   hidden y un `.inner` desplazado abajo que sube. Delays escalonados
+   para que las palabras caigan en cascada después del loader. */
+.tienda-hero-title .word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.tienda-hero-title .inner {
+  display: inline-block;
+  transform: translateY(110%);
+  animation: tiendaHeroWordReveal 1.4s var(--ease-out-expo) forwards;
+}
+
+.tienda-hero-title [data-word="1"] .inner { animation-delay: 2.6s; }
+.tienda-hero-title [data-word="2"] .inner { animation-delay: 2.85s; }
+
+@keyframes tiendaHeroWordReveal {
+  to {
+    transform: translateY(0);
+  }
+}
+
 .tienda-hero-subtitle {
   font-size: 15px;
   font-weight: 300;
@@ -306,6 +372,9 @@
   color: var(--text-muted);
   max-width: 440px;
   margin-bottom: 36px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: tiendaHeroReveal 1.2s var(--ease-out-expo) 3.2s forwards;
 }
 
 .tienda-hero-subtitle strong {
@@ -318,6 +387,9 @@
   align-items: center;
   gap: 32px;
   flex-wrap: wrap;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: tiendaHeroReveal 1.2s var(--ease-out-expo) 3.5s forwards;
 }
 
 /* Mobile-only meta line — desktop la oculta. */
@@ -402,6 +474,8 @@
   text-align: right;
   padding-bottom: 80px;
   pointer-events: auto;
+  opacity: 0;
+  animation: tiendaHeroReveal 1.2s var(--ease-out-expo) 3.8s forwards;
 }
 
 .tienda-hero-meta-label {

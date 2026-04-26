@@ -274,10 +274,18 @@ export default function TiendaLanding({ profile, clientStats }: Props) {
 
         <div className="tienda-hero-content">
           <div className="tienda-hero-eyebrow">Hola · {fechaHoy}</div>
+          {/* Word reveal del prototipo: cada palabra es un `.word` con
+              overflow:hidden + un `.inner` que se desliza hacia arriba
+              con delay escalonado. Da el efecto cinemático de las
+              palabras "cayendo" desde abajo después del loader. */}
           <h1 className="tienda-hero-title">
-            Bienvenido,
+            <span className="word" data-word="1">
+              <span className="inner">Bienvenido,</span>
+            </span>
             <br />
-            <em>{firstName}.</em>
+            <span className="word" data-word="2">
+              <span className="inner"><em>{firstName}.</em></span>
+            </span>
           </h1>
           <p className="tienda-hero-subtitle">{subtitleFor(clientStats)}</p>
 
