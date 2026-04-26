@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
 import { releaseOrdenStock } from '@/lib/orden-stock'
 import { sendCambioEstadoEmail } from '@/lib/email/cambio-estado'
+import { crearFacturaDesdePedido } from '@/lib/factura-auto'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -187,6 +188,26 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: updErr.message }, { status: 500 })
       }
 
+      // ── Auto-crear factura ─────────────────────────────────────────────
+      // Modelo nuevo (Fase 3): el pedido nace con su factura. Para B2B
+      // "Generar orden" la factura nace pendiente_pago — el método de
+      // pago se decide al despachar (cliente paga con tarjeta, transferencia,
+      // etc en la factura misma). Soft-fail: si la factura no se puede
+      // crear, el pedido queda creado igual y el admin puede facturarlo
+      // manualmente con /api/pedidos/[id]/facturar.
+      const facturaRes = await crearFacturaDesdePedido(supabase, {
+        pedidoId: pedido.id,
+        estadoInicial: 'pendiente_pago',
+        tipoPago: null,  // se decide al despachar
+        pagoConfirmadoPorUserId: null,
+        notas: `Generada al aprobar orden ${orden.numero}`,
+      })
+      if (!facturaRes.ok) {
+        console.warn('[ordenes/aprobar] factura no creada:', {
+          orden: orden.numero, pedido: pedido.numero, error: facturaRes.error,
+        })
+      }
+
       // ── Release orden stock reservation ────────────────────────────────
       // La orden ya quedó "aprobada" y se materializó como pedido. La
       // reserva en `presentaciones.stock_reservado` ya cumplió su rol
@@ -214,6 +235,8 @@ export async function POST(_req: Request, { params }: RouteContext) {
           orden_numero: orden.numero,
           pedido_id: pedido.id,
           pedido_numero: pedido.numero,
+          factura_id: facturaRes.factura?.id ?? null,
+          factura_numero: facturaRes.factura?.numero ?? null,
           total: orden.total ?? subtotal,
           stock_released: releaseRes.itemsReleased,
           stock_total: releaseRes.itemsTotal,

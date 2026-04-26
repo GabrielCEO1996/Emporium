@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
 import { releaseOrdenStock } from '@/lib/orden-stock'
 import { sendCambioEstadoEmail } from '@/lib/email/cambio-estado'
+import { crearFacturaDesdePedido } from '@/lib/factura-auto'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -161,6 +162,29 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: updErr.message }, { status: 500 })
       }
 
+      // ── Auto-crear factura ─────────────────────────────────────────────
+      // Modelo nuevo (Fase 3): la factura nace junto con el pedido. Para
+      // Zelle/cheque/efectivo, este endpoint = "Mache verifica el pago",
+      // así que la factura nace 'pagada' con tipo_pago = el método que
+      // usó el cliente. pago_confirmado_por queda registrado al user que
+      // tocó el botón. Soft-fail.
+      const tipoPagoSafe = (orden.tipo_pago === 'zelle' || orden.tipo_pago === 'cheque'
+        || orden.tipo_pago === 'efectivo' || orden.tipo_pago === 'transferencia')
+        ? orden.tipo_pago : null
+      const refTxt = orden.numero_referencia ? ` · Ref ${orden.numero_referencia}` : ''
+      const facturaRes = await crearFacturaDesdePedido(supabase, {
+        pedidoId: pedido.id,
+        estadoInicial: 'pagada',
+        tipoPago: tipoPagoSafe,
+        pagoConfirmadoPorUserId: user.id,
+        notas: `Pago confirmado vía ${orden.tipo_pago ?? 'manual'}${refTxt} · Orden ${orden.numero}`,
+      })
+      if (!facturaRes.ok) {
+        console.warn('[ordenes/confirmar-pago] factura no creada:', {
+          orden: orden.numero, pedido: pedido.numero, error: facturaRes.error,
+        })
+      }
+
       // ── Release orden stock reservation ────────────────────────────────
       // La orden ya está aprobada y existe como pedido — el pedido tiene
       // su propio sistema FEFO. Liberamos la reserva transitoria de la
@@ -185,6 +209,8 @@ export async function POST(_req: Request, { params }: RouteContext) {
           orden_numero: orden.numero,
           pedido_id: pedido.id,
           pedido_numero: pedido.numero,
+          factura_id: facturaRes.factura?.id ?? null,
+          factura_numero: facturaRes.factura?.numero ?? null,
           tipo_pago: orden.tipo_pago,
           numero_referencia: orden.numero_referencia ?? null,
           stock_released: releaseRes.itemsReleased,

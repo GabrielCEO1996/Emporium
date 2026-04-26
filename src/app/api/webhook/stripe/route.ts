@@ -166,7 +166,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         .rpc('get_next_sequence', { seq_name: 'facturas' })
       const facturaNumero = (facNumData as string) ?? `FAC-${Date.now()}`
 
-      const buildFacturaPayload = (includeTxId: boolean): Record<string, any> => {
+      const buildFacturaPayload = (
+        includeTxId: boolean,
+        includeNewFields: boolean,  // tipo_pago + pago_confirmado_at (Fase 3)
+      ): Record<string, any> => {
         const base: Record<string, any> = {
           numero: facturaNumero,
           pedido_id: pedido.id,
@@ -183,13 +186,27 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
           notas: `Pagado vía Stripe. Session: ${session.id}`,
         }
         if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+        if (includeNewFields) {
+          // Stripe webhook = la firma misma certifica el pago. No hay user
+          // humano que confirme — pago_confirmado_por queda null.
+          base.tipo_pago = 'stripe'
+          base.pago_confirmado_at = new Date().toISOString()
+        }
         return base
       }
       let { data: factura, error: facErr } = await supabase
-        .from('facturas').insert(buildFacturaPayload(true)).select().single()
+        .from('facturas').insert(buildFacturaPayload(true, true)).select().single()
+      if (facErr && /tipo_pago|pago_confirmado/i.test(facErr.message || '')) {
+        console.warn('[webhook/stripe] facturas Fase-3 cols missing — retrying without')
+        const r = await supabase
+          .from('facturas').insert(buildFacturaPayload(true, false)).select().single()
+        factura = r.data
+        facErr = r.error
+      }
       if (facErr && /transaccion_id/i.test(facErr.message || '')) {
         console.warn('[webhook/stripe] facturas.transaccion_id missing — retrying without')
-        const r = await supabase.from('facturas').insert(buildFacturaPayload(false)).select().single()
+        const r = await supabase
+          .from('facturas').insert(buildFacturaPayload(false, false)).select().single()
         factura = r.data
         facErr = r.error
       }
