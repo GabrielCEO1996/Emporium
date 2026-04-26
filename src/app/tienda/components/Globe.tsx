@@ -312,84 +312,57 @@ const earthFragment = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vViewPosition;
-  uniform sampler2D uMap;
-  uniform sampler2D uLights;
+  uniform sampler2D uMap;     // Blue Marble day texture
+  uniform sampler2D uLights;  // City lights night texture
+  uniform sampler2D uClouds;  // Cloud cover (white on transparent)
   uniform float uTime;
 
-  const vec3 cream    = vec3(0.980, 0.980, 0.969);
-  const vec3 navy     = vec3(0.118, 0.227, 0.373);
-  const vec3 navyDeep = vec3(0.059, 0.133, 0.220);
-  const vec3 navyNight = vec3(0.030, 0.080, 0.140);
-  const vec3 teal     = vec3(0.051, 0.580, 0.533);
-  const vec3 cityWarm = vec3(1.0, 0.86, 0.55);
-
-  // ─── Value noise — barato y suficiente para nubes ───────────────────────
-  float hash21(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-  }
-  float vnoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-  }
-  float clouds(vec2 uv, float t) {
-    // Dos octavas: una más grande (continentes de nube) + detalle.
-    float n1 = vnoise(uv * 4.0 + vec2(t * 0.012, t * 0.006));
-    float n2 = vnoise(uv * 9.0 + vec2(-t * 0.018, t * 0.009));
-    float n = n1 * 0.65 + n2 * 0.35;
-    return smoothstep(0.45, 0.78, n);
-  }
+  // Brand touch — el fresnel rim usa este teal para mantener la firma
+  // visual de Emporium aún sobre la Tierra "real".
+  const vec3 teal      = vec3(0.051, 0.580, 0.533);
+  const vec3 nightTint = vec3(0.020, 0.038, 0.075);
+  const vec3 cityWarm  = vec3(1.000, 0.780, 0.420);
 
   void main() {
-    vec4 tex = texture2D(uMap, vUv);
-    vec4 lights = texture2D(uLights, vUv);
-
-    float warmth = (tex.r + tex.g * 0.6) - tex.b * 1.4;
-    float landMask = smoothstep(-0.05, 0.10, warmth);
-    float lum = (tex.r + tex.g + tex.b) / 3.0;
-    vec3 landDay = mix(cream * 0.88, cream, smoothstep(0.3, 0.7, lum));
-    vec3 oceanDay = mix(navyDeep, navy, smoothstep(0.0, 0.5, lum));
-    vec3 baseDay = mix(oceanDay, landDay, landMask);
-
-    vec3 lightDir = normalize(vec3(0.5, 0.55, 0.85));
+    // Sun direction — frente-arriba-derecha. Da el terminator visible
+    // en el lado oeste del globo (Pacífico → Asia en sombra al inicio).
+    vec3 lightDir = normalize(vec3(0.55, 0.45, 0.70));
     float NdotL = dot(vNormal, lightDir);
-    float dayMix = smoothstep(-0.18, 0.32, NdotL);
+    float dayMix = smoothstep(-0.18, 0.30, NdotL);
 
-    float ambient = 0.32;
-    float diffuse = max(NdotL, 0.0) * 0.85;
-    vec3 dayColor = baseDay * (ambient + diffuse);
+    // ─── Day side: Blue Marble texture as-is ───────────────────────────
+    // Sin filtros de paleta — vemos los continentes verdes/marrones,
+    // los océanos azules, los hielos blancos como en una foto de
+    // satélite real. El lighting se aplica encima.
+    vec3 dayColor = texture2D(uMap, vUv).rgb;
+    float ambient = 0.22;
+    float diffuse = max(NdotL, 0.0) * 0.95;
+    dayColor *= ambient + diffuse;
 
-    vec3 nightLand = navyNight * 1.4;
-    vec3 nightOcean = navyNight * 0.8;
-    vec3 nightBase = mix(nightOcean, nightLand, landMask);
+    // ─── Night side: city lights warm ámbar sobre tinte azul-noche ─────
+    vec4 lightsTex = texture2D(uLights, vUv);
+    float lightI = max(lightsTex.r, max(lightsTex.g, lightsTex.b));
+    vec3 nightColor = nightTint + cityWarm * lightI * 2.4;
 
-    float lightIntensity = max(lights.r, max(lights.g, lights.b)) * 1.8;
-    vec3 cityGlow = cityWarm * lightIntensity;
-    vec3 nightWithCities = nightBase + cityGlow * (1.0 - dayMix * 0.85);
+    // Day/night blend con terminator suave.
+    vec3 color = mix(nightColor, dayColor, dayMix);
 
-    vec3 baseColor = mix(nightWithCities, dayColor, dayMix);
+    // ─── Cloud cover (textura real animada) ─────────────────────────────
+    // Solo en day side (las nubes no brillan de noche). Se desplazan
+    // lento horizontalmente para sensación de viento global.
+    vec4 cloudsTex = texture2D(uClouds, vUv + vec2(uTime * 0.004, 0.0));
+    float cloudA = cloudsTex.r * dayMix * 0.55;
+    color = mix(color, vec3(1.0) * (ambient + diffuse) * 1.05, cloudA);
 
-    // ─── NUBES sobre océanos ──────────────────────────────────────────────
-    // Aplican principalmente sobre agua (no compiten con los continentes
-    // detallados) y solo en el lado iluminado (las nubes no glow en la
-    // noche). Multiplicado por 0.55 — visible pero no tapa el océano.
-    float oceanMask = 1.0 - landMask;
-    float cloudMask = clouds(vUv, uTime);
-    float cloudAlpha = cloudMask * oceanMask * dayMix * 0.55;
-    baseColor = mix(baseColor, cream * 0.92, cloudAlpha);
-
+    // ─── Atmosphere rim (brand teal) ────────────────────────────────────
     vec3 viewDir = normalize(vViewPosition);
-    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
-    baseColor = mix(baseColor, teal * 0.85, fresnel * 0.22);
+    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.4);
+    color = mix(color, teal * 0.9, fresnel * 0.20);
 
-    baseColor = baseColor / (baseColor + 0.55);
+    // Soft tonemap — evita que los highlights se quemen.
+    color = color / (color + 0.85);
 
-    gl_FragColor = vec4(baseColor, 1.0);
+    gl_FragColor = vec4(color, 1.0);
   }
 `
 
@@ -470,7 +443,11 @@ function EarthScene() {
   const cameraOffset = useRef({ x: 0, y: 0 })
   const { camera } = useThree()
 
-  // Generate textures + materials once per mount
+  // Generate textures + materials once per mount.
+  // Las procedurales arrancan el render mientras las texturas reales
+  // (Blue Marble + city lights + clouds) cargan async desde /public.
+  // Cuando llegan, el useEffect de abajo las swappea — el shader nunca
+  // se reconstruye, sólo cambian los uniforms.
   const earthMaterial = useMemo(() => {
     const earthTex = createEarthTexture()
     const lightsTex = createLightsTexture()
@@ -480,6 +457,11 @@ function EarthScene() {
       uniforms: {
         uMap: { value: earthTex },
         uLights: { value: lightsTex },
+        // Clouds arranca null — un sampler null en GLSL devuelve negro
+        // en texture2D(), y el shader multiplica por dayMix * 0.55, así
+        // que mientras no haya textura cargada, no se ven nubes (en
+        // lugar de un overlay blanco). Solo aparecen al llegar la real.
+        uClouds: { value: new THREE.DataTexture(new Uint8Array([0,0,0,0]), 1, 1) },
         uTime: { value: 0 },
       },
     })
@@ -497,30 +479,31 @@ function EarthScene() {
     [],
   )
 
-  // Try to upgrade to real Earth/lights textures from CDN — silent fallback
+  // Carga las texturas Blue Marble desde /public/textures (servidas
+  // por Next.js como assets estáticos). Sin CORS, sin dependencias
+  // externas, siempre cargan. Si por alguna razón fallan (404), las
+  // procedurales siguen visibles como fallback.
   useEffect(() => {
     const loader = new THREE.TextureLoader()
-    loader.crossOrigin = 'anonymous'
-    loader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
-      (tex) => {
-        tex.anisotropy = 16
-        ;(earthMaterial.uniforms.uMap.value as THREE.Texture).dispose()
-        earthMaterial.uniforms.uMap.value = tex
-      },
-      undefined,
-      () => { /* offline / CORS — keep procedural */ },
-    )
-    loader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png',
-      (tex) => {
-        tex.anisotropy = 16
-        ;(earthMaterial.uniforms.uLights.value as THREE.Texture).dispose()
-        earthMaterial.uniforms.uLights.value = tex
-      },
-      undefined,
-      () => { /* offline / CORS — keep procedural */ },
-    )
+    loader.load('/textures/earth-day.jpg', (tex) => {
+      tex.anisotropy = 16
+      const prev = earthMaterial.uniforms.uMap.value as THREE.Texture
+      earthMaterial.uniforms.uMap.value = tex
+      prev?.dispose?.()
+    })
+    loader.load('/textures/earth-lights.png', (tex) => {
+      tex.anisotropy = 16
+      const prev = earthMaterial.uniforms.uLights.value as THREE.Texture
+      earthMaterial.uniforms.uLights.value = tex
+      prev?.dispose?.()
+    })
+    loader.load('/textures/earth-clouds.png', (tex) => {
+      tex.anisotropy = 16
+      tex.wrapS = THREE.RepeatWrapping // permite el cloud drift horizontal
+      const prev = earthMaterial.uniforms.uClouds.value as THREE.Texture
+      earthMaterial.uniforms.uClouds.value = tex
+      prev?.dispose?.()
+    })
   }, [earthMaterial])
 
   // Mouse parallax listener
