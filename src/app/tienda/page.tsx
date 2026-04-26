@@ -8,13 +8,10 @@ export const dynamic = 'force-dynamic'
 // Window for "productos nuevos" — created in the last 30 days.
 const NEW_PRODUCT_WINDOW_DAYS = 30
 
-// "Pedidos en preparación" — schema's CHECK constraint allows
-// 'borrador'/'confirmado'/'en_ruta'/'entregado'/'cancelado'/'facturado'.
-// Active-and-not-yet-completed means: borrador (just placed) + confirmado
-// (accepted) + en_ruta (out for delivery). The user's ask was for
-// "pendiente, en_preparacion" which don't exist as values; this is the
-// closest semantic equivalent.
-const PEDIDOS_EN_PREPARACION = ['borrador', 'confirmado', 'en_ruta'] as const
+// "Pedidos en preparación" — only confirmados and en-ruta. Borradores son
+// pedidos que el cliente está armando: no son un pedido real todavía, no
+// cuentan para el badge.
+const PEDIDOS_EN_PREPARACION = ['confirmado', 'en_ruta'] as const
 
 export default async function TiendaPage() {
   const supabase = createClient()

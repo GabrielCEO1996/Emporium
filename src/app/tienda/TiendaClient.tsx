@@ -6,14 +6,15 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   ShoppingBag, Search, X, Plus, Minus, Trash2, MessageCircle,
-  Send, CheckCircle2, ClipboardList, User, LogOut,
+  Send, CheckCircle2, ClipboardList, User,
   ChevronRight, ChevronLeft, Loader2, Sparkles, CreditCard,
-  Wallet, FileText, Copy, Menu, ArrowUpRight,
+  Wallet, FileText, Copy, ArrowUpRight,
   Banknote, FileCheck, MapPin, Info, Package, PackageOpen, AlertCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import TiendaLanding from './TiendaLanding'
+import Nav from './components/Nav'
 import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2016,7 +2017,7 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
   const [notas, setNotas] = useState('')
   const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
   const [ordering, setOrdering] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  // Header user dropdown was removed in Fase 6 — signout lives in /tienda/perfil now.
 
   // Default tipoPago respects rol + stripe availability. comprador without
   // stripe → zelle. Otherwise comprador → stripe, authorized → zelle.
@@ -2171,11 +2172,6 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     }
   }
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
   const handleConfirmOrder = async () => {
     setOrdering(true)
     try {
@@ -2266,120 +2262,20 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     <div className="min-h-screen bg-brand-cream text-brand-navy">
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-30 bg-brand-cream/85 backdrop-blur-md border-b border-stone-200/70">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-5 flex items-center justify-between">
-          <Link href="/tienda" className="group flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full border border-brand-gold flex items-center justify-center">
-              <span className="font-serif text-brand-gold text-lg leading-none">E</span>
-            </div>
-            <div className="hidden sm:block">
-              <p className="font-serif text-lg text-brand-navy leading-tight">Emporium</p>
-              <p className="text-[9px] uppercase tracking-luxe text-brand-charcoal/60 leading-none mt-0.5">Distribución premium</p>
-            </div>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-8 text-[11px] uppercase tracking-luxe text-brand-charcoal">
-            <a href="#catalogo" className="hover:text-brand-navy transition">Catálogo</a>
-            <Link href="/tienda/mis-pedidos" className="hover:text-brand-navy transition">Pedidos</Link>
-            <Link href="/tienda/perfil" className="hover:text-brand-navy transition">Cuenta</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {/* User menu */}
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(v => !v)}
-                className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-full hover:bg-stone-100 transition"
-              >
-                <div className="w-8 h-8 rounded-full bg-brand-navy flex items-center justify-center text-brand-cream text-xs font-semibold">
-                  {profile.nombre?.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-[11px] uppercase tracking-wide text-brand-navy hidden sm:inline max-w-24 truncate">
-                  {profile.nombre?.split(' ')[0]}
-                </span>
-              </button>
-              <AnimatePresence>
-                {menuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-[0_20px_45px_-20px_rgba(15,23,42,0.25)] border border-stone-200/80 overflow-hidden z-50"
-                  >
-                    <div className="px-4 py-3 border-b border-stone-100">
-                      <p className="font-serif text-sm text-brand-navy truncate">{profile.nombre}</p>
-                      <p className="text-[11px] text-brand-charcoal/60 truncate">{profile.email}</p>
-                    </div>
-                    <Link href="/tienda/mis-pedidos" onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-3 text-[12px] uppercase tracking-wide text-brand-charcoal hover:bg-brand-stone transition">
-                      <ClipboardList className="w-3.5 h-3.5" /> Mis pedidos
-                    </Link>
-                    <Link href="/tienda/perfil" onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-3 text-[12px] uppercase tracking-wide text-brand-charcoal hover:bg-brand-stone transition">
-                      <User className="w-3.5 h-3.5" /> Mi cuenta
-                    </Link>
-                    <div className="border-t border-stone-100" />
-                    <button onClick={handleSignOut}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-[12px] uppercase tracking-wide text-rose-600 hover:bg-rose-50 transition">
-                      <LogOut className="w-3.5 h-3.5" /> Cerrar sesión
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Cart — wrapper does a brief scale pulse each time the cart
-                pulse key advances (i.e. every addToCart call). The badge
-                inside also bumps via its own keyed animation so even
-                quantity-only updates feel responsive. */}
-            <motion.button
-              key={`cart-pulse-${cartPulse}`}
-              initial={false}
-              animate={
-                cartPulse > 0
-                  ? { scale: [1, 1.08, 1] }
-                  : { scale: 1 }
-              }
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              onClick={() => setCartOpen(true)}
-              className="relative flex items-center gap-2 pl-4 pr-4 py-2.5 rounded-full bg-brand-navy text-brand-cream text-[11px] uppercase tracking-luxe hover:bg-brand-navy/90 transition active:scale-95"
-              aria-label="Abrir carrito"
-            >
-              <ShoppingBag className="w-4 h-4" />
-              <span className="hidden sm:inline">Carrito</span>
-              <AnimatePresence>
-                {cartCount > 0 && (
-                  <motion.span
-                    key={`badge-${cartPulse}`}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: [1, 1.25, 1] }}
-                    exit={{ scale: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="bg-brand-gold text-brand-navy text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center ml-0.5"
-                  >
-                    {cartCount > 9 ? '9+' : cartCount}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-
-            {/* Mobile menu icon */}
-            <button
-              onClick={() => setMenuOpen(v => !v)}
-              className="md:hidden p-2 rounded-full hover:bg-stone-100 transition"
-              aria-label="Menú"
-            >
-              <Menu className="w-5 h-5 text-brand-navy" />
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* ── Sticky glass nav (Fase 6) — see components/Nav.tsx ── */}
+      <Nav
+        cartCount={cartCount}
+        cartPulse={cartPulse}
+        pedidosPendientes={clientStats?.pedidosPendientes ?? 0}
+        onOpenCart={() => setCartOpen(true)}
+      />
 
       {/* ── Cinematic landing (Hero + Stats + Categories + Featured + How + CTA) ── */}
       <TiendaLanding profile={profile as any} productos={productos as any} clientStats={clientStats} />
 
-      {/* ── Search + Categories — editorial strip ── */}
-      <section id="catalogo" className="sticky top-[73px] z-20 bg-brand-cream/90 backdrop-blur-md border-y border-stone-200/70">
+      {/* ── Search + Categories — editorial strip ──
+           sticky top-[92px] = Nav flotante (24px top + ~52px alto + ~16px aire). */}
+      <section id="catalogo" className="sticky top-[92px] z-20 bg-brand-cream/90 backdrop-blur-md border-y border-stone-200/70">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-5 flex flex-col md:flex-row gap-4 md:items-center">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-charcoal/50" />

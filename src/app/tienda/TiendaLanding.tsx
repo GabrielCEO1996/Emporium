@@ -330,9 +330,9 @@ export default function TiendaLanding({ profile, clientStats }: Props) {
           ) : (
             <>
               <div className="tienda-hero-meta-divider" />
-              <div className="tienda-hero-meta-label">Tu primera vez</div>
+              <div className="tienda-hero-meta-label">Bienvenido</div>
               <div className="tienda-hero-meta-value">
-                Empezamos juntos
+                Tu primera compra te espera
               </div>
             </>
           )}

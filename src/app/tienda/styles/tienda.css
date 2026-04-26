@@ -546,3 +546,300 @@
   max-width: 36ch;
   margin: 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * STICKY NAV (Fase 6)
+ * Pill flotante con glassmorphism. Logo SVG + 3 links + Carrito.
+ * z-index 10 — encima del Globe (1) y de las secciones (1) pero debajo del
+ * Loader (100). Animaciones de entry y underline activo via Framer Motion.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-nav {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 12px 8px 12px 16px;
+  background: rgba(250, 250, 247, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 100px;
+  animation: tiendaNavIn 1s var(--ease-out-expo) 0.4s backwards;
+}
+
+@keyframes tiendaNavIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tienda-nav-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 16px;
+  border-right: 0.5px solid var(--border-subtle);
+  text-decoration: none;
+}
+
+.tienda-nav-mark svg {
+  width: 26px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.tienda-nav-mark-text {
+  font-family: var(--font-sans), 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: var(--brand-navy);
+}
+
+.tienda-nav-links {
+  display: flex;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tienda-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  transition: color 0.4s var(--ease-out-expo);
+}
+
+.tienda-nav-link:hover {
+  color: var(--text-primary);
+}
+
+.tienda-nav-link.is-active {
+  color: var(--brand-navy);
+  font-weight: 500;
+}
+
+.tienda-nav-underline {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--brand-teal);
+}
+
+.tienda-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--brand-teal);
+  color: var(--bg-cream);
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 9px;
+  line-height: 1;
+}
+
+.tienda-nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--bg-cream);
+  padding: 8px 16px;
+  border: none;
+  border-radius: 100px;
+  background: var(--brand-navy);
+  cursor: pointer;
+  transition: background 0.4s var(--ease-out-expo);
+}
+
+.tienda-nav-cta:hover {
+  background: var(--brand-teal);
+}
+
+.tienda-nav-cta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-teal-soft);
+  animation: tiendaNavCtaPulse 2.6s var(--ease-out-expo) infinite;
+}
+
+@keyframes tiendaNavCtaPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.3); }
+}
+
+.tienda-nav-cta-icon {
+  width: 14px;
+  height: 14px;
+  display: none; /* shown only when label hidden (mobile) */
+}
+
+.tienda-nav-cta-count {
+  background: var(--brand-teal);
+  color: var(--bg-cream);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+}
+
+@media (max-width: 768px) {
+  .tienda-nav {
+    gap: 12px;
+    padding: 10px 10px 10px 12px;
+  }
+  .tienda-nav-mark {
+    padding-right: 0;
+    border-right: none;
+  }
+  .tienda-nav-mark-text { display: none; }
+  .tienda-nav-links { display: none; }
+  .tienda-nav-cta-icon { display: inline-flex; }
+  .tienda-nav-cta-label { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * LOADING SKELETON (Fase 5 patch)
+ * Mounted by Next.js as Suspense fallback for /tienda. Mimetiza el layout
+ * del hero real (dos columnas + meta column) para que no haya shift cuando
+ * el contenido llega. Fondo cream con shimmer cyan teal — alineado con el
+ * sistema de diseño espacial.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-skeleton-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-cream);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: center;
+  padding: 0 8vw;
+  overflow: hidden;
+}
+
+.tienda-skeleton-content {
+  max-width: 600px;
+  position: relative;
+  z-index: 2;
+}
+
+.tienda-skeleton-line,
+.tienda-skeleton-pill,
+.tienda-skeleton-globe-disc {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 34, 56, 0.06) 0%,
+    rgba(94, 191, 182, 0.14) 50%,
+    rgba(15, 34, 56, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: tiendaSkeletonShimmer 2.4s var(--ease-out-expo) infinite;
+  border-radius: 6px;
+}
+
+.tienda-skeleton-block {
+  display: block;
+}
+
+.tienda-skeleton-actions {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.tienda-skeleton-pill {
+  width: 180px;
+  height: 48px;
+  border-radius: 100px;
+}
+
+.tienda-skeleton-globe {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tienda-skeleton-globe-disc {
+  width: min(60vh, 520px);
+  height: min(60vh, 520px);
+  border-radius: 50%;
+  /* No need for the shared shimmer because we're already a circle —
+   * but the inherited animation works fine for both rect + circle. */
+}
+
+.tienda-skeleton-meta {
+  position: absolute;
+  top: calc(50% - 80px);
+  right: 8vw;
+  text-align: right;
+  z-index: 2;
+}
+
+.tienda-skeleton-meta .tienda-skeleton-line {
+  margin-left: auto;
+}
+
+.tienda-skeleton-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-subtle);
+  margin: 16px 0 16px auto;
+}
+
+@keyframes tiendaSkeletonShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@media (max-width: 768px) {
+  .tienda-skeleton-root {
+    grid-template-columns: 1fr;
+    padding: 100px 6vw 80px;
+    align-items: start;
+    gap: 40px;
+  }
+  .tienda-skeleton-meta { display: none; }
+  .tienda-skeleton-globe {
+    height: 320px;
+  }
+  .tienda-skeleton-globe-disc {
+    width: 280px;
+    height: 280px;
+  }
+}
