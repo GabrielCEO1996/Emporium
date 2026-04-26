@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { sendNuevaOrdenEmail } from '@/lib/email/nueva-orden'
+import { releaseOrdenStock } from '@/lib/orden-stock'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2025-08-27.basil',
@@ -45,8 +46,10 @@ export async function POST(req: Request) {
         if (event.type === 'checkout.session.completed') {
           await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
         } else if (event.type === 'checkout.session.expired') {
-          console.log('[webhook/stripe] session expired:', (event.data.object as any).id)
+          await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session)
         } else if (event.type === 'payment_intent.payment_failed') {
+          // Solo log; el flow principal usa checkout sessions, no payment_intents
+          // sueltos. La cancelación de orden la dispara checkout.session.expired.
           console.log('[webhook/stripe] payment failed:', (event.data.object as any).id)
         }
       } catch (err: any) {
@@ -249,7 +252,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log('[webhook/stripe] orden', orden.numero, '→ pedido', pedido.numero, 'paid')
 
-    // ── 5. Admin + customer email — fire-and-forget ─────────────────────
+    // ── 5. Release stock_reservado de la orden ────────────────────────
+    // La orden Stripe se creó con stock_reservado en `presentaciones`
+    // (vía /api/checkout/stripe). Ahora que el pedido existe y toma
+    // over con su sistema FEFO en `inventario` (lots), liberamos la
+    // reserva transitoria. Soft-fail.
+    const releaseRes = await releaseOrdenStock(supabase, orden.id)
+    if (!releaseRes.ok) {
+      console.warn('[webhook/stripe] partial release on completed:', {
+        orden: orden.numero,
+        released: releaseRes.itemsReleased,
+        total: releaseRes.itemsTotal,
+      })
+    }
+
+    // ── 6. Admin + customer email — fire-and-forget ─────────────────────
     // Swallow errors so the webhook always returns 200 to Stripe.
     try {
       await sendNuevaOrdenEmail(supabase, orden.id)
@@ -311,4 +328,70 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     }))
     await supabase.from('pedido_items').insert(pedidoItems)
   }
+}
+
+// ─── checkout.session.expired handler ──────────────────────────────────────
+// Stripe envía este evento cuando una Checkout Session pasa su `expires_at`
+// (default 24h, pero /api/checkout/stripe usa 30 min para no trabar mucho
+// inventario). El cliente nunca completó el pago, así que:
+//   1. Liberamos stock_reservado de la orden temporal.
+//   2. Marcamos la orden como 'cancelada' con motivo 'session expirada'.
+//      No la borramos — queda como audit trail de intentos de pago.
+//   3. Si la orden ya no existe (admin la borró) o ya está aprobada (race
+//      raro: webhook expired llegó después del completed), no hacemos nada.
+//
+// Idempotente: si llega el mismo evento dos veces, el segundo no encuentra
+// la orden en estado 'pendiente' y bail.
+// ───────────────────────────────────────────────────────────────────────────
+async function handleCheckoutExpired(session: Stripe.Checkout.Session) {
+  const supabase = createClient()
+  const meta = session.metadata ?? {}
+  const ordenId = meta.orden_id as string | undefined
+
+  if (!ordenId) {
+    // Legacy session sin orden_id (pre-Fase D) o session de otro origen.
+    // Nada que liberar; bail.
+    console.log('[webhook/stripe] expired session without orden_id:', session.id)
+    return
+  }
+
+  // Cargar la orden y verificar que sigue en pendiente (idempotency).
+  const { data: orden, error: fetchErr } = await supabase
+    .from('ordenes')
+    .select('id, numero, estado, tipo_pago')
+    .eq('id', ordenId)
+    .single()
+
+  if (fetchErr || !orden) {
+    console.log('[webhook/stripe] expired: orden not found', ordenId)
+    return
+  }
+  if (orden.estado !== 'pendiente') {
+    console.log('[webhook/stripe] expired: orden', orden.numero,
+                'already in estado', orden.estado, '— skipping')
+    return
+  }
+
+  // Release stock reservation
+  const releaseRes = await releaseOrdenStock(supabase, orden.id)
+
+  // Mark as cancelada
+  const nowIso = new Date().toISOString()
+  const { error: updErr } = await supabase
+    .from('ordenes')
+    .update({
+      estado: 'cancelada',
+      motivo_rechazo: 'Sesión de pago Stripe expiró sin completar el cobro',
+      estado_pago: 'rechazado',
+      updated_at: nowIso,
+    })
+    .eq('id', orden.id)
+    .eq('estado', 'pendiente')  // race-safe: si otra mano ya la cambió, no machacamos
+
+  if (updErr) {
+    console.error('[webhook/stripe] expired update failed:', updErr)
+  }
+
+  console.log('[webhook/stripe] expired: orden', orden.numero,
+              '→ cancelada. stock_released:', releaseRes.itemsReleased)
 }
