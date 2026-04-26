@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { sendCambioEstadoEmail } from '@/lib/email/cambio-estado'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
       const { data: pedido } = await supabase
         .from('pedidos')
-        .select('id, numero, estado, estado_despacho, cliente_id, vendedor_id, subtotal, descuento, total')
+        .select('id, numero, estado, estado_despacho, cliente_id, vendedor_id, subtotal, descuento, total, orden_id')
         .eq('id', params.id)
         .single()
 
@@ -153,6 +154,20 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
           factura_numero: facturaNumero,
         },
       })
+
+      // ── Notificar al cliente — Fase 6 ─────────────────────────────────
+      // Resolvemos via orden_id porque el lib carga cliente/empresa desde
+      // ahí. Si el pedido no tiene orden parent (venta directa), skipeamos
+      // (la venta directa no tiene cliente con email "online" típicamente).
+      // TODO(emails-resend-domain): mientras Resend no verifique el dominio
+      // este envío solo llega a emails pre-verificados en la cuenta. Soft-fail
+      // — nunca bloquea el despacho si el email falla.
+      const ordenId = (pedido as any).orden_id as string | null | undefined
+      if (ordenId) {
+        void sendCambioEstadoEmail(supabase, ordenId, 'despachado', {
+          pedidoNumero: pedido.numero,
+        }).catch(e => console.error('[pedidos/despachar] email failed:', e))
+      }
 
       return NextResponse.json({ ...updated, factura_id: facturaId, factura_numero: facturaNumero })
 

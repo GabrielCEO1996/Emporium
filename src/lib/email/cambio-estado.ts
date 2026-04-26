@@ -1,25 +1,34 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // src/lib/email/cambio-estado.ts
 //
-// Notificaciones al cliente cuando una orden cambia de estado:
-//   • aprobada       → "Tu orden fue aprobada"
-//   • aprobada+pago  → "Pago verificado y orden aprobada"  (Zelle/cheque/efectivo)
-//   • rechazada      → "Tu orden fue rechazada"
+// Notificaciones al cliente cuando una orden/pedido cambia de estado:
+//   • aprobada       → "Tu orden EMP-X fue aprobada"
+//   • pago_verificado → "Pago verificado · orden EMP-X aprobada"
+//   • rechazada      → "Tu orden EMP-X no pudo ser procesada"
+//   • despachado     → "Tu pedido EMP-X va en camino"   (Fase 6)
 //
 // Llamado por:
 //   - /api/ordenes/[id]/aprobar
 //   - /api/ordenes/[id]/rechazar
 //   - /api/ordenes/[id]/confirmar-pago
+//   - /api/pedidos/[id]/despachar  (resuelve orden via pedido.orden_id)
 //   - /api/webhook/stripe (cuando webhook crea pedido tras pago Stripe OK)
 //
 // Nunca tira excepciones. Siempre devuelve { ok, sent, error? }. Los callers
 // NO deben bloquear la respuesta al usuario si esto falla.
+//
+// TODO(emails-resend-domain): Mientras el dominio de Resend no esté
+// verificado, los emails se mandan desde `onboarding@resend.dev` y solo
+// llegan a los emails verificados como destinatarios de testing en la
+// cuenta de Resend. Cuando el dominio esté verificado, cambiar `from`
+// abajo a `notificaciones@<dominio-verificado>` y el envío llegará a
+// cualquier destinatario.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Resend } from 'resend'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type CambioEstadoTipo = 'aprobada' | 'pago_verificado' | 'rechazada'
+export type CambioEstadoTipo = 'aprobada' | 'pago_verificado' | 'rechazada' | 'despachado'
 
 export interface CambioEstadoEmailResult {
   ok: boolean
@@ -46,6 +55,9 @@ function escHtml(s: string | null | undefined): string {
 
 interface BuildArgs {
   tipo: CambioEstadoTipo
+  /** Handle visible al cliente — preferimos transaccion_id (EMP-XXXX) si
+   *  existe; si no, fallback a orden.numero (ORD-XXXX). */
+  handle: string
   orden: { numero: string; total: number; tipo_pago: string | null }
   pedidoNumero: string | null
   cliente: { nombre: string | null; email: string | null }
@@ -55,11 +67,52 @@ interface BuildArgs {
 }
 
 function buildEmail(a: BuildArgs): { subject: string; html: string } {
-  const { tipo, orden, pedidoNumero, cliente, empresaNombre, motivo, siteUrl } = a
-  const portalUrl = siteUrl ? `${siteUrl}/tienda/cuenta` : ''
+  const { tipo, handle, orden, pedidoNumero, cliente, empresaNombre, motivo, siteUrl } = a
+  const portalUrl = siteUrl ? `${siteUrl}/tienda/mis-pedidos` : ''
+
+  // ── DESPACHADO ────────────────────────────────────────────────────────
+  if (tipo === 'despachado') {
+    const subject = `🚚 Tu pedido ${handle} va en camino · ${empresaNombre}`
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 16px">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+
+  <tr><td style="background:#4F46E5;border-radius:14px 14px 0 0;padding:24px 28px;text-align:center">
+    <div style="font-size:12px;letter-spacing:1px;color:#C7D2FE;text-transform:uppercase">Pedido despachado</div>
+    <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px">${escHtml(handle)}</div>
+  </td></tr>
+
+  <tr><td style="background:#ffffff;padding:24px 28px">
+    <div style="font-size:15px;color:#1e293b;margin-bottom:10px">Hola ${escHtml(cliente.nombre ?? '')},</div>
+    <div style="font-size:14px;color:#475569;line-height:1.6">
+      Tu pedido <strong>${escHtml(handle)}</strong> ya está en camino. En breve te llegará.
+    </div>
+    <div style="font-size:13px;color:#64748b;margin-top:14px;padding:10px 12px;background:#eef2ff;border-radius:8px;border-left:3px solid #4F46E5;line-height:1.5">
+      Si necesitás coordinar la entrega o tenés alguna consulta, respondé este correo.
+    </div>
+  </td></tr>
+
+  ${portalUrl ? `
+  <tr><td style="background:#ffffff;padding:0 28px 24px;text-align:center">
+    <a href="${escHtml(portalUrl)}" style="display:inline-block;background:#4F46E5;color:#ffffff;padding:12px 28px;border-radius:999px;font-size:13px;font-weight:700;text-decoration:none">Ver mis pedidos →</a>
+  </td></tr>` : ''}
+
+  <tr><td style="background:#4F46E5;border-radius:0 0 14px 14px;padding:14px 28px;font-size:11px;color:#C7D2FE;text-align:center">
+    ${escHtml(empresaNombre)} · Gracias por tu compra
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`
+    return { subject, html }
+  }
 
   if (tipo === 'rechazada') {
-    const subject = `Tu orden ${orden.numero} no pudo ser procesada · ${empresaNombre}`
+    const subject = `Tu orden ${handle} no pudo ser procesada · ${empresaNombre}`
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -69,13 +122,13 @@ function buildEmail(a: BuildArgs): { subject: string; html: string } {
 
   <tr><td style="background:#dc2626;border-radius:14px 14px 0 0;padding:24px 28px;text-align:center">
     <div style="font-size:12px;letter-spacing:1px;color:#fecaca;text-transform:uppercase">Orden no procesada</div>
-    <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px">${escHtml(orden.numero)}</div>
+    <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px">${escHtml(handle)}</div>
   </td></tr>
 
   <tr><td style="background:#ffffff;padding:24px 28px">
     <div style="font-size:15px;color:#1e293b;margin-bottom:10px">Hola ${escHtml(cliente.nombre ?? '')},</div>
     <div style="font-size:14px;color:#475569;line-height:1.6">
-      Lamentamos informarte que tu orden <strong>${escHtml(orden.numero)}</strong>
+      Lamentamos informarte que tu orden <strong>${escHtml(handle)}</strong>
       por <strong>${fmt(orden.total)}</strong> no pudo ser procesada.
     </div>
     ${motivo ? `
@@ -105,11 +158,11 @@ function buildEmail(a: BuildArgs): { subject: string; html: string } {
   const isPagoVerificado = tipo === 'pago_verificado'
   const subject = isPagoVerificado
     ? `✅ Pago verificado · Orden ${orden.numero} aprobada · ${empresaNombre}`
-    : `✅ Tu orden ${orden.numero} fue aprobada · ${empresaNombre}`
+    : `✅ Tu orden ${handle} fue aprobada · ${empresaNombre}`
 
   const intro = isPagoVerificado
-    ? `Verificamos tu pago${orden.tipo_pago ? ` (${escHtml(orden.tipo_pago)})` : ''} y aprobamos tu orden <strong>${escHtml(orden.numero)}</strong> por <strong style="color:#0D9488">${fmt(orden.total)}</strong>. Procederemos con el despacho a la brevedad.`
-    : `Buenas noticias: aprobamos tu orden <strong>${escHtml(orden.numero)}</strong> por <strong style="color:#0D9488">${fmt(orden.total)}</strong>. Comenzamos a prepararla para el despacho.`
+    ? `Verificamos tu pago${orden.tipo_pago ? ` (${escHtml(orden.tipo_pago)})` : ''} y aprobamos tu orden <strong>${escHtml(handle)}</strong> por <strong style="color:#0D9488">${fmt(orden.total)}</strong>. Procederemos con el despacho a la brevedad.`
+    : `Buenas noticias: aprobamos tu orden <strong>${escHtml(handle)}</strong> por <strong style="color:#0D9488">${fmt(orden.total)}</strong>. Comenzamos a prepararla para el despacho.`
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -120,7 +173,7 @@ function buildEmail(a: BuildArgs): { subject: string; html: string } {
 
   <tr><td style="background:#0D9488;border-radius:14px 14px 0 0;padding:24px 28px;text-align:center">
     <div style="font-size:12px;letter-spacing:1px;color:#5EEAD4;text-transform:uppercase">${isPagoVerificado ? 'Pago verificado · Orden aprobada' : 'Orden aprobada'}</div>
-    <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px">${escHtml(orden.numero)}</div>
+    <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:4px">${escHtml(handle)}</div>
     ${pedidoNumero ? `<div style="font-size:13px;color:#CCFBF1;margin-top:4px">Pedido ${escHtml(pedidoNumero)}</div>` : ''}
   </td></tr>
 
@@ -174,7 +227,7 @@ export async function sendCambioEstadoEmail(
 
     const { data: orden, error: ordenErr } = await supabase
       .from('ordenes')
-      .select('id, numero, total, tipo_pago, cliente_id')
+      .select('id, numero, total, tipo_pago, cliente_id, transaccion_id')
       .eq('id', ordenId)
       .maybeSingle()
 
@@ -204,8 +257,14 @@ export async function sendCambioEstadoEmail(
     const empresaNombre = (empresaRes?.data?.nombre as string) || 'Emporium'
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
 
+    // Handle visible al cliente — preferimos EMP-XXXX (transaccion_id)
+    // sobre ORD-XXXX (numero). El cliente solo ve el handle maestro,
+    // que es el mismo a través de orden / pedido / factura.
+    const handle = (orden as any).transaccion_id || orden.numero
+
     const { subject, html } = buildEmail({
       tipo,
+      handle,
       orden: {
         numero: orden.numero,
         total: Number(orden.total) || 0,
@@ -219,6 +278,10 @@ export async function sendCambioEstadoEmail(
     })
 
     const resend = new Resend(apiKey)
+    // TODO(emails-resend-domain): cambiar a `notificaciones@<dominio
+    // verificado>` cuando se complete la verificación de dominio en Resend.
+    // Mientras tanto, usar onboarding@resend.dev solo entrega a destinatarios
+    // pre-verificados en la cuenta de Resend (modo testing).
     const from = `${empresaNombre} <onboarding@resend.dev>`
 
     const res = await resend.emails

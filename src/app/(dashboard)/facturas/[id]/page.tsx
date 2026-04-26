@@ -147,7 +147,7 @@ export default async function FacturaDetailPage({ params }: PageProps) {
                 el "loop sin salida" que el modelo anterior dejaba para
                 facturas en estos estados. */}
             {(f.estado === 'pendiente_pago' || f.estado === 'pendiente_verificacion') && isAdmin && (
-              <MarcarPagadaButton facturaId={f.id} />
+              <MarcarPagadaButton facturaId={f.id} total={Number(f.total ?? 0)} />
             )}
 
             {/* Legacy — emitida → enviada (datos viejos) */}
