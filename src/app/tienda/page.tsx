@@ -5,6 +5,17 @@ import { isStripeConfigured } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
+// Window for "productos nuevos" — created in the last 30 days.
+const NEW_PRODUCT_WINDOW_DAYS = 30
+
+// "Pedidos en preparación" — schema's CHECK constraint allows
+// 'borrador'/'confirmado'/'en_ruta'/'entregado'/'cancelado'/'facturado'.
+// Active-and-not-yet-completed means: borrador (just placed) + confirmado
+// (accepted) + en_ruta (out for delivery). The user's ask was for
+// "pendiente, en_preparacion" which don't exist as values; this is the
+// closest semantic equivalent.
+const PEDIDOS_EN_PREPARACION = ['borrador', 'confirmado', 'en_ruta'] as const
+
 export default async function TiendaPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -92,6 +103,77 @@ export default async function TiendaPage() {
     }
   }
 
+  // ─── Hero stats — Fase 5 ────────────────────────────────────────────────
+  // Four small parallel queries that feed the personalised hero subtitle,
+  // the meta column on the right, and the "(N)" badge on the secondary CTA.
+  // Everything runs server-side under Promise.all so a slow query doesn't
+  // block the others. If any one fails we degrade to zero/null silently —
+  // the hero still renders with a sensible default.
+  const newSinceISO = new Date(
+    Date.now() - NEW_PRODUCT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  const clienteId: string | undefined = clienteData?.id
+
+  const [
+    pedidosPendientesRes,
+    pedidosTotalesRes,
+    ultimaFacturaRes,
+    productosNuevosRes,
+  ] = await Promise.all([
+    clienteId
+      ? supabase
+          .from('pedidos')
+          .select('id', { count: 'exact', head: true })
+          .eq('cliente_id', clienteId)
+          .in('estado', PEDIDOS_EN_PREPARACION as unknown as string[])
+      : Promise.resolve({ count: 0, error: null } as any),
+    clienteId
+      ? supabase
+          .from('pedidos')
+          .select('id', { count: 'exact', head: true })
+          .eq('cliente_id', clienteId)
+      : Promise.resolve({ count: 0, error: null } as any),
+    clienteId
+      ? supabase
+          .from('facturas')
+          .select('id, fecha_emision, total')
+          .eq('cliente_id', clienteId)
+          .order('fecha_emision', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null } as any),
+    supabase
+      .from('productos')
+      .select('id', { count: 'exact', head: true })
+      .eq('activo', true)
+      .gte('created_at', newSinceISO),
+  ])
+
+  const isClienteB2B = profile?.rol === 'cliente'
+  const tieneCredito = isClienteB2B && Boolean(clienteData?.credito_autorizado)
+  const creditoDisponible = tieneCredito
+    ? Math.max(
+        0,
+        Number(clienteData?.limite_credito ?? 0) - Number(clienteData?.credito_usado ?? 0),
+      )
+    : null
+
+  const ultimaFactura = ultimaFacturaRes.data as
+    | { id: string; fecha_emision: string; total: number }
+    | null
+
+  const clientStats = {
+    pedidosPendientes: pedidosPendientesRes.count ?? 0,
+    pedidosTotales:    pedidosTotalesRes.count ?? 0,
+    ultimaCompra: ultimaFactura
+      ? { fecha: ultimaFactura.fecha_emision, total: Number(ultimaFactura.total) }
+      : null,
+    productosNuevos:   productosNuevosRes.count ?? 0,
+    creditoDisponible,
+    esB2B: isClienteB2B,
+  } as const
+
   return (
     <TiendaClient
       profile={profile as any}
@@ -99,6 +181,7 @@ export default async function TiendaPage() {
       clienteInfo={clienteData as any}
       empresaPayment={empresaPayment as any}
       stripeEnabled={isStripeConfigured()}
+      clientStats={clientStats}
     />
   )
 }

@@ -56,6 +56,17 @@ interface Props {
    *  key. When false, the Stripe tile becomes "Próximamente" and is not
    *  selectable. Zelle/Cheque still work regardless. */
   stripeEnabled?: boolean
+  /** Hero personalisation stats (Fase 5). All counts default to 0 and
+   *  ultimaCompra to null when the user has no cliente record yet — the
+   *  hero handles those cases gracefully. */
+  clientStats?: {
+    pedidosPendientes: number
+    pedidosTotales: number
+    ultimaCompra: { fecha: string; total: number } | null
+    productosNuevos: number
+    creditoDisponible: number | null
+    esB2B: boolean
+  }
 }
 
 // Valid tienda payment methods. 'transferencia' was removed — USA
@@ -1985,7 +1996,7 @@ function ProductDetailModal({
 // was removed in the redesign.)
 
 // ── Main TiendaClient ─────────────────────────────────────────────────────────
-export default function TiendaClient({ profile, productos, clienteInfo, empresaPayment, stripeEnabled = false }: Props) {
+export default function TiendaClient({ profile, productos, clienteInfo, empresaPayment, stripeEnabled = false, clientStats }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -2365,7 +2376,7 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       </header>
 
       {/* ── Cinematic landing (Hero + Stats + Categories + Featured + How + CTA) ── */}
-      <TiendaLanding profile={profile as any} productos={productos as any} />
+      <TiendaLanding profile={profile as any} productos={productos as any} clientStats={clientStats} />
 
       {/* ── Search + Categories — editorial strip ── */}
       <section id="catalogo" className="sticky top-[73px] z-20 bg-brand-cream/90 backdrop-blur-md border-y border-stone-200/70">

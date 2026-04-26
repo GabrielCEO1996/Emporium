@@ -18,6 +18,9 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { formatCurrency } from '@/lib/utils'
 import GlobeStage from './components/GlobeStage'
 import PinOverlay from './components/PinOverlay'
 
@@ -49,9 +52,21 @@ interface Profile {
   email?: string | null
 }
 
+interface ClientStats {
+  pedidosPendientes: number
+  pedidosTotales: number
+  ultimaCompra: { fecha: string; total: number } | null
+  productosNuevos: number
+  /** B2B clientes with credit authorised. null for B2C compradores. */
+  creditoDisponible: number | null
+  /** profile.rol === 'cliente'. Used to pick B2B vs B2C meta column. */
+  esB2B: boolean
+}
+
 interface Props {
   profile: Profile
   productos: Producto[]
+  clientStats?: ClientStats
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -77,6 +92,82 @@ function firstNameFrom(profile: Profile): string {
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger)
+}
+
+// ─── Stats copy helpers ──────────────────────────────────────────────────────
+
+/** "1 pedido" / "N pedidos". Empty for 0 — caller decides what to show. */
+function pluralPedidos(n: number): string {
+  if (n <= 0) return ''
+  return n === 1 ? '1 pedido en preparación' : `${n} pedidos en preparación`
+}
+
+/** "1 producto nuevo" / "M productos nuevos". Empty for 0. */
+function pluralProductos(n: number): string {
+  if (n <= 0) return ''
+  return n === 1 ? '1 producto nuevo' : `${n} productos nuevos`
+}
+
+/** "hace 5 días" — date-fns con locale es, addSuffix:true. */
+function relativeFromFecha(fechaISO: string): string {
+  return formatDistanceToNow(new Date(fechaISO), {
+    addSuffix: true,
+    locale: es,
+  })
+}
+
+/**
+ * Build the hero subtitle copy from real stats. Covers six cases so the
+ * sentence stays human regardless of which numbers happen to be zero.
+ *
+ *   N>0  M>0      → "Tienes N… y M…"
+ *   N>0  M=0      → "Tienes N…"
+ *   N=0  M>0  últ → "Tu última compra fue X. Hay M…"
+ *   N=0  M=0  últ → "Tu última compra fue X."
+ *   N=0  M>0  ∅   → "Hay M productos nuevos en el catálogo."
+ *   N=0  M=0  ∅   → "Bienvenido al catálogo."
+ */
+function subtitleFor(stats: ClientStats | undefined): React.ReactNode {
+  const pendientes = stats?.pedidosPendientes ?? 0
+  const nuevos     = stats?.productosNuevos ?? 0
+  const ultima     = stats?.ultimaCompra ?? null
+
+  if (pendientes > 0 && nuevos > 0) {
+    return (
+      <>
+        Tienes <strong>{pluralPedidos(pendientes)}</strong> y {pluralProductos(nuevos)} en
+        el catálogo.
+      </>
+    )
+  }
+  if (pendientes > 0) {
+    return (
+      <>
+        Tienes <strong>{pluralPedidos(pendientes)}</strong>. Te avisamos cuando salgan a
+        ruta.
+      </>
+    )
+  }
+  if (ultima) {
+    const cuando = relativeFromFecha(ultima.fecha)
+    if (nuevos > 0) {
+      return (
+        <>
+          Tu última compra fue <strong>{cuando}</strong>. Hay {pluralProductos(nuevos)} en
+          el catálogo.
+        </>
+      )
+    }
+    return (
+      <>
+        Tu última compra fue <strong>{cuando}</strong>. Cuando quieras volver, estamos.
+      </>
+    )
+  }
+  if (nuevos > 0) {
+    return <>Hay {pluralProductos(nuevos)} esperándote en el catálogo.</>
+  }
+  return <>Bienvenido al catálogo. Listo cuando quieras explorar.</>
 }
 
 // ─── Smooth scroll + force-top on mount ──────────────────────────────────────
@@ -139,7 +230,7 @@ function useLenisAndScrollTop() {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function TiendaLanding({ profile }: Props) {
+export default function TiendaLanding({ profile, clientStats }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
 
   useLenisAndScrollTop()
@@ -150,6 +241,17 @@ export default function TiendaLanding({ profile }: Props) {
     month: 'long',
     year: 'numeric',
   }).format(new Date())
+
+  const pedidosPendientes = clientStats?.pedidosPendientes ?? 0
+  const pedidosTotales    = clientStats?.pedidosTotales ?? 0
+  const ultimaCompra      = clientStats?.ultimaCompra ?? null
+  const creditoDisponible = clientStats?.creditoDisponible ?? null
+  const showCredito       = creditoDisponible !== null
+
+  // CTA badge: "(N)" only when there's something to point at.
+  const misPedidosLabel = pedidosPendientes > 0
+    ? `Mis pedidos (${pedidosPendientes})`
+    : 'Mis pedidos'
 
   return (
     <div ref={rootRef} className="tienda-landing-root">
@@ -174,10 +276,7 @@ export default function TiendaLanding({ profile }: Props) {
             <br />
             <em>{firstName}.</em>
           </h1>
-          <p className="tienda-hero-subtitle">
-            Tienes <strong>2 pedidos en preparación</strong> y productos nuevos
-            en el catálogo desde tu última visita.
-          </p>
+          <p className="tienda-hero-subtitle">{subtitleFor(clientStats)}</p>
           <div className="tienda-hero-actions">
             <a href="#catalogo" className="tienda-cta-primary">
               Ver catálogo
@@ -190,21 +289,53 @@ export default function TiendaLanding({ profile }: Props) {
               </svg>
             </a>
             <Link href="/tienda/mis-pedidos" className="tienda-cta-secondary">
-              Mis pedidos (2)
+              {misPedidosLabel}
             </Link>
           </div>
         </div>
 
+        {/* Hero meta column — top slot toggles between credit (B2B with auth)
+            and total orders (B2C / B2B without credit). Bottom slot is the
+            last invoice; if there's none yet we show a single first-time
+            line instead of empty divider+placeholder. */}
         <aside className="tienda-hero-meta">
-          <div className="tienda-hero-meta-label">Crédito disponible</div>
-          <div className="tienda-hero-meta-value">
-            $ 4,800 <em>USD</em>
-          </div>
-          <div className="tienda-hero-meta-divider" />
-          <div className="tienda-hero-meta-label">Última compra</div>
-          <div className="tienda-hero-meta-value">
-            hace 5 días <em>$ 320</em>
-          </div>
+          {showCredito ? (
+            <>
+              <div className="tienda-hero-meta-label">Crédito disponible</div>
+              <div className="tienda-hero-meta-value">
+                {formatCurrency(creditoDisponible ?? 0)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="tienda-hero-meta-label">Pedidos realizados</div>
+              <div className="tienda-hero-meta-value">
+                {pedidosTotales}{' '}
+                {pedidosTotales > 0 && (
+                  <em>{pedidosTotales === 1 ? 'pedido' : 'pedidos'}</em>
+                )}
+              </div>
+            </>
+          )}
+
+          {ultimaCompra ? (
+            <>
+              <div className="tienda-hero-meta-divider" />
+              <div className="tienda-hero-meta-label">Última compra</div>
+              <div className="tienda-hero-meta-value">
+                {relativeFromFecha(ultimaCompra.fecha)}{' '}
+                <em>{formatCurrency(ultimaCompra.total)}</em>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="tienda-hero-meta-divider" />
+              <div className="tienda-hero-meta-label">Tu primera vez</div>
+              <div className="tienda-hero-meta-value">
+                Empezamos juntos
+              </div>
+            </>
+          )}
         </aside>
       </section>
 
