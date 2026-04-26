@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
             *,
             presentacion:presentaciones(*, producto:productos(*))
           ),
-          pedido:pedidos!pedidos_orden_id_fkey(id, numero, estado)
+          pedido:pedidos!orden_id(id, numero, estado)
         `)
         .eq('id', params.id)
         .single()

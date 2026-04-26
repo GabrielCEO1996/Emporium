@@ -25,10 +25,12 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const estadoFilter = searchParams.estado || 'pendiente'
 
-  // Try with the new payment_proof_url + checkout_v2 columns first; fall back
-  // to the old shape if the migration hasn't been applied yet. Two flags:
-  //   • includeProof      → payment_proof_url (payment_proofs.sql)
-  //   • includeV2Cols     → estado_pago, verificado_por, verificado_at (checkout_v2.sql)
+  // Cascade query — algunos despliegues no tienen aún la migration v2/proof.
+  // Vamos de richest → leanest. La PEDIDO embed usa la sintaxis basada en
+  // columna (`pedidos!orden_id`) en vez del nombre de constraint
+  // (`pedidos!pedidos_orden_id_fkey`) — así PostgREST encuentra la relación
+  // aunque el FK haya sido auto-renombrado. Este era el bug que dejaba la
+  // lista vacía mientras los counters seguían leyendo OK.
   const buildQuery = (includeProof: boolean, includeV2Cols: boolean) => {
     const v2Cols = includeV2Cols ? ', estado_pago, verificado_por, verificado_at' : ''
     const selectCols = `
@@ -40,7 +42,7 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
         id, cantidad, precio_unitario, subtotal,
         presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
       ),
-      pedido:pedidos!pedidos_orden_id_fkey(id, numero, estado)
+      pedido:pedidos!orden_id(id, numero, estado)
     `
     let q = supabase.from('ordenes').select(selectCols).order('created_at', { ascending: false })
     if (estadoFilter && estadoFilter !== 'todas') q = q.eq('estado', estadoFilter)
@@ -64,9 +66,35 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
     ordenesRes = await buildQuery(false, false)  // drop both
   }
   if (ordenesRes.error) {
+    // Fallback final: query mínima sin pedido embed. Si esto también falla
+    // hay un bug más profundo (RLS, columna missing, etc).
     console.error('[ordenes/page] list query failed after all retries:', ordenesRes.error)
+    const minimal = await supabase
+      .from('ordenes')
+      .select(`
+        id, numero, estado, total, notas, direccion_entrega,
+        motivo_rechazo, created_at, updated_at, cliente_id,
+        tipo_pago, numero_referencia, pago_confirmado,
+        cliente:clientes(id, nombre, rif, email, telefono),
+        items:orden_items(
+          id, cantidad, precio_unitario, subtotal,
+          presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
+        )
+      `)
+      .order('created_at', { ascending: false })
+    if (minimal.error) {
+      console.error('[ordenes/page] minimal fallback also failed:', minimal.error)
+    } else {
+      console.warn('[ordenes/page] running on minimal fallback (no pedido link):', minimal.data?.length, 'rows')
+      ordenesRes = minimal as any
+    }
   }
   const ordenes = ordenesRes.data
+  console.log('[ordenes/page] list loaded:', {
+    estadoFilter,
+    rows: ordenes?.length ?? 0,
+    error: ordenesRes.error?.message ?? null,
+  })
 
   // Filtered counts — use COUNT queries with the same estado filter so the
   // tab badges and the list can never disagree (previously the count query

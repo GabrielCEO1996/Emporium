@@ -36,7 +36,7 @@ export async function GET(req: Request) {
             id, cantidad, precio_unitario, subtotal,
             presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
           ),
-          pedido:pedidos!pedidos_orden_id_fkey(id, numero, estado)
+          pedido:pedidos!orden_id(id, numero, estado)
         `)
         .order('created_at', { ascending: false })
 
