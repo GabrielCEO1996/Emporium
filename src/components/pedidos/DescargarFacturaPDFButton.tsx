@@ -1,7 +1,7 @@
 'use client'
 
 import { Download, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Factura } from '@/lib/types'
 import type { EmpresaConfig, PagoInfo } from '@/components/facturas/FacturaPrintButton'
 
@@ -11,83 +11,79 @@ interface Props {
   pagoInfo?: PagoInfo | null
 }
 
-/**
- * Prominent "Descargar Factura PDF" button for the pedido detail page.
- * Dynamically imports @react-pdf/renderer and FacturaPDF client-side to
- * avoid bloating the initial bundle.
- */
-export default function DescargarFacturaPDFButton({ factura, empresaConfig, pagoInfo }: Props) {
-  const [modules, setModules] = useState<{
-    PDFDownloadLink: any
-    FacturaPDF: any
-  } | null>(null)
-  const [mounted, setMounted] = useState(false)
+// ─── DescargarFacturaPDFButton ─────────────────────────────────────────────
+// Reescrito (post Fase 5) para evitar el "Generando PDF…" stuck que tenía
+// el componente antes vía PDFDownloadLink. Mismo patrón que
+// FacturaPrintButton:
+//   • Lazy-import del renderer SOLO al click
+//   • blob → ancla <a download> → click programático
+//   • Timeout de 15s — si la generación se cuelga (ej. Image con URL
+//     CORS-blocked dentro del PDF), no bloquea el botón para siempre
+// ────────────────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setMounted(true)
-    Promise.all([
+const PDF_TIMEOUT_MS = 15_000
+
+async function buildBlobWithTimeout(args: Props): Promise<Blob> {
+  const work = (async () => {
+    const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
       import('@react-pdf/renderer'),
       import('@/components/facturas/FacturaPDF'),
-    ]).then(([pdfRenderer, facturaModule]) => {
-      setModules({
-        PDFDownloadLink: pdfRenderer.PDFDownloadLink,
-        FacturaPDF: facturaModule.default,
-      })
-    })
-  }, [])
+    ])
+    return pdf(
+      <FacturaPDF
+        factura={args.factura}
+        empresaConfig={args.empresaConfig}
+        pagoInfo={args.pagoInfo as any}
+      />
+    ).toBlob()
+  })()
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Tardó demasiado en generar — verificá que el logo sea accesible.')), PDF_TIMEOUT_MS)
+  )
+  return Promise.race([work, timeout])
+}
 
-  if (!mounted) return null
+function triggerDownload(blobUrl: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
 
-  const fileName = `Factura-${factura.numero}.pdf`
+export default function DescargarFacturaPDFButton({ factura, empresaConfig, pagoInfo }: Props) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!modules) {
-    return (
-      <button
-        disabled
-        className="flex items-center gap-2 rounded-lg bg-teal-600/60 px-4 py-2 text-sm font-semibold text-white cursor-not-allowed shadow-sm"
-        aria-label="Preparando PDF"
-      >
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Preparando PDF…
-      </button>
-    )
+  const handleClick = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const blob = await buildBlobWithTimeout({ factura, empresaConfig, pagoInfo })
+      const url = URL.createObjectURL(blob)
+      triggerDownload(url, `Factura-${factura.numero}.pdf`)
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
+    } catch (err: any) {
+      console.error('[DescargarFacturaPDF]', err)
+      setError(err?.message ?? 'No se pudo generar el PDF')
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const { PDFDownloadLink, FacturaPDF } = modules
-
   return (
-    <PDFDownloadLink
-      document={<FacturaPDF factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
-      fileName={fileName}
-    >
-      {({
-        loading,
-        error,
-      }: {
-        loading: boolean
-        error: Error | null
-        url: string | null
-        blob: Blob | null
-      }) =>
-        loading ? (
-          <span className="flex items-center gap-2 rounded-lg bg-teal-600/60 px-4 py-2 text-sm font-semibold text-white cursor-wait shadow-sm select-none">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Generando PDF…
-          </span>
-        ) : error ? (
-          <span className="flex items-center gap-2 rounded-lg bg-red-100 px-4 py-2 text-sm font-semibold text-red-700 select-none">
-            Error al generar PDF
-          </span>
-        ) : (
-          <span
-            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 transition-colors cursor-pointer select-none"
-            style={{ backgroundColor: '#0D9488' }}
-          >
-            <Download className="h-4 w-4" />
-            Descargar Factura PDF
-          </span>
-        )
-      }
-    </PDFDownloadLink>
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleClick}
+        disabled={busy}
+        className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60 transition-colors shadow-sm"
+        style={{ backgroundColor: busy ? undefined : '#0D9488' }}
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        {busy ? 'Generando PDF…' : 'Descargar Factura PDF'}
+      </button>
+      {error && <span className="text-xs text-rose-600">{error}</span>}
+    </div>
   )
 }

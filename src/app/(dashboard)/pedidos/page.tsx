@@ -400,21 +400,24 @@ export default async function PedidosPage({ searchParams }: PageProps) {
                             {canDelete(pedido) && (
                               <EliminarPedidoButton pedidoId={pedido.id} pedidoNumero={pedido.numero} />
                             )}
-                            {pedido.facturas?.[0]?.id ? (
+                            {/* "Ver pedido" SIEMPRE visible — Mache necesita
+                                acceso al detalle para despachar, aunque ya
+                                exista factura. El link de factura va al lado
+                                como atajo, no reemplaza la entrada al pedido. */}
+                            <Link
+                              href={`/pedidos/${pedido.id}`}
+                              className="flex items-center justify-end gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                            >
+                              Ver pedido
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                            {pedido.facturas?.[0]?.id && (
                               <Link
                                 href={`/facturas/${pedido.facturas[0].id}`}
                                 className="flex items-center justify-end gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
                               >
                                 <FileText className="h-3.5 w-3.5" />
-                                Ver {pedido.facturas[0].numero ?? 'Factura'}
-                              </Link>
-                            ) : (
-                              <Link
-                                href={`/pedidos/${pedido.id}`}
-                                className="flex items-center justify-end gap-1 text-xs font-medium text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-teal-600"
-                              >
-                                Ver detalle
-                                <ChevronRight className="h-3.5 w-3.5" />
+                                {pedido.facturas[0].numero ?? 'Factura'}
                               </Link>
                             )}
                           </div>

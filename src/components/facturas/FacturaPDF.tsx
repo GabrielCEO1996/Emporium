@@ -439,7 +439,13 @@ export default function FacturaPDF({ factura, empresaConfig, pagoInfo }: Factura
             {/* Left: Logo + company info */}
             <View>
               <View style={S.logoBox}>
-                {empresa.logo_url ? (
+                {/* react-pdf <Image> hace fetch() del src y bloquea la
+                    generación entera si la URL no resuelve (CORS, 404,
+                    timeout, etc.). Solo aceptamos URLs HTTPS de Supabase
+                    Storage que sabemos que son seguras y rápidas. Para
+                    cualquier otra cosa (URL custom no-Supabase, blob,
+                    data URI raro), caemos al fallback de la inicial. */}
+                {empresa.logo_url && /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//.test(empresa.logo_url) ? (
                   <Image src={empresa.logo_url} style={{ width: 44, height: 44, borderRadius: 8 }} />
                 ) : (
                   <View style={S.logoIcon}>

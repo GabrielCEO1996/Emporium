@@ -45,18 +45,28 @@ interface Props {
 //     "Generando…" stuck).
 // ────────────────────────────────────────────────────────────────────────────
 
+const PDF_TIMEOUT_MS = 15_000
+
 async function buildBlob(args: Props): Promise<Blob> {
-  const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
-    import('@react-pdf/renderer'),
-    import('./FacturaPDF'),
-  ])
-  return pdf(
-    <FacturaPDF
-      factura={args.factura}
-      empresaConfig={args.empresaConfig}
-      pagoInfo={args.pagoInfo as any}
-    />
-  ).toBlob()
+  const work = (async () => {
+    const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
+      import('@react-pdf/renderer'),
+      import('./FacturaPDF'),
+    ])
+    return pdf(
+      <FacturaPDF
+        factura={args.factura}
+        empresaConfig={args.empresaConfig}
+        pagoInfo={args.pagoInfo as any}
+      />
+    ).toBlob()
+  })()
+  // Timeout — si <Image> dentro del PDF queda esperando un logo_url
+  // bloqueado por CORS / 404, react-pdf no falla solo. Cortamos a 15s.
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Tardó demasiado en generar — verificá que el logo sea accesible.')), PDF_TIMEOUT_MS)
+  )
+  return Promise.race([work, timeout])
 }
 
 export default function FacturaPrintButton({ factura, empresaConfig, pagoInfo }: Props) {
