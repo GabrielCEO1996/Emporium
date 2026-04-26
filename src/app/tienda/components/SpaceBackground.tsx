@@ -30,10 +30,10 @@ import * as THREE from 'three'
 // ─── Density tiers ─────────────────────────────────────────────────────────
 type Tier = 'low' | 'mid' | 'high'
 
-const COUNTS: Record<Tier, { far: number; mid: number; motes: number }> = {
-  low:  { far: 100, mid: 16, motes: 12 },
-  mid:  { far: 160, mid: 26, motes: 18 },
-  high: { far: 200, mid: 30, motes: 22 },
+const COUNTS: Record<Tier, { far: number; mid: number; motes: number; premium: number }> = {
+  low:  { far: 100, mid: 16, motes: 12, premium: 14 },
+  mid:  { far: 160, mid: 26, motes: 18, premium: 18 },
+  high: { far: 200, mid: 30, motes: 22, premium: 22 },
 }
 
 function useDeviceTier(): Tier {
@@ -153,18 +153,78 @@ const motesFragment = /* glsl */ `
   }
 `
 
+// ─── Premium layer (capa 4): partículas teal/gold con halo, drift visible
+//     y wrap horizontal+vertical. Es el detalle "luxury" — más visible
+//     que las otras capas, pero todavía silencioso comparado con UI.
+const premiumVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aOpacity;
+  attribute float aSeed;
+  attribute float aColorMix;
+  uniform float uTime;
+  uniform float uPixelRatio;
+  varying float vAlpha;
+  varying float vColorMix;
+
+  void main() {
+    vec3 pos = position;
+
+    // Drift más rápido que motes (0.020–0.050 vs 0.012–0.032). Además
+    // del drift vertical hay sway lateral mayor (0.08 vs 0.05) y wrap
+    // horizontal continuo — las partículas vivas, atravesando el espacio.
+    float driftSpeed = 0.020 + mod(aSeed, 0.5) * 0.030;
+    pos.y += uTime * driftSpeed;
+    pos.y = mod(pos.y + 10.0, 20.0) - 10.0;
+
+    pos.x += sin(uTime * 0.5 + aSeed) * 0.08 + uTime * 0.005 * sign(mod(aSeed, 1.0) - 0.5);
+    pos.x = mod(pos.x + 15.0, 30.0) - 15.0;
+
+    vAlpha = aOpacity;
+    vColorMix = aColorMix;
+
+    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+    gl_Position = projectionMatrix * mvPos;
+    gl_PointSize = aSize * uPixelRatio;
+  }
+`
+
+const premiumFragment = /* glsl */ `
+  varying float vAlpha;
+  varying float vColorMix;
+  void main() {
+    vec2 c = gl_PointCoord - 0.5;
+    float dist = length(c);
+    if (dist > 0.5) discard;
+
+    vec3 tealSoft = vec3(0.369, 0.749, 0.714);   // #5EBFB6
+    vec3 goldWarm = vec3(0.831, 0.647, 0.456);   // #d4a574
+    vec3 col = mix(tealSoft, goldWarm, vColorMix);
+
+    // Núcleo brillante + halo radial sutil. Combinados dan la sensación
+    // de partícula con glow, no solo punto plano.
+    float core = 1.0 - smoothstep(0.0, 0.18, dist);
+    float halo = 1.0 - smoothstep(0.18, 0.5, dist);
+    float a = vAlpha * (core * 1.0 + halo * 0.55);
+    gl_FragColor = vec4(col, a);
+  }
+`
+
 // ─── Helper: build a points geometry ──────────────────────────────────────
 function buildLayerGeometry(opts: {
   count: number
   zRange: [number, number]
   sizeRange: [number, number]
   opacityRange: [number, number]
+  /** When true, also creates an aColorMix attribute (0 or 1) — 70% chance
+   *  of being 0 (teal), 30% chance of 1 (gold). Premium layer only. */
+  withColorMix?: boolean
 }) {
-  const { count, zRange, sizeRange, opacityRange } = opts
+  const { count, zRange, sizeRange, opacityRange, withColorMix = false } = opts
   const positions = new Float32Array(count * 3)
   const sizes = new Float32Array(count)
   const opacities = new Float32Array(count)
   const seeds = new Float32Array(count)
+  const colorMixes = withColorMix ? new Float32Array(count) : null
   for (let i = 0; i < count; i++) {
     positions[i * 3]     = (Math.random() - 0.5) * 30
     positions[i * 3 + 1] = (Math.random() - 0.5) * 20
@@ -172,12 +232,14 @@ function buildLayerGeometry(opts: {
     sizes[i]    = sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0])
     opacities[i] = opacityRange[0] + Math.random() * (opacityRange[1] - opacityRange[0])
     seeds[i]    = Math.random() * Math.PI * 2
+    if (colorMixes) colorMixes[i] = Math.random() < 0.30 ? 1 : 0
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   g.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1))
   g.setAttribute('aOpacity', new THREE.BufferAttribute(opacities, 1))
   g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
+  if (colorMixes) g.setAttribute('aColorMix', new THREE.BufferAttribute(colorMixes, 1))
   return g
 }
 
@@ -257,6 +319,20 @@ function SpaceScene() {
     [counts.motes],
   )
 
+  // Capa 4 (premium) — más cerca de la cámara, más visible. zRange más
+  // adelante que las motes para que pase por encima en blending.
+  const premiumGeometry = useMemo(
+    () =>
+      buildLayerGeometry({
+        count: counts.premium,
+        zRange: [-3.5, -2.5],
+        sizeRange: [3.5, 7.0],   // size in screen px (con uPixelRatio mult.)
+        opacityRange: [0.30, 0.60],
+        withColorMix: true,
+      }),
+    [counts.premium],
+  )
+
   const farMaterial = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -302,11 +378,30 @@ function SpaceScene() {
     [pixelRatio],
   )
 
+  const premiumMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: premiumVertex,
+        fragmentShader: premiumFragment,
+        transparent: true,
+        depthWrite: false,
+        // Additive blending: the gold + teal cores glow into each other
+        // when they overlap, sin volverse opacos.
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: { value: 0 },
+          uPixelRatio: { value: pixelRatio },
+        },
+      }),
+    [pixelRatio],
+  )
+
   return (
     <>
-      <Layer geometry={farGeometry}   material={farMaterial}   parallax={0.05} reduceMotionRef={reduceMotionRef} />
-      <Layer geometry={midGeometry}   material={midMaterial}   parallax={0.15} reduceMotionRef={reduceMotionRef} />
-      <Layer geometry={motesGeometry} material={motesMaterial} parallax={0.30} reduceMotionRef={reduceMotionRef} />
+      <Layer geometry={farGeometry}     material={farMaterial}     parallax={0.05} reduceMotionRef={reduceMotionRef} />
+      <Layer geometry={midGeometry}     material={midMaterial}     parallax={0.15} reduceMotionRef={reduceMotionRef} />
+      <Layer geometry={motesGeometry}   material={motesMaterial}   parallax={0.30} reduceMotionRef={reduceMotionRef} />
+      <Layer geometry={premiumGeometry} material={premiumMaterial} parallax={0.45} reduceMotionRef={reduceMotionRef} />
     </>
   )
 }
