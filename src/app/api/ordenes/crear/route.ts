@@ -337,6 +337,7 @@ export async function POST(req: Request) {
       tipo: 'orden',
       numero: orden.numero,
       orden_id: orden.id,
+      transaccion_id: (orden as any).transaccion_id ?? null,
     }, { status: 201 })
   } catch (err: any) {
     console.error('[ordenes/crear] unhandled:', err)

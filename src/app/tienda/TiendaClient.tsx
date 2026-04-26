@@ -1514,9 +1514,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setNotas('')
       setNumeroRef('')
       setProofUrl('')
-      // Mostrar pantalla de éxito sobria — el cliente decide si va a Mis pedidos
-      // o sigue comprando. Sin auto-redirect ni copy de tiempos/aprobadores.
-      setSuccessOrder(data.numero ?? '')
+      // Mostrar pantalla de éxito con el handle maestro EMP-XXXX (Fase 1+2)
+      // visible — ese es el código que el cliente usa si llama a soporte.
+      // Fallback al numero ORD-XXXX por si la migration aún no aplicó.
+      setSuccessOrder(data.transaccion_id ?? data.numero ?? '')
     } catch (err: any) {
       console.error('[tienda] handleGenerarOrden threw:', err)
       toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')
@@ -1576,7 +1577,7 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setNumeroRef('')
       setProofUrl('')
       router.push('/tienda/mis-pedidos')
-      toast.success(`Orden ${data.numero ?? ''} enviada — confirmamos el pago en minutos`)
+      toast.success(`Orden ${data.transaccion_id ?? data.numero ?? ''} enviada — confirmamos el pago en minutos`)
     } catch (err: any) {
       console.error('[tienda] handleComprarZelle threw:', err)
       toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')

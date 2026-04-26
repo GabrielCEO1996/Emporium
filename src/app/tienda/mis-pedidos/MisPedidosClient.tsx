@@ -32,11 +32,16 @@ interface OrdenItem {
 }
 interface Orden {
   id: string; numero: string
+  transaccion_id?: string | null
   estado: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
   total: number; notas?: string | null; motivo_rechazo?: string | null
   created_at: string
   orden_items?: OrdenItem[]
-  pedido?: { id: string; numero: string; estado: string } | null
+  pedido?: {
+    id: string; numero: string; estado: string
+    estado_despacho?: 'por_despachar' | 'despachado' | 'entregado' | null
+    factura?: Array<{ id: string; numero: string; estado: string }> | { id: string; numero: string; estado: string } | null
+  } | null
 }
 interface Factura {
   id: string; numero: string
@@ -258,68 +263,83 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
 }
 
 // ── Orden Timeline ────────────────────────────────────────────────────────────
-// Timeline de extremo a extremo: arranca cuando el cliente envía la orden
-// y termina cuando el pedido derivado se entrega. Combina el estado de la
-// orden con el estado del pedido linkeado para que el cliente vea el avance
-// completo en una sola línea de tiempo, sin tener que ir a la sección de
-// pedidos.
+// Timeline 5 pasos extremo a extremo (Fase 5 — modelo nuevo):
+//
+//   Solicitud → Aprobada → En preparación → En camino → Entregado
+//
+// Avance derivado de:
+//   • orden.estado          — pendiente / aprobada / rechazada / cancelada
+//   • pedido.estado_despacho — por_despachar / despachado / entregado
+//   • factura.estado        — pendiente_pago / pendiente_verificacion /
+//                              pagada (Fase 3)
+//
+// Si la transacción se cancela o rechaza, la timeline muestra el corte
+// en rojo en el paso al que llegó (no en step 0 si ya había avanzado).
 const ORDEN_STEPS = [
-  { key: 'solicitud',  label: 'Solicitud' },
-  { key: 'aprobada',   label: 'Aprobada' },
-  { key: 'preparando', label: 'Preparando' },
-  { key: 'en_ruta',    label: 'En camino' },
-  { key: 'entregada',  label: 'Entregada' },
+  { key: 'solicitud',     label: 'Solicitud' },
+  { key: 'aprobada',      label: 'Aprobada' },
+  { key: 'en_preparacion', label: 'En preparación' },
+  { key: 'en_camino',     label: 'En camino' },
+  { key: 'entregado',     label: 'Entregado' },
 ]
 
+/**
+ * Devuelve el step alcanzado (0..4). Funciona aunque la orden esté
+ * rechazada / cancelada — se usa para saber DÓNDE pintar el corte rojo.
+ */
 function getOrdenStep(orden: Orden): number {
-  // Orden no aprobada todavía → paso 0 (solicitud creada).
-  if (orden.estado !== 'aprobada') return 0
+  // Sin avance: orden recién creada (puede estar pendiente, rechazada, etc).
+  // Si nunca llegó a 'aprobada', step alcanzado = 0.
+  if (orden.estado !== 'aprobada' && orden.estado !== 'cancelada') return 0
 
-  // Sin pedido linkeado → quedó en "aprobada", paso 1.
-  const pedidoEstado = orden.pedido?.estado
-  if (!pedidoEstado) return 1
+  const pedido = orden.pedido
+  // Cancelada antes de pedido (raro) o sin pedido todavía → step 1.
+  if (!pedido) return orden.estado === 'aprobada' ? 1 : 0
 
-  // Con pedido linkeado, el avance corre por el estado del pedido.
-  if (['entregado', 'facturado', 'pagado'].includes(pedidoEstado)) return 4
-  if (pedidoEstado === 'en_ruta')    return 3
-  if (pedidoEstado === 'preparando') return 2
-  // borrador / confirmado → orden ya aprobada pero el pedido no arrancó
-  // todavía, paso 1 (Aprobada).
+  const ed = pedido.estado_despacho
+  if (ed === 'entregado') return 4
+  if (ed === 'despachado') return 3
+
+  // ed === 'por_despachar' (o null en datos legacy):
+  // La diferencia entre paso 1 (Aprobada) y paso 2 (En preparación) es
+  // si la factura ya está pagada. Si está pagada, está listo para
+  // despachar. Si no, aún esperamos pago.
+  const fac = Array.isArray(pedido.factura) ? pedido.factura[0] : pedido.factura
+  if (fac?.estado === 'pagada') return 2
   return 1
 }
 
 function OrdenTimeline({ orden }: { orden: Orden }) {
-  if (orden.estado === 'rechazada' || orden.estado === 'cancelada') {
-    return (
-      <div className="flex items-center gap-2 py-2">
-        <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
-        <span className="text-[11px] uppercase tracking-luxe text-rose-500">
-          Orden {orden.estado}
-        </span>
-      </div>
-    )
-  }
-
+  const cancelada = orden.estado === 'rechazada' || orden.estado === 'cancelada'
   const stepIdx = getOrdenStep(orden)
 
   return (
     <div className="pt-2 pb-4">
       <div className="flex items-center gap-0">
         {ORDEN_STEPS.map((step, i) => {
-          const done   = stepIdx >= i
-          const active = stepIdx === i
+          const done = stepIdx >= i
+          const active = !cancelada && stepIdx === i
+          // El corte rojo cae en el último paso alcanzado cuando la
+          // transacción se cortó.
+          const isCutPoint = cancelada && stepIdx === i
           return (
             <div key={step.key} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
-                <motion.div
-                  animate={active ? { scale: [1, 1.1, 1] } : {}}
-                  transition={{ repeat: Infinity, duration: 1.6 }}
-                  className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${
-                    done ? 'bg-brand-navy' : 'bg-stone-300'
-                  } ${active ? 'ring-2 ring-offset-2 ring-brand-gold/60 ring-offset-white' : ''}`}
-                />
+                {isCutPoint ? (
+                  <XCircle className="w-3.5 h-3.5 text-rose-500" strokeWidth={2.5} />
+                ) : (
+                  <motion.div
+                    animate={active ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ repeat: Infinity, duration: 1.6 }}
+                    className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${
+                      done ? 'bg-brand-navy' : 'bg-stone-300'
+                    } ${active ? 'ring-2 ring-offset-2 ring-brand-gold/60 ring-offset-white' : ''}`}
+                  />
+                )}
                 <span className={`text-[9px] mt-2 uppercase tracking-wide whitespace-nowrap ${
-                  done ? 'text-brand-navy' : 'text-brand-charcoal/40'
+                  isCutPoint ? 'text-rose-500 font-semibold'
+                    : done ? 'text-brand-navy'
+                    : 'text-brand-charcoal/40'
                 }`}>
                   {step.label}
                 </span>
@@ -330,7 +350,7 @@ function OrdenTimeline({ orden }: { orden: Orden }) {
                     initial={{ width: 0 }}
                     animate={{ width: stepIdx > i ? '100%' : '0%' }}
                     transition={{ duration: 0.5, delay: i * 0.08 }}
-                    className="h-full bg-brand-navy"
+                    className={`h-full ${cancelada && stepIdx > i ? 'bg-rose-300' : 'bg-brand-navy'}`}
                   />
                 </div>
               )}
@@ -338,6 +358,11 @@ function OrdenTimeline({ orden }: { orden: Orden }) {
           )
         })}
       </div>
+      {cancelada && (
+        <p className="text-[10px] uppercase tracking-luxe text-rose-500 text-center mt-2">
+          {orden.estado === 'rechazada' ? 'Solicitud rechazada' : 'Solicitud cancelada'}
+        </p>
+      )}
     </div>
   )
 }
@@ -370,7 +395,9 @@ function OrdenCard({ orden }: { orden: Orden }) {
             <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
               {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {map.label}
             </p>
-            <h3 className="font-serif text-xl leading-tight">{orden.numero}</h3>
+            <h3 className="font-serif text-xl leading-tight">
+              {orden.transaccion_id ?? orden.numero}
+            </h3>
             {orden.orden_items && (
               <p className="text-[11px] uppercase tracking-wide opacity-60 mt-1">
                 {orden.orden_items.length} producto{orden.orden_items.length === 1 ? '' : 's'}
@@ -522,6 +549,14 @@ export default function MisPedidosClient({
     return () => { supabase.removeChannel(channel) }
   }, [clienteId, supabase])
 
+  // Pedidos que ya están cubiertos por una OrdenCard (vienen como derivado
+  // de una orden). No los duplicamos en la sección "Pedidos activos" — ya
+  // aparecen dentro de la timeline integrada de su orden.
+  const ordenPedidoIds = new Set(
+    ordenes.map(o => o.pedido?.id).filter(Boolean) as string[]
+  )
+  const pedidosSinOrden = pedidos.filter(p => !ordenPedidoIds.has(p.id))
+
   const handleReorder = (items: PedidoItem[]) => {
     const reorderItems = items.map(item => ({
       presentacionId: item.presentacion_id,
@@ -559,7 +594,7 @@ export default function MisPedidosClient({
 
       <main className="max-w-4xl mx-auto px-6 lg:px-10 py-10 space-y-12 pb-28">
         {/* Empty state */}
-        {pedidos.length === 0 && ordenes.length === 0 && facturas.length === 0 && (
+        {pedidosSinOrden.length === 0 && ordenes.length === 0 && facturas.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center py-24 max-w-md mx-auto">
             <div className="w-20 h-20 rounded-full bg-brand-stone flex items-center justify-center mx-auto mb-6">
               <ShoppingBag className="w-7 h-7 text-brand-charcoal/40" />
@@ -604,8 +639,10 @@ export default function MisPedidosClient({
           </section>
         )}
 
-        {/* Pedidos */}
-        {pedidos.length > 0 && (
+        {/* Pedidos sin orden parent — venta directa de mostrador. Pedidos
+            que vienen de una orden ya se muestran dentro de la timeline
+            integrada de su OrdenCard arriba. */}
+        {pedidosSinOrden.length > 0 && (
           <section className="space-y-5">
             <div className="flex items-baseline justify-between flex-wrap gap-2">
               <div>
@@ -613,11 +650,11 @@ export default function MisPedidosClient({
                 <h2 className="font-serif text-3xl text-brand-navy">Pedidos activos</h2>
               </div>
               <p className="text-[11px] uppercase tracking-luxe text-brand-charcoal/60">
-                {pedidos.length} total
+                {pedidosSinOrden.length} total
               </p>
             </div>
             <div className="space-y-4">
-              {pedidos.map((p, i) => (
+              {pedidosSinOrden.map((p, i) => (
                 <motion.div
                   key={p.id}
                   initial={{ opacity: 0, y: 12 }}
