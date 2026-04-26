@@ -111,79 +111,79 @@ const orbFragment = /* glsl */ `
   varying vec3 vWorldPosition;
   varying vec3 vViewPosition;
 
-  const vec3 navy     = vec3(0.118, 0.227, 0.373); // #1E3A5F
-  const vec3 navyDeep = vec3(0.059, 0.133, 0.220); // #0F2238
-  const vec3 teal     = vec3(0.051, 0.580, 0.533); // #0D9488
-  const vec3 tealSoft = vec3(0.369, 0.749, 0.714); // #5EBFB6
-  const vec3 cream    = vec3(0.980, 0.980, 0.969); // #fafaf7
+  // Paleta del prototipo original — el orb es la "joya" verde-dorada
+  // sobre el cream. Coherente con la estética luxury que pidió el
+  // cliente (no se trata del logo navy/teal sino de la pieza decorativa).
+  const vec3 cream  = vec3(0.980, 0.980, 0.969); // #fafaf7
+  const vec3 gold   = vec3(0.831, 0.647, 0.455); // #d4a574
+  const vec3 forest = vec3(0.176, 0.290, 0.243); // #2d4a3e
+  const vec3 dark   = vec3(0.039, 0.039, 0.039); // #0a0a0a
 
   void main() {
     vec3 viewDir = normalize(vViewPosition);
-    float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 1.8);
+    vec3 normal = normalize(vNormal);
 
-    // Iridescent shift — fase de tiempo + posición Y + influencia de mouse
-    float shift = sin(uTime * 0.4 + vWorldPosition.y * 1.5) * 0.5 + 0.5;
+    // Fresnel — light at glancing angles
+    float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 1.8);
+
+    // Vertical shading + temporal wobble + mouse influence. El dot(normal,up)
+    // es lo que da la sensación 3D iridiscente del prototipo (top cream,
+    // bottom forest). El sin temporal añade un pequeño "respiración".
+    float shift = dot(normal, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5;
+    shift += sin(uTime * 0.4 + vWorldPosition.y * 1.5) * 0.08;
     shift += uMouse.x * 0.1;
 
-    vec3 base = mix(navy, tealSoft, smoothstep(0.3, 0.85, shift));
-    vec3 rim  = mix(teal, cream, smoothstep(0.4, 1.0, fresnel));
+    // Cuerpo: forest oscuro abajo → cream apagado arriba.
+    vec3 base = mix(forest, cream * 0.85, smoothstep(0.3, 0.85, shift));
+
+    // Rim: gold cálido en bordes intermedios, cream pleno en bordes extremos.
+    vec3 rim = mix(gold, cream, smoothstep(0.4, 1.0, fresnel));
+
+    // Composición: base + rim ponderado por fresnel.
     vec3 color = mix(base, rim, fresnel);
 
-    // Core glow — el centro del orb tiene un teal interno cálido
-    color += teal * 0.06 * (1.0 - fresnel);
+    // Glow interno cálido (mid-body).
+    color += gold * 0.06 * (1.0 - fresnel);
 
-    // Bottom shade — la mitad inferior se oscurece sutilmente
-    color *= mix(0.78, 1.0, smoothstep(-0.4, 0.6, vNormal.y));
+    // Sombra suave en la mitad inferior.
+    float bottomShade = smoothstep(-0.4, 0.6, normal.y);
+    color *= mix(0.78, 1.0, bottomShade);
 
-    // Edge depth — los rims muy profundos tiran a navy-deep
-    color = mix(color, navyDeep, pow(fresnel, 6.0) * 0.25);
+    // Definición de los rims muy profundos — tiran a dark.
+    color = mix(color, dark, pow(fresnel, 6.0) * 0.25);
 
     gl_FragColor = vec4(color, 1.0);
   }
 `
 
-// ─── Particles shaders ───────────────────────────────────────────────────
+// ─── Particles shaders (gold dust del prototipo) ─────────────────────────
 const particlesVertex = /* glsl */ `
   attribute float aSeed;
-  attribute float aColorMix;
   uniform float uTime;
   uniform float uPixelRatio;
   varying float vAlpha;
-  varying float vColorMix;
 
   void main() {
-    vec3 pos = position;
-    pos.y += sin(uTime * 0.4 + aSeed) * 0.18;
-    pos.x += cos(uTime * 0.3 + aSeed * 1.3) * 0.12;
-
+    vec3 p = position;
+    p.y += sin(uTime * 0.4 + aSeed) * 0.18;
+    p.x += cos(uTime * 0.3 + aSeed * 1.3) * 0.12;
     vAlpha = 0.4 + 0.5 * sin(uTime * 0.6 + aSeed);
-    vColorMix = aColorMix;
-
-    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+    vec4 mvPos = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPos;
-    // Perspective scale: more distant points smaller
     gl_PointSize = 2.5 * (1.0 / -mvPos.z) * 80.0 * uPixelRatio;
   }
 `
 
 const particlesFragment = /* glsl */ `
   varying float vAlpha;
-  varying float vColorMix;
-
   void main() {
     vec2 c = gl_PointCoord - 0.5;
-    float dist = length(c);
-    if (dist > 0.5) discard;
-
-    vec3 gold     = vec3(0.831, 0.647, 0.456); // #d4a574
-    vec3 tealSoft = vec3(0.369, 0.749, 0.714); // #5EBFB6
-    vec3 col = mix(gold, tealSoft, vColorMix);
-
-    float core = 1.0 - smoothstep(0.0, 0.18, dist);
-    float halo = 1.0 - smoothstep(0.18, 0.5, dist);
-    float a = vAlpha * (core + halo * 0.5);
-
-    gl_FragColor = vec4(col, a);
+    float d = length(c);
+    if (d > 0.5) discard;
+    float falloff = smoothstep(0.5, 0.0, d);
+    // Gold puro — el prototipo es gold-only. La mezcla teal/gold del
+    // commit anterior rompía la lectura "polvo dorado alrededor de la joya".
+    gl_FragColor = vec4(0.831, 0.647, 0.455, falloff * vAlpha * 0.6);
   }
 `
 
@@ -239,24 +239,21 @@ function OrbScene() {
   const particlesGeometry = useMemo(() => {
     const positions = new Float32Array(PARTICLES_COUNT * 3)
     const seeds = new Float32Array(PARTICLES_COUNT)
-    const colorMixes = new Float32Array(PARTICLES_COUNT)
     for (let i = 0; i < PARTICLES_COUNT; i++) {
-      // Punto random en una cáscara esférica radio 2.2–3.7 alrededor del orb.
-      // Usamos acos uniforme en cos(phi) para distribución uniforme en sphere.
-      const r = 2.2 + Math.random() * 1.5
+      // Distribución del prototipo: cos*cos / sin / sin*cos (no uniforme
+      // pero da el aspecto "polvo flotante" que él ya validó). z offset
+      // -1 acerca el polvo al espectador.
+      const radius = 2.2 + Math.random() * 1.5
       const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
-      positions[i * 3]     = ORB_POSITION[0] + r * Math.sin(phi) * Math.cos(theta)
-      positions[i * 3 + 1] = ORB_POSITION[1] + r * Math.cos(phi)
-      positions[i * 3 + 2] = ORB_POSITION[2] + r * Math.sin(phi) * Math.sin(theta)
+      const phi = (Math.random() - 0.5) * Math.PI
+      positions[i * 3]     = ORB_POSITION[0] + radius * Math.cos(theta) * Math.cos(phi)
+      positions[i * 3 + 1] = ORB_POSITION[1] + radius * Math.sin(phi)
+      positions[i * 3 + 2] = radius * Math.sin(theta) * Math.cos(phi) - 1
       seeds[i] = Math.random() * Math.PI * 2
-      // ~40% teal-soft (1), ~60% gold (0). Distribución estable por índice.
-      colorMixes[i] = i % 5 < 2 ? 1 : 0
     }
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1))
-    g.setAttribute('aColorMix', new THREE.BufferAttribute(colorMixes, 1))
     return g
   }, [])
 

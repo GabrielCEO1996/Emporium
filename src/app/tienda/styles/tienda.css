@@ -42,32 +42,13 @@
 .tienda-screen {
   font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
   font-weight: 300;
-  color: var(--bg-cream);
-  /* No bg aquí — el .tienda-bg-cosmos hermano lo provee con position
-     fixed. Mantener relative para que los fixed descendants posicionen
-     correctamente. */
-  position: relative;
+  /* Bg cream lo da el wrapper Tailwind (bg-brand-cream) — el sistema
+     vuelve al prototipo: cream + texto navy + orb forest/gold. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Safety net contra scroll horizontal accidental. */
   overflow-x: hidden;
   max-width: 100vw;
-}
-
-/* Cosmos background — fixed inset 0, z-index negativo. Sobrevive a
-   cualquier specificity issue porque vive en su propio stacking
-   context detrás de toda la app. */
-.tienda-bg-cosmos {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at center top,
-    #0a1628 0%,
-    #02050d 60%,
-    #000000 100%
-  );
 }
 
 .tienda-screen ::selection {
@@ -89,25 +70,17 @@
   transition: transform 0.08s linear, box-shadow 0.45s var(--ease-out-expo);
 }
 
-/* ─── Product card luminosa — Pt 4 ────────────────────────────────────────
- * Aplicada vía className al motion.div del ProductCard. Sobrescribe el
- * bg-white + border Tailwind para llevarla al sistema dark-mode + cards
- * luminosas: gradient cream + border teal-soft + shadow ambient.
- */
+/* ─── Product card sobre cream — sombra suave luxe ────────────────────── */
 .tienda-product-card {
-  background: linear-gradient(180deg, #fafaf7 0%, #f3f1ea 100%) !important;
-  border: 0.5px solid rgba(94, 191, 182, 0.20) !important;
-  box-shadow:
-    0 4px 32px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px rgba(13, 148, 136, 0.05);
+  background: #ffffff !important;
+  border: 0.5px solid var(--border-subtle) !important;
+  box-shadow: 0 4px 24px rgba(15, 34, 56, 0.06);
   color: var(--brand-navy);
 }
 
 .tienda-product-card:hover {
   border-color: rgba(13, 148, 136, 0.35) !important;
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px rgba(13, 148, 136, 0.10);
+  box-shadow: 0 8px 32px rgba(15, 34, 56, 0.10);
 }
 
 /* ─── Scroll reveal: fadeIn + translateY at viewport entry ──────────────── */
@@ -316,27 +289,27 @@
   font-size: clamp(48px, 6.5vw, 104px);
   line-height: 0.98;
   letter-spacing: -0.02em;
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   margin-bottom: 24px;
 }
 
 .tienda-hero-title em {
   font-style: italic;
   font-weight: 300;
-  color: var(--brand-teal-soft);
+  color: var(--brand-teal);
 }
 
 .tienda-hero-subtitle {
   font-size: 15px;
   font-weight: 300;
   line-height: 1.6;
-  color: rgba(250, 250, 247, 0.7);
+  color: var(--text-muted);
   max-width: 440px;
   margin-bottom: 36px;
 }
 
 .tienda-hero-subtitle strong {
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   font-weight: 500;
 }
 
@@ -351,25 +324,25 @@
 .tienda-hero-meta-line {
   display: none;
   font-size: 13px;
-  color: rgba(250, 250, 247, 0.7);
+  color: var(--text-muted);
   margin: 0 0 28px;
   letter-spacing: 0.02em;
   line-height: 1.5;
 }
 .tienda-hero-meta-line strong {
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   font-weight: 500;
 }
 .tienda-hero-meta-line-label {
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--brand-teal-soft);
+  color: var(--brand-teal);
   margin-right: 4px;
 }
 .tienda-hero-meta-line-divider {
   margin: 0 10px;
-  color: rgba(250, 250, 247, 0.30);
+  color: var(--text-faint);
 }
 
 .tienda-cta-primary {
@@ -377,7 +350,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 26px;
-  background: var(--brand-teal);
+  background: var(--brand-navy);
   color: var(--bg-cream);
   border: none;
   border-radius: 100px;
@@ -386,15 +359,13 @@
   font-weight: 500;
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo);
+  transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
   text-decoration: none;
-  box-shadow: 0 4px 24px rgba(13, 148, 136, 0.25);
 }
 
 .tienda-cta-primary:hover {
-  background: #0b7e74; /* teal slightly darker for press feedback */
+  background: var(--brand-teal);
   transform: translateY(-1px);
-  box-shadow: 0 6px 32px rgba(13, 148, 136, 0.4);
 }
 
 .tienda-cta-primary .arrow {
@@ -411,16 +382,16 @@
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.04em;
-  color: rgba(250, 250, 247, 0.7);
+  color: var(--text-muted);
   text-decoration: none;
-  border-bottom: 0.5px solid rgba(250, 250, 247, 0.25);
+  border-bottom: 0.5px solid var(--border-subtle);
   padding-bottom: 4px;
   transition: color 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
 }
 
 .tienda-cta-secondary:hover {
-  color: var(--bg-cream);
-  border-color: var(--brand-teal);
+  color: var(--brand-navy);
+  border-color: var(--brand-navy);
 }
 
 .tienda-hero-meta {
@@ -437,7 +408,7 @@
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: rgba(250, 250, 247, 0.45);
+  color: var(--text-faint);
   margin-bottom: 10px;
 }
 
@@ -446,20 +417,20 @@
   font-style: italic;
   font-size: 26px;
   font-weight: 400;
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   line-height: 1.2;
 }
 
 .tienda-hero-meta-value em {
   font-size: 14px;
-  color: rgba(250, 250, 247, 0.45);
+  color: var(--text-faint);
   font-style: normal;
 }
 
 .tienda-hero-meta-divider {
   width: 1px;
   height: 28px;
-  background: rgba(250, 250, 247, 0.20);
+  background: var(--border-subtle);
   margin: 16px 0 16px auto;
 }
 
@@ -534,7 +505,7 @@
   }
   .tienda-cta-secondary {
     padding: 14px 24px;
-    border: 0.5px solid rgba(250, 250, 247, 0.25);
+    border: 0.5px solid var(--border-subtle);
     border-radius: 100px;
     /* Override the underline-only desktop variant. */
     border-bottom-width: 0.5px;
@@ -550,11 +521,10 @@
  * ════════════════════════════════════════════════════════════════════════════ */
 
 .tienda-howitworks {
-  /* Transparent — el negro espacial + SpaceBackground hacen su trabajo
-     debajo. La sección sigue siendo positioned (z-index:1 vía la regla
-     general) para tapar el Canvas en su área. */
-  background: transparent;
-  color: var(--bg-cream);
+  /* Cream-deep para tener un cambio sutil entre el hero (cream) y la
+     sección — así las cards luminosas saltan visualmente. */
+  background: var(--bg-cream-deep);
+  color: var(--brand-navy);
   padding: 96px 0;
   overflow: hidden;
 }
@@ -582,7 +552,7 @@
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--brand-teal-soft);
+  color: var(--brand-teal);
   margin-bottom: 20px;
   font-weight: 500;
 }
@@ -593,21 +563,21 @@
   font-size: clamp(32px, 5vw, 56px);
   line-height: 1.08;
   letter-spacing: -0.02em;
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   margin: 0;
 }
 
 .tienda-howitworks-title em {
   font-style: italic;
   font-weight: 300;
-  color: var(--brand-teal-soft);
+  color: var(--brand-teal);
 }
 
 .tienda-howitworks-lead {
   margin-top: 20px;
   font-size: 15px;
   line-height: 1.6;
-  color: rgba(250, 250, 247, 0.55);
+  color: var(--text-muted);
 }
 
 .tienda-howitworks-steps {
@@ -624,28 +594,22 @@
 }
 
 .tienda-howitworks-card {
-  /* Card luminosa — gradient cream encima del cosmos negro. El sistema de
-     diseño dark-mode + cards luminosas: lo que se TOCA o COMPRA es claro,
-     lo que es ATMOSFERA es oscuro. */
-  background: linear-gradient(180deg, #fafaf7 0%, #f3f1ea 100%);
-  border: 0.5px solid rgba(94, 191, 182, 0.20);
+  /* Card luminosa sobre cream-deep — el bg blanco se diferencia del
+     section bg por sutileza. */
+  background: #ffffff;
+  border: 0.5px solid var(--border-subtle);
   border-radius: 16px;
   padding: 32px;
   transition: border-color 0.5s var(--ease-out-expo),
               transform 0.5s var(--ease-out-expo),
               box-shadow 0.5s var(--ease-out-expo);
-  /* Inset hairline teal + drop ambient — flota sobre el cosmos. */
-  box-shadow:
-    0 4px 32px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px rgba(13, 148, 136, 0.05);
+  box-shadow: 0 4px 24px rgba(15, 34, 56, 0.06);
 }
 
 .tienda-howitworks-card:hover {
   border-color: rgba(13, 148, 136, 0.35);
   transform: translateY(-2px);
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px rgba(13, 148, 136, 0.10);
+  box-shadow: 0 8px 32px rgba(15, 34, 56, 0.10);
 }
 
 .tienda-howitworks-num {
@@ -672,7 +636,7 @@
 .tienda-howitworks-copy {
   font-size: 15px;
   line-height: 1.6;
-  color: rgba(15, 34, 56, 0.65);
+  color: var(--text-muted);
   max-width: 36ch;
   margin: 0;
 }
@@ -694,11 +658,11 @@
   align-items: center;
   gap: 32px;
   padding: 12px 8px 12px 16px;
-  /* Tinted-navy glass sobre el negro espacial. */
-  background: rgba(15, 34, 56, 0.65);
+  /* Cream glass sobre el bg cream — el único glassmorphism del módulo. */
+  background: rgba(250, 250, 247, 0.72);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 0.5px solid rgba(94, 191, 182, 0.18);
+  border: 0.5px solid var(--border-subtle);
   border-radius: 100px;
   animation: tiendaNavIn 1s var(--ease-out-expo) 0.4s backwards;
 }
@@ -719,7 +683,7 @@
   align-items: center;
   gap: 8px;
   padding-right: 16px;
-  border-right: 0.5px solid rgba(250, 250, 247, 0.15);
+  border-right: 0.5px solid var(--border-subtle);
   text-decoration: none;
 }
 
@@ -734,7 +698,7 @@
   font-weight: 600;
   font-size: 11px;
   letter-spacing: 0.32em;
-  color: var(--bg-cream);
+  color: var(--brand-navy);
 }
 
 .tienda-nav-links {
@@ -751,7 +715,7 @@
   align-items: center;
   gap: 6px;
   padding-bottom: 4px;
-  color: rgba(250, 250, 247, 0.65);
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 13px;
   font-weight: 400;
@@ -760,7 +724,7 @@
 }
 
 .tienda-nav-link:hover {
-  color: var(--bg-cream);
+  color: var(--text-primary);
 }
 
 /* Hover underline that grows left → right (200ms ease-out). Hidden on the
@@ -788,7 +752,7 @@
 }
 
 .tienda-nav-link.is-active {
-  color: var(--bg-cream);
+  color: var(--brand-navy);
   font-weight: 500;
 }
 
@@ -827,15 +791,13 @@
   padding: 8px 16px;
   border: none;
   border-radius: 100px;
-  background: var(--brand-teal);
+  background: var(--brand-navy);
   cursor: pointer;
-  transition: background 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo);
-  box-shadow: 0 0 0 0 rgba(13, 148, 136, 0);
+  transition: background 0.4s var(--ease-out-expo);
 }
 
 .tienda-nav-cta:hover {
-  background: #0b7e74;
-  box-shadow: 0 4px 20px rgba(13, 148, 136, 0.35);
+  background: var(--brand-teal);
 }
 
 .tienda-nav-cta-dot {
@@ -882,9 +844,9 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 0.5px solid rgba(250, 250, 247, 0.20);
-  background: rgba(250, 250, 247, 0.08);
-  color: var(--bg-cream);
+  border: 0.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--brand-navy);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -894,8 +856,8 @@
 
 .tienda-nav-user-btn:hover,
 .tienda-nav-user-btn[aria-expanded='true'] {
-  background: rgba(250, 250, 247, 0.16);
-  border-color: rgba(94, 191, 182, 0.40);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(15, 34, 56, 0.20);
 }
 
 .tienda-nav-user-btn svg {
@@ -994,9 +956,9 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 0.5px solid rgba(250, 250, 247, 0.20);
-  background: rgba(250, 250, 247, 0.08);
-  color: var(--bg-cream);
+  border: 0.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--brand-navy);
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -1004,7 +966,7 @@
 }
 
 .tienda-nav-hamburger:hover {
-  background: rgba(250, 250, 247, 0.16);
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .tienda-nav-hamburger-icon {
@@ -1019,8 +981,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--brand-teal-soft);
-  border: 1.5px solid var(--brand-navy-deep);
+  background: var(--brand-teal);
+  border: 1.5px solid rgba(250, 250, 247, 0.85);
 }
 
 /* ─── Mobile drawer ───────────────────────────────────────────────────── */
