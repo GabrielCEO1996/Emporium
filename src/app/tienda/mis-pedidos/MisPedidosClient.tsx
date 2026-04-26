@@ -257,6 +257,91 @@ function PedidoCard({ pedido, onReorder }: { pedido: Pedido; onReorder: (items: 
   )
 }
 
+// ── Orden Timeline ────────────────────────────────────────────────────────────
+// Timeline de extremo a extremo: arranca cuando el cliente envía la orden
+// y termina cuando el pedido derivado se entrega. Combina el estado de la
+// orden con el estado del pedido linkeado para que el cliente vea el avance
+// completo en una sola línea de tiempo, sin tener que ir a la sección de
+// pedidos.
+const ORDEN_STEPS = [
+  { key: 'solicitud',  label: 'Solicitud' },
+  { key: 'aprobada',   label: 'Aprobada' },
+  { key: 'preparando', label: 'Preparando' },
+  { key: 'en_ruta',    label: 'En camino' },
+  { key: 'entregada',  label: 'Entregada' },
+]
+
+function getOrdenStep(orden: Orden): number {
+  // Orden no aprobada todavía → paso 0 (solicitud creada).
+  if (orden.estado !== 'aprobada') return 0
+
+  // Sin pedido linkeado → quedó en "aprobada", paso 1.
+  const pedidoEstado = orden.pedido?.estado
+  if (!pedidoEstado) return 1
+
+  // Con pedido linkeado, el avance corre por el estado del pedido.
+  if (['entregado', 'facturado', 'pagado'].includes(pedidoEstado)) return 4
+  if (pedidoEstado === 'en_ruta')    return 3
+  if (pedidoEstado === 'preparando') return 2
+  // borrador / confirmado → orden ya aprobada pero el pedido no arrancó
+  // todavía, paso 1 (Aprobada).
+  return 1
+}
+
+function OrdenTimeline({ orden }: { orden: Orden }) {
+  if (orden.estado === 'rechazada' || orden.estado === 'cancelada') {
+    return (
+      <div className="flex items-center gap-2 py-2">
+        <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+        <span className="text-[11px] uppercase tracking-luxe text-rose-500">
+          Orden {orden.estado}
+        </span>
+      </div>
+    )
+  }
+
+  const stepIdx = getOrdenStep(orden)
+
+  return (
+    <div className="pt-2 pb-4">
+      <div className="flex items-center gap-0">
+        {ORDEN_STEPS.map((step, i) => {
+          const done   = stepIdx >= i
+          const active = stepIdx === i
+          return (
+            <div key={step.key} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center">
+                <motion.div
+                  animate={active ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ repeat: Infinity, duration: 1.6 }}
+                  className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${
+                    done ? 'bg-brand-navy' : 'bg-stone-300'
+                  } ${active ? 'ring-2 ring-offset-2 ring-brand-gold/60 ring-offset-white' : ''}`}
+                />
+                <span className={`text-[9px] mt-2 uppercase tracking-wide whitespace-nowrap ${
+                  done ? 'text-brand-navy' : 'text-brand-charcoal/40'
+                }`}>
+                  {step.label}
+                </span>
+              </div>
+              {i < ORDEN_STEPS.length - 1 && (
+                <div className="flex-1 h-[1px] mx-1.5 bg-stone-300 overflow-hidden mb-5 relative">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: stepIdx > i ? '100%' : '0%' }}
+                    transition={{ duration: 0.5, delay: i * 0.08 }}
+                    className="h-full bg-brand-navy"
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Orden Card ────────────────────────────────────────────────────────────────
 function OrdenCard({ orden }: { orden: Orden }) {
   const map = {
@@ -277,36 +362,42 @@ function OrdenCard({ orden }: { orden: Orden }) {
   return (
     <motion.div
       layout
-      className={`rounded-[22px] border p-6 ${map.cls}`}
+      className={`rounded-[22px] border ${map.cls}`}
     >
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
-            {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {map.label}
-          </p>
-          <h3 className="font-serif text-xl leading-tight">{orden.numero}</h3>
-          {orden.orden_items && (
-            <p className="text-[11px] uppercase tracking-wide opacity-60 mt-1">
-              {orden.orden_items.length} producto{orden.orden_items.length === 1 ? '' : 's'}
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
+              {new Date(orden.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {map.label}
             </p>
-          )}
+            <h3 className="font-serif text-xl leading-tight">{orden.numero}</h3>
+            {orden.orden_items && (
+              <p className="text-[11px] uppercase tracking-wide opacity-60 mt-1">
+                {orden.orden_items.length} producto{orden.orden_items.length === 1 ? '' : 's'}
+              </p>
+            )}
+          </div>
+          <p className="font-serif text-xl tabular-nums">{formatCurrency(Number(orden.total))}</p>
         </div>
-        <p className="font-serif text-xl tabular-nums">{formatCurrency(Number(orden.total))}</p>
+
+        {orden.estado === 'rechazada' && orden.motivo_rechazo && (
+          <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
+            <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">Motivo</p>
+            <p className="opacity-90">{orden.motivo_rechazo}</p>
+          </div>
+        )}
+
+        {orden.estado === 'aprobada' && orden.pedido && (
+          <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
+            Tu orden se convirtió en el pedido{' '}
+            <span className="font-semibold">{orden.pedido.numero}</span>. Míralo más abajo.
+          </div>
+        )}
       </div>
 
-      {orden.estado === 'rechazada' && orden.motivo_rechazo && (
-        <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
-          <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">Motivo</p>
-          <p className="opacity-90">{orden.motivo_rechazo}</p>
-        </div>
-      )}
-
-      {orden.estado === 'aprobada' && orden.pedido && (
-        <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
-          Tu orden se convirtió en el pedido{' '}
-          <span className="font-semibold">{orden.pedido.numero}</span>. Míralo más abajo.
-        </div>
-      )}
+      <div className="px-6 pb-2">
+        <OrdenTimeline orden={orden} />
+      </div>
     </motion.div>
   )
 }
