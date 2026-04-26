@@ -278,12 +278,14 @@ function OrbScene() {
     orbMaterial.uniforms.uMouse.value.set(mouseTarget.current.x, mouseTarget.current.y)
     particlesMaterial.uniforms.uTime.value = t
 
-    // Smooth parallax on camera
+    // Smooth parallax on camera. NO lookAt: si la cámara se reorienta al
+    // orb, el orb queda visualmente centrado en pantalla y tapa el texto
+    // del hero (col 1 del grid). Manteniendo la cámara mirando al origen,
+    // el orb en world.x=1.7 se proyecta naturalmente a la derecha.
     cameraOffset.current.x += (mouseTarget.current.x - cameraOffset.current.x) * 0.04
     cameraOffset.current.y += (mouseTarget.current.y - cameraOffset.current.y) * 0.04
     camera.position.x = cameraOffset.current.x
     camera.position.y = cameraOffset.current.y
-    if (orbRef.current) camera.lookAt(orbRef.current.position)
 
     // Orb rotation + breathing
     if (orbRef.current) {

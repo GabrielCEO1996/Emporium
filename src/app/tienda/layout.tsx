@@ -48,6 +48,11 @@ export default async function TiendaLayout({ children }: { children: React.React
     <div
       className={`${cormorant.variable} ${inter.variable} tienda-screen font-sans min-h-screen`}
     >
+      {/* Fondo cósmico fixed detrás de TODO. Se monta como hermano de
+          children (no como background del wrapper) porque el wrapper a
+          veces queda oscurecido por reglas de Tailwind / specificity de
+          el body — un div fixed con z-index -1 elimina ese riesgo. */}
+      <div className="tienda-bg-cosmos" aria-hidden="true" />
       <Loader />
       {children}
     </div>
