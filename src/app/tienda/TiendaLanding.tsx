@@ -21,7 +21,8 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatCurrency } from '@/lib/utils'
-import OrbStage from './components/OrbStage'
+import GlobeStage from './components/GlobeStage'
+import PinOverlay from './components/PinOverlay'
 
 // Lazy: three.js es pesado y la capa cósmica es puramente decorativa.
 const SpaceBackground = dynamic(() => import('./components/SpaceBackground'), {
@@ -265,11 +266,11 @@ export default function TiendaLanding({ profile, clientStats }: Props) {
           última factura, productos nuevos 30d).
           ════════════════════════════════════════════════════════════════════ */}
       <section className="tienda-hero">
-        {/* Orb iridiscente envuelto para que en mobile pase a un bloque
-            relativo debajo del texto en lugar de cubrir la sección entera.
-            Reemplaza al globo terráqueo + pin overlay anteriores. */}
+        {/* Globo terráqueo + pin envueltos para que en mobile pasen a un
+            bloque relativo debajo del texto. */}
         <div className="tienda-hero-globe">
-          <OrbStage />
+          <GlobeStage />
+          <PinOverlay />
         </div>
 
         <div className="tienda-hero-content">

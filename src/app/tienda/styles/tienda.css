@@ -508,8 +508,26 @@
   margin: 16px 0 16px auto;
 }
 
-/* ─── ORB FALLBACK (static SVG en mobile / reduce-motion / coarse) ─────── */
-.tienda-orb-fallback {
+/* ─── PIN OVERLAY (envuelve el globo, contorno SVG) ────────────────────── */
+.tienda-pin-overlay {
+  position: absolute;
+  top: 50%;
+  left: 65%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  height: 500px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.tienda-pin-overlay svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── GLOBE FALLBACK (static SVG en mobile / reduce-motion / coarse) ───── */
+.tienda-globe-fallback {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -519,7 +537,7 @@
   justify-content: center;
 }
 
-.tienda-orb-fallback svg {
+.tienda-globe-fallback svg {
   width: min(70vw, 420px);
   height: auto;
   opacity: 0.95;
@@ -555,6 +573,14 @@
   }
   .tienda-hero-meta { display: none; }
   .tienda-hero-meta-line { display: block; }
+
+  /* Pin overlay shrinks dentro del bloque del globo (320px alto). */
+  .tienda-pin-overlay {
+    width: 200px;
+    height: 240px;
+    left: 50%;
+    top: 50%;
+  }
 
   .tienda-hero-title {
     font-size: clamp(40px, 9vw, 60px);
