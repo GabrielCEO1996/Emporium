@@ -67,14 +67,92 @@
   }
 }
 
-/* ─── Reduce motion: el globo + arcos se desactivan en Fase 10 ─────────────── */
+/* ─── Custom cursor (dot + ring) — mounted by CustomCursor.tsx ────────────── */
+.tienda-cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-teal);
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform;
+  transition: width 0.35s var(--ease-out-expo), height 0.35s var(--ease-out-expo), opacity 0.35s var(--ease-out-expo);
+  /* mix-blend-mode could be "exclusion" for over-image legibility; keeping
+     normal for now so the teal stays readable on cream. */
+}
+
+.tienda-cursor-dot.is-hover {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.tienda-cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid var(--brand-navy);
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.4;
+  will-change: transform;
+  transition: width 0.35s var(--ease-out-expo), height 0.35s var(--ease-out-expo), opacity 0.35s var(--ease-out-expo), border-color 0.35s var(--ease-out-expo);
+}
+
+.tienda-cursor-ring.is-hover {
+  width: 56px;
+  height: 56px;
+  opacity: 0.65;
+  border-color: var(--brand-teal);
+  /* When the ring grows we have to re-center it — the JS still translates
+     by -18px. The grow comes from width/height but the centering shift
+     of 10px (28-18) is small enough to look natural. */
+}
+
+/* ─── Tilt cards: transform-style for crisp 3D ──────────────────────────── */
+[data-tilt-card] {
+  transform-style: preserve-3d;
+  /* The transition is set/cleared from JS — it's "track fast" while
+     hovering and "ease out slow" on leave. CSS `transition` here is the
+     idle default, so a cold first hover doesn't snap. */
+  transition: transform 0.08s linear, box-shadow 0.45s var(--ease-out-expo);
+}
+
+/* ─── Scroll reveal: fadeIn + translateY at viewport entry ──────────────── */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.9s var(--ease-out-expo), transform 0.9s var(--ease-out-expo);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Reduce motion: el globo + arcos + reveals se desactivan ──────────────
+ * El cursor custom NO se desactiva — el usuario lo mantiene aunque
+ * apague animaciones. Sólo dejamos que el ring deje de lerp-ear (handled
+ * en CustomCursor.tsx) para que no parezca que se arrastra.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .tienda-screen *,
-  .tienda-screen *::before,
-  .tienda-screen *::after {
+  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring),
+  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring)::before,
+  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring)::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+  /* Ensure reveal targets snap to their final state instead of staying invisible. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
@@ -630,6 +708,30 @@
 
 .tienda-nav-link:hover {
   color: var(--text-primary);
+}
+
+/* Hover underline that grows left → right (200ms ease-out). Hidden on the
+   active link because it already has the persistent motion.span underline
+   via layoutId, and we don't want both stacked. */
+.tienda-nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--brand-teal);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.tienda-nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+.tienda-nav-link.is-active::after {
+  display: none;
 }
 
 .tienda-nav-link.is-active {

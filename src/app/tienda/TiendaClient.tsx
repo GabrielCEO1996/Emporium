@@ -16,6 +16,8 @@ import { createClient } from '@/lib/supabase/client'
 import TiendaLanding from './TiendaLanding'
 import Nav from './components/Nav'
 import EmporiumBot from './components/EmporiumBot'
+import CustomCursor from './components/CustomCursor'
+import Microinteractions from './components/Microinteractions'
 import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -212,12 +214,12 @@ function ProductCard({
   return (
     <motion.div
       layout
+      data-tilt-card
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-      className={`group relative bg-white rounded-[20px] border border-stone-200/70 overflow-hidden flex flex-col ${agotado ? 'opacity-70 grayscale' : 'hover:border-brand-gold/60 hover:shadow-[0_20px_45px_-20px_rgba(15,23,42,0.18)]'} transition-all duration-300`}
+      className={`group relative bg-white rounded-[20px] border border-stone-200/70 overflow-hidden flex flex-col ${agotado ? 'opacity-70 grayscale' : 'hover:border-brand-teal/40'} transition-colors duration-300`}
     >
       {/* Image — click opens detail */}
       <button
@@ -2273,6 +2275,12 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     <div className="min-h-screen bg-brand-cream text-brand-navy">
 
       {/* ── Header ── */}
+      {/* ── Cursor custom + tilt 3D + scroll reveal (Fase 8) ──
+           Side-effect-only — auto-disabled on touch devices and on
+           prefers-reduced-motion (cursor stays, ring stops lerping). */}
+      <CustomCursor />
+      <Microinteractions />
+
       {/* ── Sticky glass nav (Fase 6) — see components/Nav.tsx ── */}
       <Nav
         cartCount={cartCount}
@@ -2372,7 +2380,7 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       </main>
 
       {/* ── Footer — editorial ── */}
-      <footer className="border-t border-stone-200/80 bg-white">
+      <footer data-reveal className="border-t border-stone-200/80 bg-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 grid md:grid-cols-3 gap-8">
           <div>
             <p className="font-serif text-2xl text-brand-navy">Emporium</p>

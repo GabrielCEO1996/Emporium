@@ -30,7 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion'
  *  Cuando esté configurado, el modal pasa a abrir un link real. Mientras
  *  tanto el botón "Abrir WhatsApp" del modal está deshabilitado y el copy
  *  cambia para no romper la confianza del cliente. */
-const WHATSAPP_NUMBER = '<NUMERO_PENDIENTE>'
+const WHATSAPP_NUMBER = '17734940158'
 const WHATSAPP_CONFIGURED = !WHATSAPP_NUMBER.includes('PENDIENTE')
 
 interface Props {
