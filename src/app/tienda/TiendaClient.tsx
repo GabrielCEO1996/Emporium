@@ -218,7 +218,7 @@ function ProductCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-      className={`group relative bg-white rounded-[20px] border border-stone-200/70 overflow-hidden flex flex-col ${agotado ? 'opacity-70 grayscale' : 'hover:border-brand-teal/40'} transition-colors duration-300`}
+      className={`tienda-product-card group relative rounded-[20px] overflow-hidden flex flex-col ${agotado ? 'opacity-70 grayscale' : ''} transition-colors duration-300`}
     >
       {/* Image — click opens detail */}
       <button
@@ -259,7 +259,7 @@ function ProductCard({
             onClick={() => onOpenDetail(producto)}
             className="block text-left w-full"
           >
-            <h3 className="font-serif text-[17px] leading-snug text-brand-navy line-clamp-2 min-h-[2.6rem] hover:text-brand-gold transition-colors">
+            <h3 className="font-serif text-[17px] leading-snug text-[#1E3A5F] line-clamp-2 min-h-[2.6rem] hover:text-[#0D9488] transition-colors">
               {producto.nombre}
             </h3>
           </button>
@@ -278,8 +278,8 @@ function ProductCard({
                 onClick={() => { setSelPres(pr); setQty(1) }}
                 className={`text-[11px] tracking-wide px-3 py-1 rounded-full border transition-all ${
                   selPres.id === pr.id
-                    ? 'bg-brand-navy text-brand-cream border-brand-navy'
-                    : 'bg-transparent text-brand-charcoal border-stone-300 hover:border-brand-navy'
+                    ? 'bg-[#1E3A5F] text-[#fafaf7] border-[#1E3A5F]'
+                    : 'bg-transparent text-[rgba(15,34,56,0.6)] border-stone-300 hover:border-[#1E3A5F]'
                 }`}
               >
                 {pr.nombre}
@@ -291,29 +291,29 @@ function ProductCard({
         {/* Price */}
         <div className="mt-auto pt-2 flex items-end justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60">Precio</p>
-            <p className="font-serif text-2xl text-brand-navy leading-none mt-1">
+            <p className="text-[10px] uppercase tracking-luxe text-[rgba(15,34,56,0.55)]">Precio</p>
+            <p className="font-serif text-[28px] font-medium text-[#0D9488] leading-none mt-1">
               {formatCurrency(selPres.precio)}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center border border-stone-200 rounded-full overflow-hidden">
+            <div className="flex items-center border border-[rgba(15,34,56,0.15)] rounded-full overflow-hidden">
               <button
                 disabled={agotado || qty <= 1}
                 onClick={() => setQty(q => Math.max(1, q - 1))}
-                className="w-7 h-7 flex items-center justify-center text-brand-charcoal/70 hover:bg-brand-stone disabled:opacity-30 transition"
+                className="w-7 h-7 flex items-center justify-center text-[rgba(15,34,56,0.6)] hover:bg-[rgba(15,34,56,0.06)] disabled:opacity-30 transition"
                 aria-label="Disminuir"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="w-6 text-center text-xs font-semibold text-brand-navy">
+              <span className="w-6 text-center text-xs font-semibold text-[#1E3A5F]">
                 {qty}
               </span>
               <button
                 disabled={agotado || qty >= selPres.stock}
                 onClick={() => setQty(q => Math.min(selPres.stock, q + 1))}
-                className="w-7 h-7 flex items-center justify-center text-brand-charcoal/70 hover:bg-brand-stone disabled:opacity-30 transition"
+                className="w-7 h-7 flex items-center justify-center text-[rgba(15,34,56,0.6)] hover:bg-[rgba(15,34,56,0.06)] disabled:opacity-30 transition"
                 aria-label="Aumentar"
               >
                 <Plus className="w-3 h-3" />
@@ -328,7 +328,7 @@ function ProductCard({
           disabled={agotado}
           onClick={handleAdd}
           whileTap={{ scale: 0.98 }}
-          className="w-full flex items-center justify-center gap-2 bg-brand-navy hover:bg-brand-navy/90 disabled:bg-stone-200 disabled:text-stone-400 text-brand-cream text-[11px] uppercase tracking-luxe font-medium py-3 rounded-full transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-[#1E3A5F] hover:bg-[#0D9488] disabled:bg-stone-200 disabled:text-stone-400 text-[#fafaf7] text-[11px] uppercase tracking-luxe font-medium py-3 rounded-full transition-colors"
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           Añadir al carrito
@@ -2296,19 +2296,23 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
 
       {/* ── Search + Categories — editorial strip ──
            sticky top-[92px] = Nav flotante (24px top + ~52px alto + ~16px aire). */}
-      <section id="catalogo" className="sticky top-[92px] z-20 bg-brand-cream/90 backdrop-blur-md border-y border-stone-200/70">
+      <section
+        id="catalogo"
+        className="sticky top-[92px] z-20 backdrop-blur-md border-y border-[rgba(94,191,182,0.15)]"
+        style={{ background: 'rgba(15, 34, 56, 0.78)' }}
+      >
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-5 flex flex-col md:flex-row gap-4 md:items-center">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-charcoal/50" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgba(250,250,247,0.5)]" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por nombre, categoría…"
-              className="w-full pl-11 pr-10 py-3 bg-white border border-stone-200 rounded-full text-sm text-brand-navy placeholder-brand-charcoal/40 focus:outline-none focus:border-brand-navy transition"
+              className="w-full pl-11 pr-10 py-3 bg-[rgba(250,250,247,0.06)] border border-[rgba(250,250,247,0.20)] rounded-full text-sm text-[#fafaf7] placeholder-[rgba(250,250,247,0.4)] focus:outline-none focus:border-[#5EBFB6] transition"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2" aria-label="Limpiar búsqueda">
-                <X className="w-4 h-4 text-brand-charcoal/50" />
+                <X className="w-4 h-4 text-[rgba(250,250,247,0.5)]" />
               </button>
             )}
           </div>
@@ -2325,17 +2329,17 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
 
       {/* ── Product Grid ── */}
       <main className="max-w-7xl mx-auto px-6 lg:px-10 py-12 lg:py-16 pb-28 lg:pb-24">
-        {/* Section label */}
+        {/* Section label — texto cream sobre el cosmos negro */}
         <div className="mb-10 flex items-baseline justify-between flex-wrap gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-luxe text-brand-gold mb-2">
+            <p className="text-[10px] uppercase tracking-luxe text-[#5EBFB6] mb-2">
               {categoria ?? 'Catálogo completo'}
             </p>
-            <h2 className="font-serif text-3xl lg:text-4xl text-brand-navy">
+            <h2 className="font-serif text-3xl lg:text-4xl text-[#fafaf7]">
               {search ? 'Resultados' : categoria ? categoria : 'Todos los productos'}
             </h2>
           </div>
-          <p className="text-[11px] uppercase tracking-luxe text-brand-charcoal/60">
+          <p className="text-[11px] uppercase tracking-luxe text-[rgba(250,250,247,0.55)]">
             {filtered.length} producto{filtered.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -2345,16 +2349,16 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="text-center py-24 max-w-md mx-auto"
           >
-            <div className="w-20 h-20 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-6">
-              <Search className="w-7 h-7 text-brand-charcoal/40" />
+            <div className="w-20 h-20 rounded-full bg-[rgba(250,250,247,0.06)] flex items-center justify-center mx-auto mb-6">
+              <Search className="w-7 h-7 text-[rgba(250,250,247,0.4)]" />
             </div>
-            <p className="font-serif text-2xl text-brand-navy mb-2">Sin resultados</p>
-            <p className="text-sm text-brand-charcoal/70 mb-6">
+            <p className="font-serif text-2xl text-[#fafaf7] mb-2">Sin resultados</p>
+            <p className="text-sm text-[rgba(250,250,247,0.7)] mb-6">
               No encontramos productos que coincidan con tu búsqueda.
             </p>
             <button
               onClick={() => { setSearch(''); setCategoria(null) }}
-              className="text-[11px] uppercase tracking-luxe text-brand-navy border-b border-brand-navy/30 hover:border-brand-navy pb-0.5 transition"
+              className="text-[11px] uppercase tracking-luxe text-[#fafaf7] border-b border-[rgba(250,250,247,0.25)] hover:border-[#5EBFB6] pb-0.5 transition"
             >
               Limpiar filtros
             </button>
@@ -2378,34 +2382,36 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         )}
       </main>
 
-      {/* ── Footer — editorial. Mobile colapsa a logo + copyright ── */}
-      <footer data-reveal className="border-t border-stone-200/80 bg-white">
+      {/* ── Footer — editorial. Mobile colapsa a logo + copyright.
+           Bg transparent: el cosmos sigue debajo, los textos cream se
+           integran con la atmósfera. ── */}
+      <footer data-reveal className="border-t border-[rgba(94,191,182,0.18)]">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 md:py-12 grid md:grid-cols-3 gap-8">
           <div>
-            <p className="font-serif text-2xl text-brand-navy">Emporium</p>
-            <p className="text-[11px] uppercase tracking-luxe text-brand-teal mt-2">Distribución premium</p>
-            <p className="hidden md:block text-sm text-brand-charcoal/70 mt-4 leading-relaxed max-w-xs">
+            <p className="font-serif text-2xl text-[#fafaf7]">Emporium</p>
+            <p className="text-[11px] uppercase tracking-luxe text-[#5EBFB6] mt-2">Distribución premium</p>
+            <p className="hidden md:block text-sm text-[rgba(250,250,247,0.65)] mt-4 leading-relaxed max-w-xs">
               Productos seleccionados con precisión. Entrega confiable para negocios y hogares.
             </p>
           </div>
           {/* Enlaces — ocultos en mobile (redundantes con el drawer hamburger) */}
           <div className="hidden md:block">
-            <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">Enlaces</p>
-            <ul className="space-y-2 text-sm text-brand-navy">
-              <li><a href="#catalogo" className="hover:text-brand-teal transition">Catálogo</a></li>
-              <li><Link href="/tienda/mis-pedidos" className="hover:text-brand-teal transition">Mis pedidos</Link></li>
-              <li><Link href="/tienda/perfil" className="hover:text-brand-teal transition">Mi cuenta</Link></li>
+            <p className="text-[10px] uppercase tracking-luxe text-[rgba(250,250,247,0.45)] mb-3">Enlaces</p>
+            <ul className="space-y-2 text-sm text-[rgba(250,250,247,0.8)]">
+              <li><a href="#catalogo" className="hover:text-[#5EBFB6] transition">Catálogo</a></li>
+              <li><Link href="/tienda/mis-pedidos" className="hover:text-[#5EBFB6] transition">Mis pedidos</Link></li>
+              <li><Link href="/tienda/perfil" className="hover:text-[#5EBFB6] transition">Mi cuenta</Link></li>
             </ul>
           </div>
           {/* Asistencia — ocultos en mobile (EmporiumBot ya está visible) */}
           <div className="hidden md:block">
-            <p className="text-[10px] uppercase tracking-luxe text-brand-charcoal/60 mb-3">Asistencia</p>
-            <p className="text-sm text-brand-charcoal/70 leading-relaxed">
+            <p className="text-[10px] uppercase tracking-luxe text-[rgba(250,250,247,0.45)] mb-3">Asistencia</p>
+            <p className="text-sm text-[rgba(250,250,247,0.65)] leading-relaxed">
               Nuestro concierge digital está disponible 24/7. Abre el chat en la esquina inferior derecha.
             </p>
           </div>
         </div>
-        <div className="border-t border-stone-200/80 py-5 text-center text-[10px] uppercase tracking-luxe text-brand-charcoal/50">
+        <div className="border-t border-[rgba(94,191,182,0.10)] py-5 text-center text-[10px] uppercase tracking-luxe text-[rgba(250,250,247,0.45)]">
           © {new Date().getFullYear()} Emporium · Todos los derechos reservados
         </div>
       </footer>
