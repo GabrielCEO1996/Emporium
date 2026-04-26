@@ -380,10 +380,9 @@ export default function CheckoutModal({
                     <ClipboardList className="w-3.5 h-3.5" /> Generar orden
                   </p>
                   <p className="text-[12px] text-brand-charcoal/80 leading-relaxed">
-                    Tu orden quedará pendiente de aprobación. Mache o Valen la revisa
-                    y, si todo está en orden, la convierten en pedido. <strong>El método
-                    de pago se decide al despachar</strong> en la factura. Mientras
-                    tanto, reservamos el inventario para tu orden.
+                    Tu orden quedará registrada y podrás verla en
+                    <strong> Mis pedidos</strong>. El método de pago se coordina
+                    al momento del despacho.
                   </p>
                 </div>
               )}

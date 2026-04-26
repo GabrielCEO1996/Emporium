@@ -595,13 +595,10 @@ function PaymentProofUpload({
 
 
 // ── Success Screen ────────────────────────────────────────────────────────────
+// Mostrado tras "Generar orden" exitoso. Copy intencionalmente sobrio:
+// no se mencionan tiempos, ni quién aprueba, ni la mecánica interna —
+// el cliente revisa el estado por su cuenta en /tienda/mis-pedidos.
 function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onContinue: () => void }) {
-  const router = useRouter()
-  useEffect(() => {
-    const t = setTimeout(() => router.push('/tienda/mis-pedidos'), 4000)
-    return () => clearTimeout(t)
-  }, [])
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -621,15 +618,13 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
       </motion.div>
 
       <div className="max-w-sm space-y-3">
-        <p className="text-[10px] uppercase tracking-luxe text-brand-gold">Confirmado</p>
+        <p className="text-[10px] uppercase tracking-luxe text-brand-gold">{numeroPedido}</p>
         <h1 className="font-serif text-4xl text-brand-navy leading-tight">
-          Gracias por tu pedido
+          Orden generada
         </h1>
         <p className="text-sm text-brand-charcoal/70 leading-relaxed">
-          Tu orden <span className="font-semibold text-brand-navy">{numeroPedido}</span> ha sido recibida.
-          Te notificaremos cuando sea aprobada.
+          Revisá el estado de tu orden en <span className="font-semibold text-brand-navy">Mis pedidos</span>.
         </p>
-        <p className="text-[11px] text-brand-charcoal/50 italic">Redirigiendo en unos segundos…</p>
       </div>
 
       <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -642,9 +637,9 @@ function SuccessScreen({ numeroPedido, onContinue }: { numeroPedido: string; onC
         </Link>
         <button
           onClick={onContinue}
-          className="text-[11px] uppercase tracking-wide text-brand-charcoal hover:text-brand-navy transition py-2"
+          className="text-[11px] uppercase tracking-luxe text-brand-charcoal hover:text-brand-navy transition py-3"
         >
-          Seguir explorando →
+          Seguir comprando
         </button>
       </div>
     </motion.div>
@@ -1519,8 +1514,9 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
       setNotas('')
       setNumeroRef('')
       setProofUrl('')
-      router.push('/tienda/mis-pedidos')
-      toast.success(`Orden ${data.numero ?? ''} generada — pendiente de aprobación`)
+      // Mostrar pantalla de éxito sobria — el cliente decide si va a Mis pedidos
+      // o sigue comprando. Sin auto-redirect ni copy de tiempos/aprobadores.
+      setSuccessOrder(data.numero ?? '')
     } catch (err: any) {
       console.error('[tienda] handleGenerarOrden threw:', err)
       toast.error(err?.message ?? 'Error de conexión. Intentá de nuevo.')

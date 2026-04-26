@@ -200,10 +200,18 @@ export async function POST(req: Request) {
       // We can't know which ones succeeded vs failed without bookkeeping,
       // so release all items defensively. Idempotent — RPC clamps to 0.
       await rollbackOrdenStock(supabase, stockItems)
+      // Surface the specific RPC error if it's the user-friendly "stock
+      // insuficiente" message (the only ERRCODE we raise from reserve_stock).
+      // For everything else (function not found, perm denied, etc.) usamos
+      // un mensaje genérico — no querés filtrarle el error técnico al cliente.
+      const detail = reserveRes.error || ''
+      const isInsufficientStock = /stock insuficiente/i.test(detail)
       return NextResponse.json({
-        error: 'No se pudo reservar inventario para uno de los productos. ' +
-               'Revisá disponibilidad o intentá de nuevo.',
-        detail: reserveRes.error,
+        error: isInsufficientStock
+          ? detail.replace(/^reserve_stock:\s*/, '')
+          : 'No se pudo reservar inventario para uno de los productos. ' +
+            'Revisá disponibilidad o intentá de nuevo.',
+        detail,
       }, { status: 409 })
     }
 
