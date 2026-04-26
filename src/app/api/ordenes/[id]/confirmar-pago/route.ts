@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
+import { releaseOrdenStock } from '@/lib/orden-stock'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -148,10 +150,42 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: updErr.message }, { status: 500 })
       }
 
+      // ── Release orden stock reservation ────────────────────────────────
+      // La orden ya está aprobada y existe como pedido — el pedido tiene
+      // su propio sistema FEFO. Liberamos la reserva transitoria de la
+      // orden para que stock_reservado vuelva a su nivel base.
+      const releaseRes = await releaseOrdenStock(supabase, orden.id)
+      if (!releaseRes.ok) {
+        console.warn('[ordenes/confirmar-pago] partial release:', {
+          orden: orden.numero,
+          released: releaseRes.itemsReleased,
+          total: releaseRes.itemsTotal,
+        })
+      }
+
+      void logActivity(supabase as any, {
+        user_id: user.id,
+        action: 'confirmar_pago_orden',
+        resource: 'ordenes',
+        resource_id: orden.id,
+        estado_anterior: 'pendiente',
+        estado_nuevo: 'aprobada',
+        details: {
+          orden_numero: orden.numero,
+          pedido_id: pedido.id,
+          pedido_numero: pedido.numero,
+          tipo_pago: orden.tipo_pago,
+          numero_referencia: orden.numero_referencia ?? null,
+          stock_released: releaseRes.itemsReleased,
+          stock_total: releaseRes.itemsTotal,
+        },
+      })
+
       return NextResponse.json({
         message: `Pago confirmado para orden ${orden.numero}. Pedido ${pedido.numero} creado.`,
         orden_id: orden.id,
         pedido,
+        stock_released: releaseRes.itemsReleased,
       })
 
   } catch (err) {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { releaseOrdenStock } from '@/lib/orden-stock'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -145,13 +146,49 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: itemsErr.message }, { status: 500 })
       }
 
-      // Mark orden aprobada
-      const { error: updErr } = await supabase
-        .from('ordenes')
-        .update({ estado: 'aprobada', updated_at: new Date().toISOString() })
-        .eq('id', params.id)
+      // Mark orden aprobada + audit trail (aprobado_por/at columns from
+      // ordenes_aprobacion_v3 migration). Defensive: if migration not yet
+      // applied, retry without those columns.
+      const nowIso = new Date().toISOString()
+      const buildAprobarUpdate = (includeV3Cols: boolean) => {
+        const base: Record<string, any> = {
+          estado: 'aprobada',
+          updated_at: nowIso,
+        }
+        if (includeV3Cols) {
+          base.aprobado_por = user.id
+          base.aprobado_at = nowIso
+        }
+        return base
+      }
+      let updErr: any
+      {
+        const r = await supabase.from('ordenes').update(buildAprobarUpdate(true)).eq('id', params.id)
+        updErr = r.error
+      }
+      if (updErr && /aprobado_(por|at)/i.test(updErr.message || '')) {
+        console.warn('[ordenes/aprobar] aprobado_* columns missing — retrying without')
+        const r = await supabase.from('ordenes').update(buildAprobarUpdate(false)).eq('id', params.id)
+        updErr = r.error
+      }
       if (updErr) {
         return NextResponse.json({ error: updErr.message }, { status: 500 })
+      }
+
+      // ── Release orden stock reservation ────────────────────────────────
+      // La orden ya quedó "aprobada" y se materializó como pedido. La
+      // reserva en `presentaciones.stock_reservado` ya cumplió su rol
+      // (asegurar que el inventario no se vendiera dos veces mientras
+      // la orden esperaba aprobación). El pedido toma over con su propio
+      // sistema FEFO en `inventario` (lots) cuando se confirme/apruebe.
+      // Soft-fail — el activity log captura el conteo.
+      const releaseRes = await releaseOrdenStock(supabase, orden.id)
+      if (!releaseRes.ok) {
+        console.warn('[ordenes/aprobar] partial release:', {
+          orden: orden.numero,
+          released: releaseRes.itemsReleased,
+          total: releaseRes.itemsTotal,
+        })
       }
 
       void logActivity(supabase, {
@@ -166,6 +203,8 @@ export async function POST(_req: Request, { params }: RouteContext) {
           pedido_id: pedido.id,
           pedido_numero: pedido.numero,
           total: orden.total ?? subtotal,
+          stock_released: releaseRes.itemsReleased,
+          stock_total: releaseRes.itemsTotal,
         },
       })
 
@@ -173,6 +212,7 @@ export async function POST(_req: Request, { params }: RouteContext) {
         message: `Orden ${orden.numero} aprobada. Pedido ${pedido.numero} creado.`,
         orden_id: orden.id,
         pedido,
+        stock_released: releaseRes.itemsReleased,
       })
 
   } catch (err) {

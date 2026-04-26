@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { logActivity } from '@/lib/activity'
+import { releaseOrdenStock } from '@/lib/orden-stock'
 
 // Disable all caching for this route handler — always serve fresh data.
 export const dynamic = 'force-dynamic'
@@ -71,6 +72,19 @@ export async function POST(req: Request, { params }: RouteContext) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+      // ── Release stock reservation ──────────────────────────────────────
+      // La orden rechazada libera todo el stock_reservado en presentaciones
+      // que se reservó al crearla. Soft-fail — si algún release falla, se
+      // logea pero la orden queda rechazada igual.
+      const releaseRes = await releaseOrdenStock(supabase, orden.id)
+      if (!releaseRes.ok) {
+        console.warn('[ordenes/rechazar] partial release:', {
+          orden: orden.numero,
+          released: releaseRes.itemsReleased,
+          total: releaseRes.itemsTotal,
+        })
+      }
+
       void logActivity(supabase, {
         user_id: user.id,
         action: 'rechazar_orden',
@@ -78,12 +92,18 @@ export async function POST(req: Request, { params }: RouteContext) {
         resource_id: orden.id,
         estado_anterior: 'pendiente',
         estado_nuevo: 'rechazada',
-        details: { orden_numero: orden.numero, motivo },
+        details: {
+          orden_numero: orden.numero,
+          motivo,
+          stock_released: releaseRes.itemsReleased,
+          stock_total: releaseRes.itemsTotal,
+        },
       })
 
       return NextResponse.json({
         message: `Orden ${orden.numero} rechazada`,
         orden: data,
+        stock_released: releaseRes.itemsReleased,
       })
 
   } catch (err) {
