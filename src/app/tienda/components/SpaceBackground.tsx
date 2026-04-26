@@ -28,12 +28,15 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 // ─── Density tiers ─────────────────────────────────────────────────────────
+// Halved después del primer testing en mobile (Fase 9 hotfix). El globo +
+// reveals + tilt ya consumían suficiente GPU; bajar la densidad de las
+// estrellas a la mitad libera frametime sin que el efecto desaparezca.
 type Tier = 'low' | 'mid' | 'high'
 
 const COUNTS: Record<Tier, { far: number; mid: number; motes: number }> = {
-  low:  { far: 100, mid: 16, motes: 12 },
-  mid:  { far: 160, mid: 26, motes: 18 },
-  high: { far: 200, mid: 30, motes: 22 },
+  low:  { far: 50,  mid: 8,  motes: 6 },
+  mid:  { far: 80,  mid: 12, motes: 9 },
+  high: { far: 100, mid: 15, motes: 12 },
 }
 
 function useDeviceTier(): Tier {
@@ -187,17 +190,21 @@ function Layer({
   material,
   parallax,
   reduceMotionRef,
+  visibleRef,
 }: {
   geometry: THREE.BufferGeometry
   material: THREE.ShaderMaterial
   parallax: number
   reduceMotionRef: { current: boolean }
+  /** When false (hero scrolled out), the per-frame work is skipped. */
+  visibleRef: { current: boolean }
 }) {
   const ref = useRef<THREE.Points>(null!)
   const baseY = useRef(0)
 
   useFrame((state) => {
     if (!ref.current) return
+    if (!visibleRef.current) return // hero off-screen: don't burn GPU
     if (!reduceMotionRef.current) {
       // uTime drives twinkle (far/mid) and drift (motes)
       material.uniforms.uTime.value = state.clock.elapsedTime
@@ -211,15 +218,35 @@ function Layer({
   return <points ref={ref} geometry={geometry} material={material} />
 }
 
+// ─── Hero visibility — observe .tienda-hero, freeze when off-screen ───────
+function useHeroVisibleRef() {
+  const ref = useRef(true)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hero = document.querySelector('.tienda-hero')
+    if (!hero) return
+    const obs = new IntersectionObserver(
+      (entries) => { ref.current = entries[0]?.isIntersecting ?? true },
+      { threshold: 0.01 },
+    )
+    obs.observe(hero)
+    return () => obs.disconnect()
+  }, [])
+  return ref
+}
+
 // ─── Scene (content of the Canvas) ────────────────────────────────────────
 function SpaceScene() {
   const tier = useDeviceTier()
   const counts = COUNTS[tier]
   const reduceMotionRef = useReduceMotion()
+  const heroVisibleRef = useHeroVisibleRef()
 
   const pixelRatio = useMemo(() => {
     if (typeof window === 'undefined') return 1
-    return Math.min(window.devicePixelRatio ?? 1, 2)
+    // Capped at 1.5 instead of 2 — retina pixels above that don't add
+    // visible quality to a starfield and double the fragment work.
+    return Math.min(window.devicePixelRatio ?? 1, 1.5)
   }, [])
 
   const farGeometry = useMemo(
@@ -302,9 +329,9 @@ function SpaceScene() {
 
   return (
     <>
-      <Layer geometry={farGeometry} material={farMaterial} parallax={0.05} reduceMotionRef={reduceMotionRef} />
-      <Layer geometry={midGeometry} material={midMaterial} parallax={0.15} reduceMotionRef={reduceMotionRef} />
-      <Layer geometry={motesGeometry} material={motesMaterial} parallax={0.30} reduceMotionRef={reduceMotionRef} />
+      <Layer geometry={farGeometry}   material={farMaterial}   parallax={0.05} reduceMotionRef={reduceMotionRef} visibleRef={heroVisibleRef} />
+      <Layer geometry={midGeometry}   material={midMaterial}   parallax={0.15} reduceMotionRef={reduceMotionRef} visibleRef={heroVisibleRef} />
+      <Layer geometry={motesGeometry} material={motesMaterial} parallax={0.30} reduceMotionRef={reduceMotionRef} visibleRef={heroVisibleRef} />
     </>
   )
 }
@@ -315,7 +342,7 @@ export default function SpaceBackground() {
     <div className="tienda-space-bg" aria-hidden="true">
       <Canvas
         gl={{ alpha: true, antialias: true }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
         camera={{ fov: 35, position: [0, 0, 6], near: 0.1, far: 100 }}
       >
         <SpaceScene />

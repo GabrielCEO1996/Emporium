@@ -56,69 +56,10 @@
   color: var(--bg-cream);
 }
 
-/* ─── Cursor: none cuando el CustomCursor está montado ───────────────────────
- * El CustomCursor (Fase 8) agrega .has-custom-cursor al body al montarse, y
- * lo quita al desmontarse. Eso garantiza que en mobile (sin custom cursor),
- * el cursor del sistema se preserva. También respetamos hover/pointer.
- */
-@media (hover: hover) and (pointer: fine) {
-  body.has-custom-cursor,
-  body.has-custom-cursor a,
-  body.has-custom-cursor button,
-  body.has-custom-cursor input,
-  body.has-custom-cursor textarea,
-  body.has-custom-cursor [role="button"] {
-    cursor: none;
-  }
-}
-
-/* ─── Custom cursor (dot + ring) — mounted by CustomCursor.tsx ────────────── */
-.tienda-cursor-dot {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--brand-teal);
-  pointer-events: none;
-  z-index: 1000;
-  will-change: transform;
-  transition: width 0.35s var(--ease-out-expo), height 0.35s var(--ease-out-expo), opacity 0.35s var(--ease-out-expo);
-  /* mix-blend-mode could be "exclusion" for over-image legibility; keeping
-     normal for now so the teal stays readable on cream. */
-}
-
-.tienda-cursor-dot.is-hover {
-  width: 0;
-  height: 0;
-  opacity: 0;
-}
-
-.tienda-cursor-ring {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 0.5px solid var(--brand-navy);
-  pointer-events: none;
-  z-index: 999;
-  opacity: 0.4;
-  will-change: transform;
-  transition: width 0.35s var(--ease-out-expo), height 0.35s var(--ease-out-expo), opacity 0.35s var(--ease-out-expo), border-color 0.35s var(--ease-out-expo);
-}
-
-.tienda-cursor-ring.is-hover {
-  width: 56px;
-  height: 56px;
-  opacity: 0.65;
-  border-color: var(--brand-teal);
-  /* When the ring grows we have to re-center it — the JS still translates
-     by -18px. The grow comes from width/height but the centering shift
-     of 10px (28-18) is small enough to look natural. */
-}
+/* CustomCursor fue eliminado por performance — el cursor nativo del browser
+   se siente más fluido sobre la cantidad de animaciones que ya corren
+   (globo 3D + space background + tilt 3D + reveals). Las reglas
+   .has-custom-cursor / .tienda-cursor-* fueron removidas. */
 
 /* ─── Tilt cards: transform-style for crisp 3D ──────────────────────────── */
 [data-tilt-card] {
@@ -141,15 +82,11 @@
   transform: translateY(0);
 }
 
-/* ─── Reduce motion: el globo + arcos + reveals se desactivan ──────────────
- * El cursor custom NO se desactiva — el usuario lo mantiene aunque
- * apague animaciones. Sólo dejamos que el ring deje de lerp-ear (handled
- * en CustomCursor.tsx) para que no parezca que se arrastra.
- */
+/* ─── Reduce motion: nuke todas las animaciones del módulo ─────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring),
-  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring)::before,
-  .tienda-screen *:not(.tienda-cursor-dot):not(.tienda-cursor-ring)::after {
+  .tienda-screen *,
+  .tienda-screen *::before,
+  .tienda-screen *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

@@ -16,7 +16,6 @@ import { createClient } from '@/lib/supabase/client'
 import TiendaLanding from './TiendaLanding'
 import Nav from './components/Nav'
 import EmporiumBot from './components/EmporiumBot'
-import CustomCursor from './components/CustomCursor'
 import Microinteractions from './components/Microinteractions'
 import { useRouter } from 'next/navigation'
 
@@ -2275,10 +2274,10 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     <div className="min-h-screen bg-brand-cream text-brand-navy">
 
       {/* ── Header ── */}
-      {/* ── Cursor custom + tilt 3D + scroll reveal (Fase 8) ──
-           Side-effect-only — auto-disabled on touch devices and on
-           prefers-reduced-motion (cursor stays, ring stops lerping). */}
-      <CustomCursor />
+      {/* ── Tilt 3D + scroll reveal (Fase 8) ──
+           CustomCursor fue eliminado por performance — cursor nativo
+           del browser es más fluido. Microinteractions queda: tilt +
+           reveals son más baratos y no alteran el cursor. */}
       <Microinteractions />
 
       {/* ── Sticky glass nav (Fase 6) — see components/Nav.tsx ── */}
