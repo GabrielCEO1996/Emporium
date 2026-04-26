@@ -6,37 +6,31 @@ import { motion } from 'framer-motion'
 import { CheckCircle2, ClipboardList, ShoppingBag, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
+// ─── /tienda/checkout/success ──────────────────────────────────────────────
+// Landing page tras pago exitoso de Stripe.
+//
+// Antes: este page llamaba a /api/tienda/pedido para crear el pedido del
+// lado del cliente — eso era el bypass viejo, porque cualquier cliente
+// podía pegar la URL y crear pedidos sin pagar.
+//
+// Ahora: la creación del pedido la hace EXCLUSIVAMENTE el webhook
+// /api/webhook/stripe al recibir checkout.session.completed con firma
+// válida. Este page solo muestra "gracias" y limpia el cart de localStorage.
+// ───────────────────────────────────────────────────────────────────────────
+
 function SuccessContent() {
   const params = useSearchParams()
   const sessionId = params.get('session_id')
   const [status, setStatus] = useState<'loading' | 'success'>('loading')
-  const [orderNum, setOrderNum] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!sessionId) { setStatus('success'); return }
-
-    const cartRaw = localStorage.getItem('emporium_stripe_cart') ?? '[]'
-    const direccion = localStorage.getItem('emporium_stripe_direccion') ?? ''
-
-    fetch('/api/tienda/pedido', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: JSON.parse(cartRaw),
-        notas: `Pagado vía Stripe. Session: ${sessionId}`,
-        direccion_entrega: direccion,
-      }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.numero) {
-          setOrderNum(data.numero)
-          localStorage.removeItem('emporium_stripe_cart')
-          localStorage.removeItem('emporium_stripe_direccion')
-        }
-        setStatus('success')
-      })
-      .catch(() => setStatus('success'))
+    // Limpieza del cart local — el pedido ya lo creó el webhook server-side.
+    localStorage.removeItem('emporium_cart')
+    localStorage.removeItem('emporium_stripe_cart')
+    localStorage.removeItem('emporium_stripe_direccion')
+    // Pequeño delay para que la animación no parpadee si el redirect es muy rápido.
+    const t = setTimeout(() => setStatus('success'), 600)
+    return () => clearTimeout(t)
   }, [sessionId])
 
   if (status === 'loading') {
@@ -75,10 +69,8 @@ function SuccessContent() {
           Gracias por tu pedido
         </h1>
         <p className="text-sm text-brand-charcoal/70 leading-relaxed">
-          {orderNum
-            ? <>Tu orden <span className="font-semibold text-brand-navy">{orderNum}</span> fue recibida. Te notificaremos cuando sea aprobada.</>
-            : 'Tu pago fue procesado correctamente. Te notificaremos cuando tu orden sea aprobada.'
-          }
+          Tu pago fue procesado correctamente. En unos segundos verás tu pedido en
+          <span className="font-semibold text-brand-navy"> Mis pedidos</span> con todos los detalles.
         </p>
       </motion.div>
 
