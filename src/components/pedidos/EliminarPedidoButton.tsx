@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Loader2 } from 'lucide-react'
 import { showConfirm } from '@/components/ui/ConfirmDialog'
+import { isTestingMode } from '@/lib/testing-mode'
 
 interface Props {
   pedidoId: string
@@ -14,6 +15,10 @@ interface Props {
 export default function EliminarPedidoButton({ pedidoId, pedidoNumero }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+
+  // Solo visible en modo testing. En producción se anula con nota de
+  // crédito, no se borra duro.
+  if (!isTestingMode()) return null
 
   const handleDelete = async () => {
     const ok = await showConfirm({

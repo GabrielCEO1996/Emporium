@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, Loader2 } from 'lucide-react'
 import { showConfirm } from '@/components/ui/ConfirmDialog'
+import { isTestingMode } from '@/lib/testing-mode'
 
 interface Props {
   facturaId: string
@@ -17,7 +18,9 @@ export default function EliminarFacturaButton({ facturaId, facturaNumero, estado
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  // Pagadas no se pueden eliminar directamente (deben anularse primero)
+  // Solo visible en modo testing. En producción se usa "Anular" + nota
+  // de crédito; el hard delete pierde el audit trail fiscal.
+  if (!isTestingMode()) return null
   if (!isAdmin) return null
   if (estadoActual === 'pagada') return null
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import GlobalSearch from '@/components/layout/GlobalSearch'
 import StockAlertBanner from '@/components/layout/StockAlertBanner'
+import TestingModeBanner from '@/components/layout/TestingModeBanner'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import KeyboardShortcutsInit from '@/components/ui/KeyboardShortcutsInit'
 import NotificationBell from '@/components/layout/NotificationBell'
@@ -80,6 +81,10 @@ export default async function DashboardLayout({
         </header>
 
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+          {/* Testing mode banner — solo aparece si NEXT_PUBLIC_IS_PRODUCTION !== 'true'.
+              Sticky arriba para que sea siempre visible al admin sin tapar contenido. */}
+          <TestingModeBanner />
+
           {/* Mobile search bar */}
           <div className="lg:hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 px-4 pt-16 pb-3">
             <GlobalSearch mobile />

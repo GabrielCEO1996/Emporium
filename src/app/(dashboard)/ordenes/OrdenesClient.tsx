@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { showConfirm } from '@/components/ui/ConfirmDialog'
+import EliminarOrdenButton from '@/components/ordenes/EliminarOrdenButton'
 
 type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
 // 'no_aplica' agregado en ordenes_aprobacion_v3.sql — órdenes B2B "Generar
@@ -275,6 +276,9 @@ export default function OrdenesClient({
                 >
                   {isOpen ? <><ChevronUp className="w-4 h-4" /> Ocultar</> : <><ChevronDown className="w-4 h-4" /> Detalles</>}
                 </button>
+                {isAdmin && (
+                  <EliminarOrdenButton ordenId={orden.id} ordenNumero={orden.numero} />
+                )}
               </div>
             </div>
 
