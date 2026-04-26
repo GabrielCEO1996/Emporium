@@ -50,17 +50,29 @@ export async function POST(_request: Request, { params }: RouteContext) {
       )
     }
 
-    // Update to pagada
-    const { data: updated, error: updateError } = await supabase
-      .from('facturas')
-      .update({
+    // Update to pagada — incluye audit Fase 3 (pago_confirmado_at +
+    // pago_confirmado_por). Defensive cascade: si las columnas no existen
+    // (DB sin migrar Fase 3), retry sin ellas.
+    const buildUpdate = (includeAudit: boolean): Record<string, any> => {
+      const base: Record<string, any> = {
         estado: 'pagada',
         monto_pagado: factura.total,
         updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.id)
-      .select()
-      .single()
+      }
+      if (includeAudit) {
+        base.pago_confirmado_at = new Date().toISOString()
+        base.pago_confirmado_por = user.id
+      }
+      return base
+    }
+    let { data: updated, error: updateError } = await supabase
+      .from('facturas').update(buildUpdate(true)).eq('id', params.id).select().single()
+    if (updateError && /pago_confirmado/i.test(updateError.message || '')) {
+      const r = await supabase
+        .from('facturas').update(buildUpdate(false)).eq('id', params.id).select().single()
+      updated = r.data
+      updateError = r.error
+    }
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })

@@ -2,7 +2,7 @@
 
 import { Printer, Download, Loader2 } from 'lucide-react'
 import { Factura } from '@/lib/types'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export interface EmpresaConfig {
   nombre?: string
@@ -21,156 +21,118 @@ export interface EmpresaConfig {
 }
 
 export interface PagoInfo {
-  tipo_pago?: 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'pendiente' | null
+  tipo_pago?: string | null
   numero_referencia?: string | null
   pago_confirmado?: boolean | null
   pago_confirmado_at?: string | null
 }
 
-interface FacturaPrintButtonProps {
+interface Props {
   factura: Factura
   empresaConfig?: EmpresaConfig
   pagoInfo?: PagoInfo | null
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Print button: uses the same FacturaPDF component as Download + Email.
-// Generates a PDF blob, opens it in a new window, and triggers print on load.
-// ─────────────────────────────────────────────────────────────────────────────
-function PrintPDFButton({ factura, empresaConfig, pagoInfo }: { factura: Factura; empresaConfig?: EmpresaConfig; pagoInfo?: PagoInfo | null }) {
-  const [loading, setLoading] = useState(false)
+// ─── FacturaPrintButton ────────────────────────────────────────────────────
+// Reescrito para evitar que se cuelgue:
+//   • Lazy-import del renderer SOLO al click (no en mount → no UI muerta
+//     mientras carga ~1 MB de @react-pdf/renderer).
+//   • Imprimir: abre el blob en pestaña nueva. NO llama window.print()
+//     programáticamente (esa llamada se cuelga si la pestaña no terminó
+//     de hidratar el PDF). El usuario aprieta Ctrl+P / cmd+P.
+//   • Descargar: blob → ancla <a download> → click programático. NO usa
+//     PDFDownloadLink (componente con estado interno opaco que dejaba
+//     "Generando…" stuck).
+// ────────────────────────────────────────────────────────────────────────────
+
+async function buildBlob(args: Props): Promise<Blob> {
+  const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
+    import('@react-pdf/renderer'),
+    import('./FacturaPDF'),
+  ])
+  return pdf(
+    <FacturaPDF
+      factura={args.factura}
+      empresaConfig={args.empresaConfig}
+      pagoInfo={args.pagoInfo as any}
+    />
+  ).toBlob()
+}
+
+export default function FacturaPrintButton({ factura, empresaConfig, pagoInfo }: Props) {
+  const [busy, setBusy] = useState<'print' | 'download' | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handlePrint = async () => {
-    setLoading(true)
+    setBusy('print')
+    setError(null)
     try {
-      const [{ pdf }, { default: FacturaPDF }] = await Promise.all([
-        import('@react-pdf/renderer'),
-        import('./FacturaPDF'),
-      ])
-
-      const blob = await pdf(
-        <FacturaPDF factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />
-      ).toBlob()
-
-      const blobUrl = URL.createObjectURL(blob)
-      const printWindow = window.open(blobUrl, '_blank')
-
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          try {
-            printWindow.focus()
-            printWindow.print()
-          } catch {
-            // browser may block — user can still print from preview
-          }
-        })
+      const blob = await buildBlob({ factura, empresaConfig, pagoInfo })
+      const url = URL.createObjectURL(blob)
+      // Abrir en pestaña nueva. Usuario imprime con Ctrl+P. window.print()
+      // programático se cuelga en algunos browsers con blob URLs.
+      const w = window.open(url, '_blank')
+      if (!w) {
+        // Popup blocker — fallback a download del mismo blob para que el
+        // usuario al menos tenga el archivo.
+        triggerDownload(url, `Factura-${factura.numero}.pdf`)
       }
-
-      // Revoke after a delay to let the window render
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
-    } catch (err) {
-      console.error('Error al generar PDF para imprimir:', err)
+      // Liberar URL después de que la pestaña haya tenido tiempo de cargarlo.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err: any) {
+      console.error('[FacturaPrintButton] print failed:', err)
+      setError('No se pudo generar el PDF para imprimir')
     } finally {
-      setLoading(false)
+      setBusy(null)
+    }
+  }
+
+  const handleDownload = async () => {
+    setBusy('download')
+    setError(null)
+    try {
+      const blob = await buildBlob({ factura, empresaConfig, pagoInfo })
+      const url = URL.createObjectURL(blob)
+      triggerDownload(url, `Factura-${factura.numero}.pdf`)
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
+    } catch (err: any) {
+      console.error('[FacturaPrintButton] download failed:', err)
+      setError('No se pudo generar el PDF')
+    } finally {
+      setBusy(null)
     }
   }
 
   return (
-    <button
-      onClick={handlePrint}
-      disabled={loading}
-      className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-      title="Imprimir factura"
-    >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-      Imprimir
-    </button>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Download PDF button — same renderer, download link
-// ─────────────────────────────────────────────────────────────────────────────
-function PDFDownloadButton({ factura, empresaConfig, pagoInfo }: { factura: Factura; empresaConfig?: EmpresaConfig; pagoInfo?: PagoInfo | null }) {
-  const [modules, setModules] = useState<{
-    PDFDownloadLink: any
-    FacturaPDF: any
-  } | null>(null)
-
-  useEffect(() => {
-    Promise.all([
-      import('@react-pdf/renderer'),
-      import('./FacturaPDF'),
-    ]).then(([pdfRenderer, facturaModule]) => {
-      setModules({
-        PDFDownloadLink: pdfRenderer.PDFDownloadLink,
-        FacturaPDF: facturaModule.default,
-      })
-    })
-  }, [])
-
-  const fileName = `Factura-${factura.numero}.pdf`
-
-  if (!modules) {
-    return (
-      <button
-        disabled
-        className="flex items-center gap-2 rounded-lg bg-teal-100 px-4 py-2 text-sm font-medium text-teal-400 cursor-not-allowed"
-        aria-label="Cargando PDF"
-      >
-        <Loader2 className="h-4 w-4 animate-spin" />
-        PDF
-      </button>
-    )
-  }
-
-  const { PDFDownloadLink, FacturaPDF } = modules
-
-  return (
-    <PDFDownloadLink
-      document={<FacturaPDF factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
-      fileName={fileName}
-    >
-      {({
-        loading,
-        error,
-      }: {
-        loading: boolean
-        error: Error | null
-        url: string | null
-        blob: Blob | null
-      }) =>
-        loading ? (
-          <span className="flex items-center gap-2 rounded-lg bg-teal-100 px-4 py-2 text-sm font-medium text-teal-400 cursor-wait select-none">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Generando...
-          </span>
-        ) : error ? (
-          <span className="flex items-center gap-2 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-600 select-none">
-            Error al generar PDF
-          </span>
-        ) : (
-          <span className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors cursor-pointer select-none">
-            <Download className="h-4 w-4" />
-            Descargar PDF
-          </span>
-        )
-      }
-    </PDFDownloadLink>
-  )
-}
-
-export default function FacturaPrintButton({ factura, empresaConfig, pagoInfo }: FacturaPrintButtonProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  return (
     <div className="flex items-center gap-2 print:hidden">
-      {mounted && <PrintPDFButton factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
-      {mounted && <PDFDownloadButton factura={factura} empresaConfig={empresaConfig} pagoInfo={pagoInfo} />}
+      <button
+        onClick={handlePrint}
+        disabled={busy !== null}
+        title="Abrir PDF en pestaña nueva — Ctrl+P para imprimir"
+        className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+      >
+        {busy === 'print' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+        Imprimir
+      </button>
+      <button
+        onClick={handleDownload}
+        disabled={busy !== null}
+        title="Descargar PDF"
+        className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+      >
+        {busy === 'download' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        Descargar PDF
+      </button>
+      {error && <span className="text-xs text-rose-600 ml-1">{error}</span>}
     </div>
   )
+}
+
+function triggerDownload(blobUrl: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }

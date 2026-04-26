@@ -445,8 +445,11 @@ function FacturaCard({ factura }: { factura: Factura }) {
     <motion.div layout className={`rounded-[22px] border p-6 ${m.cls}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide mb-2 ${m.cls}`}>
+            {m.label}
+          </span>
           <p className="text-[10px] uppercase tracking-luxe opacity-70 mb-1">
-            {new Date(factura.fecha_emision).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })} · {m.label}
+            {new Date(factura.fecha_emision).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' })}
           </p>
           <h3 className="font-serif text-xl leading-tight">{factura.numero}</h3>
           {factura.estado !== 'pagada' && saldo > 0 && (

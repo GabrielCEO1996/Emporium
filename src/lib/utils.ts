@@ -70,19 +70,27 @@ export const ESTADO_PEDIDO_COLORS: Record<string, string> = {
 }
 
 export const ESTADO_FACTURA_LABELS: Record<string, string> = {
+  // Estados Fase 3 (modelo nuevo)
+  pendiente_pago:         'Pendiente de pago',
+  pendiente_verificacion: 'Pendiente de verificación',
+  pagada:                 'Pagada',
+  anulada:                'Anulada',
+  con_nota_credito:       'Con N.C.',
+  // Legacy
   emitida: 'Emitida',
   enviada: 'Enviada',
-  pagada: 'Pagada',
-  anulada: 'Anulada',
-  con_nota_credito: 'Con N.C.',
 }
 
 export const ESTADO_FACTURA_COLORS: Record<string, string> = {
+  // Fase 3
+  pendiente_pago:         'bg-amber-100 text-amber-700',
+  pendiente_verificacion: 'bg-amber-100 text-amber-700',
+  pagada:                 'bg-green-100 text-green-700',
+  anulada:                'bg-red-100 text-red-700',
+  con_nota_credito:       'bg-orange-100 text-orange-700',
+  // Legacy
   emitida: 'bg-blue-100 text-blue-700',
   enviada: 'bg-purple-100 text-purple-700',
-  pagada: 'bg-green-100 text-green-700',
-  anulada: 'bg-red-100 text-red-700',
-  con_nota_credito: 'bg-orange-100 text-orange-700',
 }
 
 // Compras — purchase order / stock receipt state. Shared across

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import FacturaPrintButton from '@/components/facturas/FacturaPrintButton'
 import MarcarEnviadaButton from '@/components/facturas/MarcarEnviadaButton'
+import MarcarPagadaButton from '@/components/facturas/MarcarPagadaButton'
 import WhatsAppButton from '@/components/shared/WhatsAppButton'
 import EliminarFacturaButton from '@/components/facturas/EliminarFacturaButton'
 import AnularFacturaButton from '@/components/facturas/AnularFacturaButton'
@@ -138,18 +139,27 @@ export default async function FacturaDetailPage({ params }: PageProps) {
               pagoInfo={pagoInfo as any}
             />
 
-            {/* ── State-transition buttons (exclusive per state) ── */}
+            {/* ── State-transition buttons (Fase 3 + legacy) ── */}
 
-            {/* emitida → can only advance to "enviada" */}
+            {/* Fase 3 — pendiente_pago (B2B sin pagar todavía) o
+                pendiente_verificacion (Zelle subido, Mache no verificó):
+                la única transición posible es marcar pagada. Esto rompe
+                el "loop sin salida" que el modelo anterior dejaba para
+                facturas en estos estados. */}
+            {(f.estado === 'pendiente_pago' || f.estado === 'pendiente_verificacion') && isAdmin && (
+              <MarcarPagadaButton facturaId={f.id} />
+            )}
+
+            {/* Legacy — emitida → enviada (datos viejos) */}
             {f.estado === 'emitida' && (
               <MarcarEnviadaButton facturaId={f.id} />
             )}
 
-            {/* enviada → can only advance to "pagada" (admin: registra método de pago) */}
+            {/* Legacy — enviada → pagada (admin: registra método de pago) */}
             {f.estado === 'enviada' && isAdmin && (
               <RegistrarPagoButton facturaId={f.id} total={f.total} />
             )}
-            {/* emitida → also allow payment if admin wants to skip enviada step */}
+            {/* Legacy — emitida → pagada directo */}
             {f.estado === 'emitida' && isAdmin && (
               <RegistrarPagoButton facturaId={f.id} total={f.total} />
             )}
