@@ -41,10 +41,7 @@ export default async function MisPedidosPage() {
           id, cantidad, precio_unitario, subtotal,
           presentaciones(nombre, productos(nombre))
         ),
-        pedido:pedidos!orden_id(
-          id, numero, estado, estado_despacho,
-          factura:facturas(id, numero, estado)
-        )
+        pedido:pedidos!orden_id(id, numero, estado, estado_despacho)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })

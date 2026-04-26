@@ -40,12 +40,13 @@ interface Orden {
   pedido?: {
     id: string; numero: string; estado: string
     estado_despacho?: 'por_despachar' | 'despachado' | 'entregado' | null
-    factura?: Array<{ id: string; numero: string; estado: string }> | { id: string; numero: string; estado: string } | null
   } | null
 }
 interface Factura {
   id: string; numero: string
-  estado: 'emitida' | 'pagada' | 'anulada' | 'con_nota_credito'
+  // Acepta los estados nuevos (Fase 3) sin romper si la migration vieja
+  // dejó algunos rows como 'emitida'.
+  estado: string
   total: number; monto_pagado: number
   fecha_emision: string; fecha_vencimiento: string | null
   pedido_id: string | null
@@ -286,32 +287,32 @@ const ORDEN_STEPS = [
 /**
  * Devuelve el step alcanzado (0..4). Funciona aunque la orden esté
  * rechazada / cancelada — se usa para saber DÓNDE pintar el corte rojo.
+ *
+ * `factura` viene del lookup en `facturas` por `pedido_id` que hace el
+ * componente padre — se pasa como argumento para no obligar al embed
+ * nested en el query (que rompía el page).
  */
-function getOrdenStep(orden: Orden): number {
+function getOrdenStep(orden: Orden, factura: Factura | null | undefined): number {
   // Sin avance: orden recién creada (puede estar pendiente, rechazada, etc).
-  // Si nunca llegó a 'aprobada', step alcanzado = 0.
   if (orden.estado !== 'aprobada' && orden.estado !== 'cancelada') return 0
 
-  const pedido = orden.pedido
-  // Cancelada antes de pedido (raro) o sin pedido todavía → step 1.
+  const pedido = (orden.pedido && (Array.isArray(orden.pedido) ? orden.pedido[0] : orden.pedido)) ?? null
   if (!pedido) return orden.estado === 'aprobada' ? 1 : 0
 
   const ed = pedido.estado_despacho
   if (ed === 'entregado') return 4
   if (ed === 'despachado') return 3
 
-  // ed === 'por_despachar' (o null en datos legacy):
-  // La diferencia entre paso 1 (Aprobada) y paso 2 (En preparación) es
-  // si la factura ya está pagada. Si está pagada, está listo para
-  // despachar. Si no, aún esperamos pago.
-  const fac = Array.isArray(pedido.factura) ? pedido.factura[0] : pedido.factura
-  if (fac?.estado === 'pagada') return 2
+  // ed === 'por_despachar' (o null/undefined en datos legacy):
+  // Diferencia entre step 1 (Aprobada) y step 2 (En preparación) es si
+  // la factura ya está pagada.
+  if (factura?.estado === 'pagada') return 2
   return 1
 }
 
-function OrdenTimeline({ orden }: { orden: Orden }) {
+function OrdenTimeline({ orden, factura }: { orden: Orden; factura: Factura | null | undefined }) {
   const cancelada = orden.estado === 'rechazada' || orden.estado === 'cancelada'
-  const stepIdx = getOrdenStep(orden)
+  const stepIdx = getOrdenStep(orden, factura)
 
   return (
     <div className="pt-2 pb-4">
@@ -368,7 +369,7 @@ function OrdenTimeline({ orden }: { orden: Orden }) {
 }
 
 // ── Orden Card ────────────────────────────────────────────────────────────────
-function OrdenCard({ orden }: { orden: Orden }) {
+function OrdenCard({ orden, factura }: { orden: Orden; factura: Factura | null | undefined }) {
   const map = {
     pendiente: {
       label: 'Pendiente de aprobación', cls: 'bg-amber-50 text-amber-800 border-amber-200/60',
@@ -414,16 +415,10 @@ function OrdenCard({ orden }: { orden: Orden }) {
           </div>
         )}
 
-        {orden.estado === 'aprobada' && orden.pedido && (
-          <div className="mt-4 text-sm bg-white/60 rounded-xl px-4 py-3 border border-white/80">
-            Tu orden se convirtió en el pedido{' '}
-            <span className="font-semibold">{orden.pedido.numero}</span>. Míralo más abajo.
-          </div>
-        )}
       </div>
 
       <div className="px-6 pb-2">
-        <OrdenTimeline orden={orden} />
+        <OrdenTimeline orden={orden} factura={factura} />
       </div>
     </motion.div>
   )
@@ -552,10 +547,24 @@ export default function MisPedidosClient({
   // Pedidos que ya están cubiertos por una OrdenCard (vienen como derivado
   // de una orden). No los duplicamos en la sección "Pedidos activos" — ya
   // aparecen dentro de la timeline integrada de su orden.
+  // Defensive: orden.pedido puede venir como object O array según cómo
+  // PostgREST resuelva el embed. Aceptamos los dos.
+  const pedidoOf = (o: Orden) => (Array.isArray(o.pedido) ? o.pedido[0] : o.pedido) ?? null
   const ordenPedidoIds = new Set(
-    ordenes.map(o => o.pedido?.id).filter(Boolean) as string[]
+    ordenes.map(o => pedidoOf(o)?.id).filter(Boolean) as string[]
   )
   const pedidosSinOrden = pedidos.filter(p => !ordenPedidoIds.has(p.id))
+
+  // Lookup de factura por pedido_id — la timeline lo usa para distinguir
+  // "Aprobada" (factura pendiente_pago) vs "En preparación" (factura pagada).
+  const facturaByPedidoId = new Map<string, Factura>()
+  for (const f of facturas) {
+    if (f.pedido_id) facturaByPedidoId.set(f.pedido_id, f)
+  }
+  const facturaForOrden = (o: Orden): Factura | null => {
+    const pid = pedidoOf(o)?.id
+    return pid ? (facturaByPedidoId.get(pid) ?? null) : null
+  }
 
   const handleReorder = (items: PedidoItem[]) => {
     const reorderItems = items.map(item => ({
@@ -632,7 +641,7 @@ export default function MisPedidosClient({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <OrdenCard orden={o} />
+                  <OrdenCard orden={o} factura={facturaForOrden(o)} />
                 </motion.div>
               ))}
             </div>
