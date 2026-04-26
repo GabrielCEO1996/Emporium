@@ -25,76 +25,91 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const estadoFilter = searchParams.estado || 'pendiente'
 
-  // Cascade query — algunos despliegues no tienen aún la migration v2/proof.
-  // Vamos de richest → leanest. La PEDIDO embed usa la sintaxis basada en
-  // columna (`pedidos!orden_id`) en vez del nombre de constraint
-  // (`pedidos!pedidos_orden_id_fkey`) — así PostgREST encuentra la relación
-  // aunque el FK haya sido auto-renombrado. Este era el bug que dejaba la
-  // lista vacía mientras los counters seguían leyendo OK.
-  const buildQuery = (includeProof: boolean, includeV2Cols: boolean) => {
-    const v2Cols = includeV2Cols ? ', estado_pago, verificado_por, verificado_at' : ''
-    const selectCols = `
-      id, numero, estado, total, notas, direccion_entrega,
-      motivo_rechazo, created_at, updated_at, cliente_id,
-      tipo_pago, numero_referencia, pago_confirmado${includeProof ? ', payment_proof_url' : ''}${v2Cols},
-      cliente:clientes(id, nombre, rif, email, telefono),
-      items:orden_items(
-        id, cantidad, precio_unitario, subtotal,
-        presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
-      ),
-      pedido:pedidos!orden_id(id, numero, estado)
-    `
-    let q = supabase.from('ordenes').select(selectCols).order('created_at', { ascending: false })
-    if (estadoFilter && estadoFilter !== 'todas') q = q.eq('estado', estadoFilter)
-    return q
-  }
+  // ── Estrategia: query plana + joins manuales ───────────────────────────
+  // Tras varios intentos con embed nested de PostgREST que devolvía la
+  // lista vacía (counter=1, list=0) sin error visible, abandonamos los
+  // embeds y traemos las relaciones en queries separadas. Es algo más
+  // chatty (4-5 round-trips vs 1) pero cada uno es trivial y no falla
+  // silenciosamente. Mismo planteo que el counter — si counter ve la fila,
+  // este SELECT de ordenes plano también la ve.
 
-  // Cascade retries — each attempt drops a different set of optional columns
-  // so we never get stuck when the error surfaces in a different order than
-  // our regex expects. Try richest → leanest.
-  let ordenesRes = await buildQuery(true, true)
-  if (ordenesRes.error) {
-    console.warn('[ordenes/page] full query failed:', ordenesRes.error.message)
-    ordenesRes = await buildQuery(false, true)   // drop proof col
+  // 1. Ordenes — exactamente las columnas que ya existen seguro. Las
+  // columnas opcionales (estado_pago, verificado_*, payment_proof_url) las
+  // pedimos con SELECT * para que vengan si existen y no rompan si no.
+  let ordenesQ = supabase
+    .from('ordenes')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (estadoFilter && estadoFilter !== 'todas') {
+    ordenesQ = ordenesQ.eq('estado', estadoFilter)
   }
-  if (ordenesRes.error) {
-    console.warn('[ordenes/page] (no-proof) failed:', ordenesRes.error.message)
-    ordenesRes = await buildQuery(true, false)   // drop v2 cols
+  const { data: ordenesPlanas, error: ordenesErr } = await ordenesQ
+
+  if (ordenesErr) {
+    console.error('[ordenes/page] flat select failed:', ordenesErr)
   }
-  if (ordenesRes.error) {
-    console.warn('[ordenes/page] (no-v2) failed:', ordenesRes.error.message)
-    ordenesRes = await buildQuery(false, false)  // drop both
-  }
-  if (ordenesRes.error) {
-    // Fallback final: query mínima sin pedido embed. Si esto también falla
-    // hay un bug más profundo (RLS, columna missing, etc).
-    console.error('[ordenes/page] list query failed after all retries:', ordenesRes.error)
-    const minimal = await supabase
-      .from('ordenes')
-      .select(`
-        id, numero, estado, total, notas, direccion_entrega,
-        motivo_rechazo, created_at, updated_at, cliente_id,
-        tipo_pago, numero_referencia, pago_confirmado,
-        cliente:clientes(id, nombre, rif, email, telefono),
-        items:orden_items(
-          id, cantidad, precio_unitario, subtotal,
+  console.log('[ordenes/page] flat select loaded:', {
+    estadoFilter,
+    rows: ordenesPlanas?.length ?? 0,
+    error: ordenesErr?.message ?? null,
+  })
+
+  const ordenesBase = (ordenesPlanas ?? []) as any[]
+
+  // 2. Resolver clientes, items y pedidos en paralelo, sólo si hay órdenes
+  let clientesById: Record<string, any> = {}
+  let itemsByOrden: Record<string, any[]> = {}
+  let pedidosByOrden: Record<string, any> = {}
+
+  if (ordenesBase.length > 0) {
+    const ordenIds   = ordenesBase.map(o => o.id)
+    const clienteIds = Array.from(new Set(ordenesBase.map(o => o.cliente_id).filter(Boolean)))
+
+    const [clientesRes, itemsRes, pedidosRes] = await Promise.all([
+      clienteIds.length > 0
+        ? supabase
+            .from('clientes')
+            .select('id, nombre, rif, email, telefono')
+            .in('id', clienteIds)
+        : Promise.resolve({ data: [] as any[], error: null as any }),
+      supabase
+        .from('orden_items')
+        .select(`
+          id, orden_id, cantidad, precio_unitario, subtotal,
           presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
-        )
-      `)
-      .order('created_at', { ascending: false })
-    if (minimal.error) {
-      console.error('[ordenes/page] minimal fallback also failed:', minimal.error)
-    } else {
-      console.warn('[ordenes/page] running on minimal fallback (no pedido link):', minimal.data?.length, 'rows')
-      ordenesRes = minimal as any
+        `)
+        .in('orden_id', ordenIds),
+      supabase
+        .from('pedidos')
+        .select('id, numero, estado, orden_id')
+        .in('orden_id', ordenIds),
+    ])
+
+    if (clientesRes.error) console.error('[ordenes/page] clientes lookup failed:', clientesRes.error)
+    if (itemsRes.error)    console.error('[ordenes/page] orden_items lookup failed:', itemsRes.error)
+    if (pedidosRes.error)  console.error('[ordenes/page] pedidos lookup failed:', pedidosRes.error)
+
+    for (const c of (clientesRes.data ?? [])) clientesById[c.id] = c
+    for (const it of (itemsRes.data ?? []) as any[]) {
+      const k = it.orden_id
+      if (!itemsByOrden[k]) itemsByOrden[k] = []
+      itemsByOrden[k].push(it)
+    }
+    for (const p of (pedidosRes.data ?? []) as any[]) {
+      // Una orden puede tener múltiples pedidos derivados (raro, pero
+      // posible si admin re-aprueba). Nos quedamos con el primero — el
+      // dashboard sólo muestra link, no lista de pedidos.
+      if (!pedidosByOrden[p.orden_id]) pedidosByOrden[p.orden_id] = p
     }
   }
-  const ordenes = ordenesRes.data
-  console.log('[ordenes/page] list loaded:', {
-    estadoFilter,
-    rows: ordenes?.length ?? 0,
-    error: ordenesRes.error?.message ?? null,
-  })
+
+  // 3. Mergear todo en la forma que OrdenesClient espera
+  const ordenes = ordenesBase.map(o => ({
+    ...o,
+    cliente: clientesById[o.cliente_id] ?? null,
+    items:   itemsByOrden[o.id] ?? [],
+    pedido:  pedidosByOrden[o.id] ?? null,
+  }))
 
   // Filtered counts — use COUNT queries with the same estado filter so the
   // tab badges and the list can never disagree (previously the count query
