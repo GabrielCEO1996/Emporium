@@ -15,6 +15,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import TiendaLanding from './TiendaLanding'
 import Nav from './components/Nav'
+import EmporiumBot from './components/EmporiumBot'
 import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2017,7 +2018,6 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
   const [notas, setNotas] = useState('')
   const [direccion, setDireccion] = useState(clienteInfo?.direccion ?? '')
   const [ordering, setOrdering] = useState(false)
-  // Header user dropdown was removed in Fase 6 — signout lives in /tienda/perfil now.
 
   // Default tipoPago respects rol + stripe availability. comprador without
   // stripe → zelle. Otherwise comprador → stripe, authorized → zelle.
@@ -2172,6 +2172,17 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
     }
   }
 
+  // Sign out — used by Nav user pill (desktop) and mobile drawer.
+  // Sends to /login on success; if the supabase call fails we still navigate
+  // (the next protected page will redirect to /login anyway).
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      router.push('/login')
+    }
+  }
+
   const handleConfirmOrder = async () => {
     setOrdering(true)
     try {
@@ -2268,6 +2279,9 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         cartPulse={cartPulse}
         pedidosPendientes={clientStats?.pedidosPendientes ?? 0}
         onOpenCart={() => setCartOpen(true)}
+        profileName={profile.nombre}
+        profileEmail={profile.email}
+        onSignOut={handleSignOut}
       />
 
       {/* ── Cinematic landing (Hero + Stats + Categories + Featured + How + CTA) ── */}
@@ -2535,6 +2549,11 @@ export default function TiendaClient({ profile, productos, clienteInfo, empresaP
         onClose={() => setChatOpen(false)}
         productos={productos}
       />
+
+      {/* ── EmporiumBot (Fase 7) — botón flotante decorativo + modal ──
+           El chat real con Anthropic API se construirá en una fase
+           separada. Por ahora solo presencia + handoff a WhatsApp. */}
+      <EmporiumBot profileName={profile.nombre} />
     </div>
   )
 }

@@ -715,9 +715,297 @@
   margin-left: 2px;
 }
 
+/* ─── User pill (desktop) ─────────────────────────────────────────────── */
+
+.tienda-nav-user {
+  position: relative;
+}
+
+.tienda-nav-user-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--brand-navy);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
+}
+
+.tienda-nav-user-btn:hover,
+.tienda-nav-user-btn[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(15, 34, 56, 0.20);
+}
+
+.tienda-nav-user-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tienda-nav-user-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 200px;
+  background: rgba(250, 250, 247, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 11;
+  /* Subtle shadow — exception to the "no drop shadows" rule because this
+     menu floats above arbitrary content, needs depth cue. */
+  box-shadow: 0 12px 32px -16px rgba(15, 34, 56, 0.25);
+}
+
+.tienda-nav-user-menu-header {
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--border-subtle);
+}
+
+.tienda-nav-user-menu-name {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--brand-navy);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.tienda-nav-user-menu-email {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin: 2px 0 0;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.tienda-nav-user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+  transition: background 0.3s var(--ease-out-expo), color 0.3s var(--ease-out-expo);
+}
+
+.tienda-nav-user-menu-item:hover,
+.tienda-nav-user-menu-item:focus-visible {
+  background: rgba(13, 148, 136, 0.08);
+  color: var(--brand-navy);
+  outline: none;
+}
+
+.tienda-nav-user-menu-item.is-danger {
+  color: var(--text-muted);
+}
+
+.tienda-nav-user-menu-item.is-danger:hover,
+.tienda-nav-user-menu-item.is-danger:focus-visible {
+  background: rgba(190, 18, 60, 0.06);
+  color: #be123c;
+}
+
+.tienda-nav-user-menu-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ─── Hamburger (mobile only) ─────────────────────────────────────────── */
+
+.tienda-nav-hamburger {
+  display: none;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--brand-navy);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.4s var(--ease-out-expo);
+}
+
+.tienda-nav-hamburger:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.tienda-nav-hamburger-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.tienda-nav-hamburger-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand-teal);
+  border: 1.5px solid rgba(250, 250, 247, 0.85);
+}
+
+/* ─── Mobile drawer ───────────────────────────────────────────────────── */
+
+.tienda-nav-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(15, 34, 56, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.tienda-nav-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(86vw, 340px);
+  background: var(--bg-cream);
+  border-left: 0.5px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px 32px;
+  /* Subtle shadow — depth cue against the cosmic background. */
+  box-shadow: -16px 0 48px -24px rgba(15, 34, 56, 0.30);
+}
+
+.tienda-nav-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  border-bottom: 0.5px solid var(--border-subtle);
+}
+
+.tienda-nav-drawer-title {
+  font-family: var(--font-sans), 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.42em;
+  color: var(--brand-navy);
+}
+
+.tienda-nav-drawer-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border-subtle);
+  background: transparent;
+  color: var(--brand-navy);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.3s var(--ease-out-expo);
+}
+
+.tienda-nav-drawer-close:hover { background: rgba(15, 34, 56, 0.05); }
+
+.tienda-nav-drawer-close-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.tienda-nav-drawer-links {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 0 0;
+  margin-bottom: auto;
+}
+
+.tienda-nav-drawer-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--brand-navy);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  border-bottom: 0.5px solid var(--border-subtle);
+  transition: color 0.3s var(--ease-out-expo);
+}
+
+.tienda-nav-drawer-link:hover {
+  color: var(--brand-teal);
+}
+
+.tienda-nav-drawer-link:last-child {
+  border-bottom: none;
+}
+
+.tienda-nav-drawer-user {
+  padding: 24px 0 16px;
+  border-top: 0.5px solid var(--border-subtle);
+}
+
+.tienda-nav-drawer-user-name {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--brand-navy);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.tienda-nav-drawer-user-email {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin: 4px 0 0;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tienda-nav-drawer-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #be123c;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tienda-nav-drawer-signout-icon {
+  width: 16px;
+  height: 16px;
+}
+
 @media (max-width: 768px) {
   .tienda-nav {
-    gap: 12px;
+    gap: 8px;
     padding: 10px 10px 10px 12px;
   }
   .tienda-nav-mark {
@@ -726,8 +1014,250 @@
   }
   .tienda-nav-mark-text { display: none; }
   .tienda-nav-links { display: none; }
+  .tienda-nav-user { display: none; }
   .tienda-nav-cta-icon { display: inline-flex; }
   .tienda-nav-cta-label { display: none; }
+  .tienda-nav-cta { padding: 8px 12px; }
+  .tienda-nav-hamburger { display: inline-flex; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * EMPORIUMBOT — botón flotante + tooltip + modal próximamente (Fase 7)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+.tienda-bot-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 50;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--brand-navy);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Single tasteful shadow — depth cue against the cosmic background.
+     The "no drop shadows" rule from the design skill explicitly carves
+     out this exception for the bot button. */
+  box-shadow: 0 4px 24px rgba(15, 34, 56, 0.25);
+  transition: transform 0.5s var(--ease-out-expo), background 0.5s var(--ease-out-expo);
+  animation: tiendaBotIn 1s var(--ease-out-expo) 1.6s backwards;
+}
+
+@keyframes tiendaBotIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.tienda-bot-fab:hover {
+  background: var(--brand-teal);
+  transform: scale(1.06);
+}
+
+.tienda-bot-fab svg {
+  width: 22px;
+  height: 22px;
+  color: var(--bg-cream);
+}
+
+.tienda-bot-fab::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--brand-teal);
+  opacity: 0;
+  animation: tiendaBotPulse 2.4s var(--ease-out-expo) infinite;
+  pointer-events: none;
+}
+
+@keyframes tiendaBotPulse {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.4); }
+}
+
+.tienda-bot-fab-status {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand-teal);
+  border: 2px solid var(--brand-navy);
+}
+
+.tienda-bot-tooltip {
+  position: fixed;
+  bottom: 96px;
+  right: 28px;
+  z-index: 49;
+  background: var(--brand-navy);
+  color: var(--bg-cream);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  max-width: calc(100vw - 56px);
+}
+
+.tienda-bot-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  right: 22px;
+  width: 8px;
+  height: 8px;
+  background: var(--brand-navy);
+  transform: rotate(45deg);
+}
+
+.tienda-bot-tooltip-name {
+  display: block;
+  color: var(--brand-teal-soft);
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+/* Modal "próximamente" */
+.tienda-bot-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 34, 56, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.tienda-bot-modal {
+  width: min(440px, 100%);
+  background: var(--bg-cream);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 32px;
+  text-align: left;
+  box-shadow: 0 24px 64px -32px rgba(15, 34, 56, 0.4);
+}
+
+.tienda-bot-modal-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--brand-teal);
+  margin: 0 0 12px;
+  font-weight: 500;
+}
+
+.tienda-bot-modal-title {
+  font-family: var(--font-serif), 'Cormorant Garamond', serif;
+  font-weight: 300;
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: var(--brand-navy);
+  margin: 0 0 20px;
+}
+
+.tienda-bot-modal-title em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--brand-teal);
+}
+
+.tienda-bot-modal-copy {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0 0 28px;
+}
+
+.tienda-bot-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tienda-bot-modal-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: #25D366; /* WhatsApp brand green — solo aquí, fuera de la paleta */
+  color: var(--bg-cream);
+  border: none;
+  border-radius: 100px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo);
+}
+
+.tienda-bot-modal-cta-primary:hover {
+  background: #1ebe5a;
+  transform: translateY(-1px);
+}
+
+.tienda-bot-modal-cta-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tienda-bot-modal-cta-primary.is-disabled {
+  background: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.tienda-bot-modal-cta-primary.is-disabled:hover {
+  background: var(--text-faint);
+  transform: none;
+}
+
+.tienda-bot-modal-cta-secondary {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px 4px;
+  border-bottom: 0.5px solid var(--border-subtle);
+  transition: color 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
+}
+
+.tienda-bot-modal-cta-secondary:hover {
+  color: var(--brand-navy);
+  border-color: var(--brand-navy);
+}
+
+@media (max-width: 768px) {
+  .tienda-bot-fab {
+    bottom: 20px;
+    right: 20px;
+    width: 52px;
+    height: 52px;
+  }
+  .tienda-bot-tooltip {
+    bottom: 84px;
+    right: 20px;
+    font-size: 11px;
+  }
+  .tienda-bot-modal { padding: 24px; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
