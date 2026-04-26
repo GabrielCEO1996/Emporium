@@ -42,6 +42,18 @@
 .tienda-screen {
   font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
   font-weight: 300;
+  color: var(--bg-cream);
+  /* Fondo negro espacial profundo. El radial gradient se ancla al top
+     center del viewport y se mantiene fijo para que el efecto cosmico
+     no se pierda al scrollear. Se acompaña por el SpaceBackground
+     Canvas (puntos + motas) encima. */
+  background: radial-gradient(
+    ellipse at center top,
+    #0a1628 0%,
+    #02050d 60%,
+    #000000 100%
+  );
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Safety net contra scroll horizontal accidental — el globo + el pin
@@ -276,27 +288,27 @@
   font-size: clamp(48px, 6.5vw, 104px);
   line-height: 0.98;
   letter-spacing: -0.02em;
-  color: var(--brand-navy);
+  color: var(--bg-cream);
   margin-bottom: 24px;
 }
 
 .tienda-hero-title em {
   font-style: italic;
   font-weight: 300;
-  color: var(--brand-teal);
+  color: var(--brand-teal-soft);
 }
 
 .tienda-hero-subtitle {
   font-size: 15px;
   font-weight: 300;
   line-height: 1.6;
-  color: var(--text-muted);
+  color: rgba(250, 250, 247, 0.7);
   max-width: 440px;
   margin-bottom: 36px;
 }
 
 .tienda-hero-subtitle strong {
-  color: var(--brand-navy);
+  color: var(--bg-cream);
   font-weight: 500;
 }
 
@@ -311,25 +323,25 @@
 .tienda-hero-meta-line {
   display: none;
   font-size: 13px;
-  color: var(--text-muted);
+  color: rgba(250, 250, 247, 0.7);
   margin: 0 0 28px;
   letter-spacing: 0.02em;
   line-height: 1.5;
 }
 .tienda-hero-meta-line strong {
-  color: var(--brand-navy);
+  color: var(--bg-cream);
   font-weight: 500;
 }
 .tienda-hero-meta-line-label {
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--brand-teal);
+  color: var(--brand-teal-soft);
   margin-right: 4px;
 }
 .tienda-hero-meta-line-divider {
   margin: 0 10px;
-  color: var(--text-faint);
+  color: rgba(250, 250, 247, 0.30);
 }
 
 .tienda-cta-primary {
@@ -337,7 +349,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 26px;
-  background: var(--brand-navy);
+  background: var(--brand-teal);
   color: var(--bg-cream);
   border: none;
   border-radius: 100px;
@@ -346,13 +358,15 @@
   font-weight: 500;
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
+  transition: background 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo), box-shadow 0.5s var(--ease-out-expo);
   text-decoration: none;
+  box-shadow: 0 4px 24px rgba(13, 148, 136, 0.25);
 }
 
 .tienda-cta-primary:hover {
-  background: var(--brand-teal);
+  background: #0b7e74; /* teal slightly darker for press feedback */
   transform: translateY(-1px);
+  box-shadow: 0 6px 32px rgba(13, 148, 136, 0.4);
 }
 
 .tienda-cta-primary .arrow {
@@ -369,16 +383,16 @@
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: rgba(250, 250, 247, 0.7);
   text-decoration: none;
-  border-bottom: 0.5px solid var(--border-subtle);
+  border-bottom: 0.5px solid rgba(250, 250, 247, 0.25);
   padding-bottom: 4px;
   transition: color 0.4s var(--ease-out-expo), border-color 0.4s var(--ease-out-expo);
 }
 
 .tienda-cta-secondary:hover {
-  color: var(--brand-navy);
-  border-color: var(--brand-navy);
+  color: var(--bg-cream);
+  border-color: var(--brand-teal);
 }
 
 .tienda-hero-meta {
@@ -395,7 +409,7 @@
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: rgba(250, 250, 247, 0.45);
   margin-bottom: 10px;
 }
 
@@ -404,20 +418,20 @@
   font-style: italic;
   font-size: 26px;
   font-weight: 400;
-  color: var(--brand-navy);
+  color: var(--bg-cream);
   line-height: 1.2;
 }
 
 .tienda-hero-meta-value em {
   font-size: 14px;
-  color: var(--text-faint);
+  color: rgba(250, 250, 247, 0.45);
   font-style: normal;
 }
 
 .tienda-hero-meta-divider {
   width: 1px;
   height: 28px;
-  background: var(--border-subtle);
+  background: rgba(250, 250, 247, 0.20);
   margin: 16px 0 16px auto;
 }
 
@@ -518,7 +532,7 @@
   }
   .tienda-cta-secondary {
     padding: 14px 24px;
-    border: 0.5px solid var(--border-subtle);
+    border: 0.5px solid rgba(250, 250, 247, 0.25);
     border-radius: 100px;
     /* Override the underline-only desktop variant. */
     border-bottom-width: 0.5px;

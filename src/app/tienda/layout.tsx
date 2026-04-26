@@ -46,7 +46,7 @@ export default async function TiendaLayout({ children }: { children: React.React
 
   return (
     <div
-      className={`${cormorant.variable} ${inter.variable} tienda-screen font-sans bg-brand-cream min-h-screen text-brand-navy`}
+      className={`${cormorant.variable} ${inter.variable} tienda-screen font-sans min-h-screen`}
     >
       <Loader />
       {children}
