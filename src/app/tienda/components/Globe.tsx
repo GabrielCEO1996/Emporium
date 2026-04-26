@@ -452,30 +452,58 @@ function EarthScene() {
     [],
   )
 
-  // Try to upgrade to real Earth/lights textures from CDN — silent fallback
+  // Try to upgrade to real Earth/lights textures from CDN — silent fallback.
+  // Logs temporales (Hotfix Pt 5) para diagnosticar el "globo plano":
+  // queremos saber si las CDN textures cargan, si reemplazan a las
+  // procedurales, y si el shader las procesa bien.
   useEffect(() => {
+    /* eslint-disable no-console */
+    console.log('[Globe] mount — uMap procedural:', {
+      isCanvas: earthMaterial.uniforms.uMap.value instanceof THREE.CanvasTexture,
+      image: (earthMaterial.uniforms.uMap.value as THREE.Texture)?.image?.width,
+    })
+    console.log('[Globe] mount — uLights procedural:', {
+      isCanvas: earthMaterial.uniforms.uLights.value instanceof THREE.CanvasTexture,
+      image: (earthMaterial.uniforms.uLights.value as THREE.Texture)?.image?.width,
+    })
+
     const loader = new THREE.TextureLoader()
     loader.crossOrigin = 'anonymous'
+
     loader.load(
       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg',
       (tex) => {
         tex.anisotropy = 16
+        console.log('[Globe] CDN earth_atmos LOADED — replacing procedural', {
+          width: tex.image?.width,
+          height: tex.image?.height,
+          format: tex.format,
+        })
         ;(earthMaterial.uniforms.uMap.value as THREE.Texture).dispose()
         earthMaterial.uniforms.uMap.value = tex
       },
       undefined,
-      () => { /* offline / CORS — keep procedural */ },
+      (err) => {
+        console.warn('[Globe] CDN earth_atmos FAILED — keeping procedural', err)
+      },
     )
     loader.load(
       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_lights_2048.png',
       (tex) => {
         tex.anisotropy = 16
+        console.log('[Globe] CDN earth_lights LOADED — replacing procedural', {
+          width: tex.image?.width,
+          height: tex.image?.height,
+        })
         ;(earthMaterial.uniforms.uLights.value as THREE.Texture).dispose()
         earthMaterial.uniforms.uLights.value = tex
       },
       undefined,
-      () => { /* offline / CORS — keep procedural */ },
+      (err) => {
+        console.warn('[Globe] CDN earth_lights FAILED — keeping procedural', err)
+      },
     )
+    /* eslint-enable no-console */
   }, [earthMaterial])
 
   // Mouse parallax listener
