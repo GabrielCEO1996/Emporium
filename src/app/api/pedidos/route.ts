@@ -86,13 +86,18 @@ export async function POST(request: NextRequest) {
       const total = subtotal - descuento
 
       // Master transaccion_id — pedido admin directo no tiene orden parent.
+      // Modelo nuevo (Fase 4): nace 'aprobada' + 'por_despachar'. Era
+      // 'borrador' antes — ahora ese concepto se eliminó.
       const transaccionId = await generateTransaccionId(supabase)
-      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+      const buildPedidoPayload = (
+        includeTxId: boolean,
+        includeDespacho: boolean,
+      ): Record<string, any> => {
         const base: Record<string, any> = {
           numero: numData,
           cliente_id,
           vendedor_id: effectiveVendedorId,
-          estado: 'borrador',
+          estado: 'aprobada',
           subtotal,
           descuento,
           impuesto: 0,
@@ -102,13 +107,19 @@ export async function POST(request: NextRequest) {
           fecha_entrega_estimada: fecha_entrega_estimada || null,
         }
         if (includeTxId && transaccionId) base.transaccion_id = transaccionId
+        if (includeDespacho) base.estado_despacho = 'por_despachar'
         return base
       }
       let { data: pedido, error: pedidoError } = await supabase
-        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+        .from('pedidos').insert(buildPedidoPayload(true, true)).select().single()
+      if (pedidoError && /estado_despacho/i.test(pedidoError.message || '')) {
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(true, false)).select().single()
+        pedido = r.data
+        pedidoError = r.error
+      }
       if (pedidoError && /transaccion_id/i.test(pedidoError.message || '')) {
         console.warn('[POST /api/pedidos] pedidos.transaccion_id missing — retrying without')
-        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false, false)).select().single()
         pedido = r.data
         pedidoError = r.error
       }

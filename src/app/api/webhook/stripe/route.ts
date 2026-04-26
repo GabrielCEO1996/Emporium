@@ -114,7 +114,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const pedidoNumero = (pedidoNumData as string) ?? `PED-${Date.now()}`
 
     const ordenTxId = (orden as any).transaccion_id as string | null | undefined
-    const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+    const buildPedidoPayload = (
+      includeTxId: boolean,
+      includeDespacho: boolean,
+    ): Record<string, any> => {
       const base: Record<string, any> = {
         numero: pedidoNumero,
         cliente_id: orden.cliente_id,
@@ -130,13 +133,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         orden_id: orden.id,
       }
       if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+      if (includeDespacho) base.estado_despacho = 'por_despachar'
       return base
     }
     let { data: pedido, error: pedidoErr } = await supabase
-      .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+      .from('pedidos').insert(buildPedidoPayload(true, true)).select().single()
+    if (pedidoErr && /estado_despacho/i.test(pedidoErr.message || '')) {
+      console.warn('[webhook/stripe] pedidos.estado_despacho missing — retrying without')
+      const r = await supabase.from('pedidos').insert(buildPedidoPayload(true, false)).select().single()
+      pedido = r.data
+      pedidoErr = r.error
+    }
     if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
       console.warn('[webhook/stripe] pedidos.transaccion_id missing — retrying without')
-      const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+      const r = await supabase.from('pedidos').insert(buildPedidoPayload(false, false)).select().single()
       pedido = r.data
       pedidoErr = r.error
     }
@@ -334,7 +344,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Legacy fallback no tiene orden parent — generamos EMP-XXXX nuevo.
   const legacyTxId = await generateTransaccionId(supabase)
-  const buildLegacyPayload = (includeTxId: boolean): Record<string, any> => {
+  const buildLegacyPayload = (
+    includeTxId: boolean,
+    includeDespacho: boolean,
+  ): Record<string, any> => {
     const base: Record<string, any> = {
       numero: numData,
       cliente_id: clienteData?.id ?? null,
@@ -348,13 +361,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       direccion_entrega: meta.direccion_entrega || null,
     }
     if (includeTxId && legacyTxId) base.transaccion_id = legacyTxId
+    if (includeDespacho) base.estado_despacho = 'por_despachar'
     return base
   }
   let { data: pedido, error: pedidoError } = await supabase
-    .from('pedidos').insert(buildLegacyPayload(true)).select().single()
+    .from('pedidos').insert(buildLegacyPayload(true, true)).select().single()
+  if (pedidoError && /estado_despacho/i.test(pedidoError.message || '')) {
+    const r = await supabase.from('pedidos').insert(buildLegacyPayload(true, false)).select().single()
+    pedido = r.data
+    pedidoError = r.error
+  }
   if (pedidoError && /transaccion_id/i.test(pedidoError.message || '')) {
     console.warn('[webhook/stripe] legacy pedido transaccion_id missing — retrying without')
-    const r = await supabase.from('pedidos').insert(buildLegacyPayload(false)).select().single()
+    const r = await supabase.from('pedidos').insert(buildLegacyPayload(false, false)).select().single()
     pedido = r.data
     pedidoError = r.error
   }

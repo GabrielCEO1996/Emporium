@@ -139,8 +139,7 @@ export default async function PedidoDetailPage({ params }: PageProps) {
             <PedidoActions
               pedidoId={p.id}
               currentEstado={p.estado}
-              currentConductorId={p.conductor_id ?? null}
-              conductores={conductores ?? []}
+              currentEstadoDespacho={(p as any).estado_despacho ?? null}
               isAdmin={isAdmin}
               facturaId={facturaId}
             />

@@ -21,14 +21,37 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ error: 'Solo administradores pueden marcar pedidos como entregados' }, { status: 403 })
       }
 
-      const { data: pedido } = await supabase.from('pedidos').select('numero, estado').eq('id', params.id).single()
+      const { data: pedido } = await supabase
+        .from('pedidos').select('numero, estado, estado_despacho').eq('id', params.id).single()
       if (!pedido) return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
-      // Accept new 'despachada' + legacy 'despachado' / 'en_ruta' for backward compatibility
-      if (!['despachada', 'despachado', 'en_ruta'].includes(pedido.estado)) {
-        return NextResponse.json(
-          { error: `Solo se pueden entregar pedidos despachados (estado actual: ${pedido.estado})` },
-          { status: 400 }
-        )
+
+      // Modelo nuevo (Fase 4): el pedido siempre es 'aprobada' o 'cancelada'
+      // — la etapa la trackea estado_despacho. Aceptamos 'despachado' como
+      // estado_despacho válido. Fallback a estados legacy para datos sin
+      // migrar.
+      const ed = (pedido as any).estado_despacho
+      const isNewModel = ed != null
+      if (isNewModel) {
+        if (pedido.estado !== 'aprobada') {
+          return NextResponse.json(
+            { error: `Solo se pueden entregar pedidos aprobados (estado actual: ${pedido.estado})` },
+            { status: 400 }
+          )
+        }
+        if (ed !== 'despachado') {
+          return NextResponse.json(
+            { error: `Pedido debe estar despachado primero (despacho: ${ed})` },
+            { status: 400 }
+          )
+        }
+      } else {
+        // Legacy fallback
+        if (!['despachada', 'despachado', 'en_ruta'].includes(pedido.estado)) {
+          return NextResponse.json(
+            { error: `Solo se pueden entregar pedidos despachados (estado actual: ${pedido.estado})` },
+            { status: 400 }
+          )
+        }
       }
 
       const { data: items } = await supabase
@@ -108,16 +131,40 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         }
       }
 
-      const { data, error } = await supabase
-        .from('pedidos')
-        .update({
-          estado: 'entregada',
-          fecha_entrega_real: new Date().toISOString().split('T')[0],
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', params.id)
-        .select()
-        .single()
+      // Modelo nuevo: solo cambiamos estado_despacho, NO el estado
+      // (sigue 'aprobada'). Defensive cascade: DBs sin la columna caen
+      // al modelo viejo de mover estado='entregada'.
+      let data: any = null
+      let error: any = null
+      {
+        const r = await supabase
+          .from('pedidos')
+          .update({
+            estado_despacho: 'entregado',
+            fecha_entrega_real: new Date().toISOString().split('T')[0],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', params.id)
+          .select()
+          .single()
+        data = r.data
+        error = r.error
+      }
+      if (error && /estado_despacho/i.test(error.message || '')) {
+        console.warn('[pedidos/entregar] estado_despacho missing — falling back to legacy estado=entregada')
+        const r = await supabase
+          .from('pedidos')
+          .update({
+            estado: 'entregada',
+            fecha_entrega_real: new Date().toISOString().split('T')[0],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', params.id)
+          .select()
+          .single()
+        data = r.data
+        error = r.error
+      }
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -133,8 +180,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         action: 'entregar_pedido',
         resource: 'pedidos',
         resource_id: params.id,
-        estado_anterior: pedido.estado,
-        estado_nuevo: 'entregada',
+        estado_anterior: ed ?? pedido.estado,
+        estado_nuevo: 'entregado',
         details: {
           pedido_id:      params.id,
           pedido_numero:  pedido.numero,

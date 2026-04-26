@@ -79,12 +79,17 @@ export async function POST(_req: Request, { params }: RouteContext) {
       // Create pedido in 'borrador' linked to the orden
       const subtotal = (orden.items as any[]).reduce((s, i) => s + Number(i.subtotal), 0)
       const ordenTxId = (orden as any).transaccion_id as string | null | undefined
-      const buildPedidoPayload = (includeTxId: boolean): Record<string, any> => {
+      // Pedido nace YA aprobado (Fase 4). El pago acaba de verificarse —
+      // el pedido entra al pipeline de despacho directamente.
+      const buildPedidoPayload = (
+        includeTxId: boolean,
+        includeDespacho: boolean,
+      ): Record<string, any> => {
         const base: Record<string, any> = {
           numero: pedidoNumero,
           cliente_id: orden.cliente_id,
           vendedor_id: user.id,
-          estado: 'borrador',
+          estado: 'aprobada',
           subtotal,
           descuento: 0,
           impuesto: 0,
@@ -94,13 +99,20 @@ export async function POST(_req: Request, { params }: RouteContext) {
           orden_id: orden.id,
         }
         if (includeTxId && ordenTxId) base.transaccion_id = ordenTxId
+        if (includeDespacho) base.estado_despacho = 'por_despachar'
         return base
       }
       let { data: pedido, error: pedidoErr } = await supabase
-        .from('pedidos').insert(buildPedidoPayload(true)).select().single()
+        .from('pedidos').insert(buildPedidoPayload(true, true)).select().single()
+      if (pedidoErr && /estado_despacho/i.test(pedidoErr.message || '')) {
+        console.warn('[ordenes/confirmar-pago] pedidos.estado_despacho missing — retrying without')
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(true, false)).select().single()
+        pedido = r.data
+        pedidoErr = r.error
+      }
       if (pedidoErr && /transaccion_id/i.test(pedidoErr.message || '')) {
         console.warn('[ordenes/confirmar-pago] pedidos.transaccion_id missing — retrying without')
-        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false)).select().single()
+        const r = await supabase.from('pedidos').insert(buildPedidoPayload(false, false)).select().single()
         pedido = r.data
         pedidoErr = r.error
       }

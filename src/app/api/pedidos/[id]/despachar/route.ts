@@ -7,7 +7,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // POST /api/pedidos/[id]/despachar — ADMIN ONLY
-// aprobada → despachada ; auto-creates factura (estado='emitida') if none exists
+// Modelo nuevo (Fase 4): el pedido siempre vive en estado='aprobada'.
+// Lo que cambia es estado_despacho: 'por_despachar' → 'despachado'.
+// La factura ya se creó al aprobar/confirmar el pedido (Fase 3) — acá
+// solo movemos el estado de despacho. Si por algún caso edge no hay
+// factura, la creamos como fallback (mantiene compat con datos viejos).
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = createClient()
@@ -22,7 +26,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
       const { data: pedido } = await supabase
         .from('pedidos')
-        .select('id, numero, estado, cliente_id, vendedor_id, subtotal, descuento, total')
+        .select('id, numero, estado, estado_despacho, cliente_id, vendedor_id, subtotal, descuento, total')
         .eq('id', params.id)
         .single()
 
@@ -31,6 +35,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         return NextResponse.json(
           { error: `Solo se pueden despachar pedidos aprobados (estado actual: ${pedido.estado})` },
           { status: 400 }
+        )
+      }
+      // Guard sobre estado_despacho — no despachar dos veces, no despachar
+      // algo ya entregado. Permitimos despachar cuando aún no se setteó
+      // estado_despacho (datos legacy sin migrar).
+      const ed = (pedido as any).estado_despacho
+      if (ed && ed !== 'por_despachar') {
+        return NextResponse.json(
+          { error: `Pedido ya está ${ed === 'despachado' ? 'despachado' : 'entregado'}` },
+          { status: 409 }
         )
       }
 
@@ -95,14 +109,33 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         facturaNumero = nuevaFactura.numero
       }
 
-      const { data, error } = await supabase
-        .from('pedidos')
-        .update({ estado: 'despachada', updated_at: new Date().toISOString() })
-        .eq('id', params.id)
-        .select()
-        .single()
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      // Modelo nuevo: cambiamos estado_despacho, no estado. Defensive
+      // cascade — si la columna no existe (DB sin migrar Fase 4), seguimos
+      // moviendo el estado viejo a 'despachada' para mantener compat.
+      let updated: any = null
+      let updErr: any = null
+      {
+        const r = await supabase
+          .from('pedidos')
+          .update({ estado_despacho: 'despachado', updated_at: new Date().toISOString() })
+          .eq('id', params.id)
+          .select()
+          .single()
+        updated = r.data
+        updErr = r.error
+      }
+      if (updErr && /estado_despacho/i.test(updErr.message || '')) {
+        console.warn('[pedidos/despachar] estado_despacho missing — falling back to legacy estado=despachada')
+        const r = await supabase
+          .from('pedidos')
+          .update({ estado: 'despachada', updated_at: new Date().toISOString() })
+          .eq('id', params.id)
+          .select()
+          .single()
+        updated = r.data
+        updErr = r.error
+      }
+      if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
       // Activity log — link pedido ↔ factura so /historial can render both as clickable.
       // Fire-and-forget; a log failure must never roll back the state change.
@@ -111,8 +144,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         action: 'despachar_pedido',
         resource: 'pedidos',
         resource_id: params.id,
-        estado_anterior: pedido.estado,
-        estado_nuevo: 'despachada',
+        estado_anterior: ed ?? pedido.estado,
+        estado_nuevo: 'despachado',
         details: {
           pedido_id:      params.id,
           pedido_numero:  pedido.numero,
@@ -121,7 +154,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         },
       })
 
-      return NextResponse.json({ ...data, factura_id: facturaId, factura_numero: facturaNumero })
+      return NextResponse.json({ ...updated, factura_id: facturaId, factura_numero: facturaNumero })
 
   } catch (err) {
     console.error('[POST /api/pedidos/[id]/despachar]', err)

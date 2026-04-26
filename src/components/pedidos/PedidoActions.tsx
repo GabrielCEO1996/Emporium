@@ -6,46 +6,71 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { EstadoPedido } from '@/lib/types'
 import { showConfirm } from '@/components/ui/ConfirmDialog'
+import { isTestingMode } from '@/lib/testing-mode'
 import {
-  Loader2, CheckCircle2, Truck, Package, Lock,
-  XCircle, FileText, Trash2, X, ShieldCheck, AlertTriangle,
+  Loader2, CheckCircle2, Truck, XCircle, FileText, Trash2, X, AlertTriangle,
 } from 'lucide-react'
 
-interface Conductor {
-  id: string
-  nombre: string
-  telefono?: string
-}
+// ─── PedidoActions — Fase 4 ────────────────────────────────────────────────
+// Modelo simplificado del pedido: solo 2 estados (aprobada / cancelada).
+// El lifecycle de despacho vive en una columna separada estado_despacho:
+//   por_despachar → despachado → entregado
+//
+// Botones removidos respecto a la versión anterior:
+//   • "Confirmar Pedido"  — el estado 'borrador' se eliminó
+//   • "Aprobar Pedido"    — el pedido nace ya aprobado
+//   • Conductor selector  — se reincorpora cuando se rediseñe en el panel
+//                           de despachos. No estaba siendo usado en el flow
+//                           normal de Mache (siempre era 'Sin conductor').
+//
+// Botones que quedan:
+//   • Despachar           — estado_despacho: por_despachar → despachado
+//   • Marcar Entregada    — estado_despacho: despachado    → entregado
+//   • Cancelar            — orden de oportunidad (cualquier por_despachar
+//                           o despachado puede cancelarse antes de entregar)
+//   • Ver Factura         — link al PDF/detalle (siempre que exista factura)
+//   • Eliminar            — solo visible en NEXT_PUBLIC_IS_PRODUCTION=false
+// ────────────────────────────────────────────────────────────────────────────
+
+type EstadoDespacho = 'por_despachar' | 'despachado' | 'entregado'
 
 interface PedidoActionsProps {
   pedidoId: string
   currentEstado: EstadoPedido
-  currentConductorId: string | null
-  conductores: Conductor[]
+  /** Modelo nuevo (Fase 4). Si no viene (DB sin migrar todavía o page
+   *  sin actualizar), derivamos del estado legacy. */
+  currentEstadoDespacho?: EstadoDespacho | null
   isAdmin: boolean
   facturaId?: string | null
 }
 
-type LoadingKey = 'confirmar' | 'aprobar' | 'despachar' | 'entregar' | 'cancelar' | 'eliminar' | 'guardar'
+/**
+ * Deriva estado_despacho desde el estado legacy cuando el page no lo pasa.
+ * Mismas reglas que el backfill de la migration pedidos_despacho_v2.sql.
+ */
+function deriveEstadoDespacho(estado: EstadoPedido): EstadoDespacho {
+  if (['entregada', 'entregado', 'pagado'].includes(estado as string)) return 'entregado'
+  if (['despachada', 'despachado', 'en_ruta'].includes(estado as string)) return 'despachado'
+  return 'por_despachar'
+}
+
+type LoadingKey = 'despachar' | 'entregar' | 'cancelar' | 'eliminar'
 
 export default function PedidoActions({
   pedidoId,
   currentEstado,
-  currentConductorId,
-  conductores,
+  currentEstadoDespacho,
   isAdmin,
   facturaId,
 }: PedidoActionsProps) {
   const router = useRouter()
-  const [conductorId, setConductorId] = useState(currentConductorId ?? '')
   const [loading, setLoading] = useState<LoadingKey | null>(null)
 
   // Cancelar modal state
   const [showCancelarModal, setShowCancelarModal] = useState(false)
   const [motivoCancelacion, setMotivoCancelacion] = useState('')
 
-  // Eliminar-entregada modal state — heavier warning because it reverses
-  // inventory deductions, deletes the factura, and rolls back pagos/deuda.
+  // Eliminar-entregada modal state
   const [showEliminarEntregadaModal, setShowEliminarEntregadaModal] = useState(false)
 
   const setLoad = (key: LoadingKey) => setLoading(key)
@@ -63,35 +88,11 @@ export default function PedidoActions({
     return data
   }
 
-  const handleConfirmar = async () => {
-    setLoad('confirmar')
-    try {
-      await doPost('confirmar')
-      toast.success('Pedido confirmado')
-      router.refresh()
-    } catch (e: any) { toast.error(e.message) }
-    finally { clearLoad() }
-  }
-
-  const handleAprobar = async () => {
-    setLoad('aprobar')
-    try {
-      await doPost('aprobar')
-      toast.success('Pedido aprobado — inventario reservado')
-      router.refresh()
-    } catch (e: any) { toast.error(e.message) }
-    finally { clearLoad() }
-  }
-
   const handleDespachar = async () => {
     setLoad('despachar')
     try {
-      const data = await doPost('despachar')
-      toast.success(
-        data?.factura_numero
-          ? `Pedido despachado — factura ${data.factura_numero} emitida`
-          : 'Pedido despachado — factura emitida'
-      )
+      await doPost('despachar')
+      toast.success('Pedido despachado')
       router.refresh()
     } catch (e: any) { toast.error(e.message) }
     finally { clearLoad() }
@@ -129,7 +130,7 @@ export default function PedidoActions({
   const handleEliminar = async () => {
     const ok = await showConfirm({
       title: '¿Eliminar este pedido?',
-      message: 'Esta acción no se puede deshacer.',
+      message: 'Esta acción no se puede deshacer. Solo disponible en modo prueba.',
       confirmLabel: 'Sí, eliminar',
       danger: true,
     })
@@ -156,139 +157,53 @@ export default function PedidoActions({
     } catch (e: any) { toast.error(e.message); clearLoad() }
   }
 
-  const handleGuardarConductor = async () => {
-    setLoad('guardar')
-    try {
-      const res = await fetch(`/api/pedidos/${pedidoId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conductor_id: conductorId || null }),
-        cache: 'no-store',
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Error')
-      toast.success('Conductor actualizado')
-      router.refresh()
-    } catch (e: any) { toast.error(e.message) }
-    finally { clearLoad() }
-  }
-
-  const conductorChanged = conductorId !== (currentConductorId ?? '')
-
-  // Normalize state for flow logic: map legacy → new where applicable
-  const isBorrador = currentEstado === 'borrador'
-  const isConfirmada = currentEstado === 'confirmada' || currentEstado === 'confirmado'
-  const isAprobada = currentEstado === 'aprobada' || currentEstado === 'preparando'
-  const isDespachada = currentEstado === 'despachada' || currentEstado === 'despachado' || currentEstado === 'en_ruta'
-  const isEntregada = currentEstado === 'entregada' || currentEstado === 'entregado'
+  // ── Decision logic (modelo Fase 4) ─────────────────────────────────────
   const isCancelada = currentEstado === 'cancelada' || currentEstado === 'cancelado'
-  const isFacturadoLegacy = currentEstado === 'facturado'
+  const ed: EstadoDespacho = currentEstadoDespacho ?? deriveEstadoDespacho(currentEstado)
 
-  // Delete button visibility:
-  //   - Admin: any state (entregada uses a stronger warning modal)
-  //   - Vendedor own borrador: handled by the borrador branch below
-  const canAdminDelete = isAdmin
+  // Eliminar solo en testing — en producción se usan motivos de cancelación
+  // o notas de crédito para preservar audit trail.
+  const canDelete = isAdmin && isTestingMode()
 
   return (
     <>
       <div className="flex flex-col items-end gap-3">
-        {/* ── BORRADOR ─────────────────────────────────────────────────────── */}
-        {isBorrador && (
+        {/* ── CANCELADA ────────────────────────────────────────────────────── */}
+        {isCancelada && (
           <div className="flex flex-wrap items-center gap-2">
-            {conductores.length > 0 && (
-              <>
-                <div className="relative">
-                  <select
-                    value={conductorId}
-                    onChange={e => setConductorId(e.target.value)}
-                    className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-2 text-sm text-slate-700 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                  >
-                    <option value="">Sin conductor</option>
-                    {conductores.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
-                  <Truck className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                </div>
-                {conductorChanged && (
-                  <button
-                    onClick={handleGuardarConductor}
-                    disabled={loading === 'guardar'}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                  >
-                    {loading === 'guardar' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Guardar
-                  </button>
-                )}
-              </>
-            )}
-
-            <button
-              onClick={handleConfirmar}
-              disabled={loading === 'confirmar'}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
-            >
-              {loading === 'confirmar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Confirmar Pedido
-            </button>
-
-            <button
-              onClick={handleEliminar}
-              disabled={loading === 'eliminar'}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-            >
-              {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Eliminar
-            </button>
-          </div>
-        )}
-
-        {/* ── CONFIRMADA ───────────────────────────────────────────────────── */}
-        {isConfirmada && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-700">
-              <Lock className="h-3.5 w-3.5" />
-              Confirmada — pendiente de aprobación
+            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
+              Cancelada
             </div>
-            {isAdmin && (
-              <>
-                <button
-                  onClick={handleAprobar}
-                  disabled={loading === 'aprobar'}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  {loading === 'aprobar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  Aprobar Pedido
-                </button>
-                <button
-                  onClick={() => setShowCancelarModal(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Cancelar Pedido
-                </button>
-                {canAdminDelete && (
-                  <button
-                    onClick={handleEliminar}
-                    disabled={loading === 'eliminar'}
-                    className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                  >
-                    {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    Eliminar
-                  </button>
-                )}
-              </>
+            {canDelete && (
+              <button
+                onClick={handleEliminar}
+                disabled={loading === 'eliminar'}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+              >
+                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Eliminar
+              </button>
             )}
           </div>
         )}
 
-        {/* ── APROBADA ─────────────────────────────────────────────────────── */}
-        {isAprobada && (
+        {/* ── POR DESPACHAR ────────────────────────────────────────────────── */}
+        {!isCancelada && ed === 'por_despachar' && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-              <Package className="h-3.5 w-3.5" />
-              Aprobada — stock reservado
+            <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+              <Truck className="h-3.5 w-3.5" />
+              Por despachar
             </div>
+            {facturaId && (
+              <Link
+                href={`/facturas/${facturaId}`}
+                className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
+              >
+                <FileText className="h-4 w-4" />
+                Ver Factura
+              </Link>
+            )}
             {isAdmin && (
               <>
                 <button
@@ -306,7 +221,7 @@ export default function PedidoActions({
                   <XCircle className="h-4 w-4" />
                   Cancelar
                 </button>
-                {canAdminDelete && (
+                {canDelete && (
                   <button
                     onClick={handleEliminar}
                     disabled={loading === 'eliminar'}
@@ -321,12 +236,12 @@ export default function PedidoActions({
           </div>
         )}
 
-        {/* ── DESPACHADA ───────────────────────────────────────────────────── */}
-        {isDespachada && (
+        {/* ── DESPACHADO ───────────────────────────────────────────────────── */}
+        {!isCancelada && ed === 'despachado' && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">
               <Truck className="h-3.5 w-3.5" />
-              Despachada — en camino
+              En camino
             </div>
             {facturaId && (
               <Link
@@ -354,7 +269,7 @@ export default function PedidoActions({
                   <XCircle className="h-4 w-4" />
                   Cancelar
                 </button>
-                {canAdminDelete && (
+                {canDelete && (
                   <button
                     onClick={handleEliminar}
                     disabled={loading === 'eliminar'}
@@ -369,12 +284,12 @@ export default function PedidoActions({
           </div>
         )}
 
-        {/* ── ENTREGADA ────────────────────────────────────────────────────── */}
-        {isEntregada && (
+        {/* ── ENTREGADO ────────────────────────────────────────────────────── */}
+        {!isCancelada && ed === 'entregado' && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Entregada
+              Entregado
             </div>
             {facturaId && (
               <Link
@@ -385,7 +300,7 @@ export default function PedidoActions({
                 Ver Factura
               </Link>
             )}
-            {isAdmin && (
+            {canDelete && (
               <button
                 onClick={() => setShowEliminarEntregadaModal(true)}
                 disabled={loading === 'eliminar'}
@@ -394,45 +309,6 @@ export default function PedidoActions({
                 {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Eliminar Pedido
               </button>
-            )}
-          </div>
-        )}
-
-        {/* ── CANCELADA ────────────────────────────────────────────────────── */}
-        {isCancelada && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-              <XCircle className="h-3.5 w-3.5 shrink-0" />
-              Cancelada
-            </div>
-            {canAdminDelete && (
-              <button
-                onClick={handleEliminar}
-                disabled={loading === 'eliminar'}
-                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
-              >
-                {loading === 'eliminar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Eliminar
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ── FACTURADO legacy ─────────────────────────────────────────────── */}
-        {isFacturadoLegacy && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Facturado
-            </div>
-            {facturaId && (
-              <Link
-                href={`/facturas/${facturaId}`}
-                className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100 transition-colors"
-              >
-                <FileText className="h-4 w-4" />
-                Ver Factura
-              </Link>
             )}
           </div>
         )}
@@ -507,9 +383,7 @@ export default function PedidoActions({
               <p className="text-sm font-semibold text-slate-900">
                 Este pedido ya fue entregado.
               </p>
-              <p className="text-sm text-slate-600">
-                Eliminar revertirá:
-              </p>
+              <p className="text-sm text-slate-600">Eliminar revertirá:</p>
               <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
                 <li>Inventario — se restaura el stock descontado</li>
                 <li>Factura asociada y sus líneas</li>
