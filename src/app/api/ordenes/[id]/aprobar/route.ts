@@ -32,11 +32,15 @@ export async function POST(_req: Request, { params }: RouteContext) {
         return NextResponse.json({ error: 'Solo administradores pueden aprobar órdenes' }, { status: 403 })
       }
 
-      // Load the orden
+      // Load the orden — incluyendo tipo_pago y estado_pago para el guardia
+      // anti-bypass que bloquea aprobaciones manuales de órdenes Stripe sin
+      // pago verificado. Defensivo: pago_confirmado y estado_pago pueden no
+      // existir en DBs sin las migrations checkout_v2/payment_proofs.
       const { data: orden, error: fetchErr } = await supabase
         .from('ordenes')
         .select(`
           id, numero, estado, cliente_id, notas, direccion_entrega, total,
+          tipo_pago, pago_confirmado, estado_pago,
           items:orden_items(id, presentacion_id, cantidad, precio_unitario, subtotal)
         `)
         .eq('id', params.id)
@@ -54,6 +58,43 @@ export async function POST(_req: Request, { params }: RouteContext) {
       if (!orden.items || orden.items.length === 0) {
         return NextResponse.json({ error: 'La orden no tiene productos' }, { status: 400 })
       }
+
+      // ── ANTI-BYPASS GUARD ────────────────────────────────────────────────
+      // Stripe orders MUST be verified by the webhook (signed payload from
+      // Stripe → estado_pago='verificado' or pago_confirmado=true) BEFORE
+      // an admin can approve them. Without this check, a logged-in admin
+      // could click "Aprobar" on an unpaid Stripe order and the system would
+      // create a pedido "como si estuviese pagado".
+      //
+      // Manual methods (zelle/cheque/efectivo/transferencia) tienen su propio
+      // flujo /confirmar-pago donde el admin valida el comprobante. Si por
+      // accidente llegan acá, también las bloqueamos hasta que pasen por
+      // /confirmar-pago — así el botón correcto del UI los lleva al flujo
+      // correcto.
+      const tipoPago = (orden as any).tipo_pago as string | null
+      const pagoConfirmado = (orden as any).pago_confirmado === true
+      const estadoPago = (orden as any).estado_pago as string | null
+      const isPaymentVerified = pagoConfirmado || estadoPago === 'verificado'
+
+      if (tipoPago === 'stripe' && !isPaymentVerified) {
+        return NextResponse.json({
+          error:
+            'No se puede aprobar manualmente una orden Stripe sin pago verificado. ' +
+            'Esperá a que el cliente complete el pago — el webhook de Stripe la aprobará automáticamente. ' +
+            'Si el cliente abandonó, usá "Rechazar".',
+        }, { status: 409 })
+      }
+
+      const MANUAL_METHODS = ['zelle', 'cheque', 'efectivo', 'transferencia']
+      if (tipoPago && MANUAL_METHODS.includes(tipoPago) && !isPaymentVerified) {
+        return NextResponse.json({
+          error:
+            `Para órdenes con pago en ${tipoPago}, usá "Confirmar pago recibido" en lugar de "Aprobar". ` +
+            'Eso valida el comprobante y aprueba la orden en un solo paso.',
+        }, { status: 409 })
+      }
+      // tipo_pago='credito' y null (legacy/ordenes B2B sin método): pasan
+      // — son los únicos casos donde "Aprobar" manual tiene sentido.
 
       // Next pedido numero (fallback to timestamp on sequence miss)
       let pedidoNumero: string

@@ -206,38 +206,67 @@ export default function OrdenesClient({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {orden.estado === 'pendiente' && isAdmin && (
-                  <>
-                    {/* Manual payment methods need the admin to confirm receipt */}
-                    {MANUAL_CONFIRM_METHODS.includes((orden.tipo_pago ?? 'pendiente') as TipoPago) && !orden.pago_confirmado ? (
+                {orden.estado === 'pendiente' && isAdmin && (() => {
+                  // Decision tree (defensa en profundidad — el API también
+                  // valida estos casos en /api/ordenes/[id]/aprobar):
+                  //
+                  //  • Stripe + NO pago verificado  → "Esperando pago Stripe…"
+                  //                                   (sin botón Aprobar; el
+                  //                                    webhook lo aprueba auto)
+                  //  • Stripe + pago verificado     → "Aprobar" (raro: webhook
+                  //                                   normalmente ya lo aprobó)
+                  //  • Manual + NO confirmado       → "Confirmar pago recibido"
+                  //  • Manual + confirmado          → "Aprobar"
+                  //  • Crédito o sin método (B2B)   → "Aprobar"
+                  //
+                  // Rechazar siempre disponible para órdenes pendientes.
+                  const tipo = orden.tipo_pago
+                  const isManual = MANUAL_CONFIRM_METHODS.includes((tipo ?? 'pendiente') as TipoPago)
+                  const isPaid = orden.pago_confirmado === true || orden.estado_pago === 'verificado'
+
+                  const showStripeWaiting = tipo === 'stripe' && !isPaid
+                  const showConfirmarPago = isManual && !isPaid
+                  const showAprobar = !showStripeWaiting && !showConfirmarPago
+
+                  return (
+                    <>
+                      {showStripeWaiting && (
+                        <span className="inline-flex items-center gap-1.5 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-semibold px-3 py-1.5 rounded-lg">
+                          <Clock className="w-3.5 h-3.5" />
+                          Esperando pago Stripe…
+                        </span>
+                      )}
+                      {showConfirmarPago && (
+                        <button
+                          disabled={busy}
+                          onClick={() => handleConfirmarPago(orden)}
+                          className="ripple inline-flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+                        >
+                          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
+                          Confirmar pago recibido
+                        </button>
+                      )}
+                      {showAprobar && (
+                        <button
+                          disabled={busy}
+                          onClick={() => handleAprobar(orden)}
+                          className="ripple inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+                        >
+                          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          Aprobar
+                        </button>
+                      )}
                       <button
                         disabled={busy}
-                        onClick={() => handleConfirmarPago(orden)}
-                        className="ripple inline-flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+                        onClick={() => { setRejectId(orden.id); setMotivo('') }}
+                        className="ripple inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
                       >
-                        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeCheck className="w-3.5 h-3.5" />}
-                        Confirmar pago recibido
+                        <XCircle className="w-3.5 h-3.5" />
+                        Rechazar
                       </button>
-                    ) : (
-                      <button
-                        disabled={busy}
-                        onClick={() => handleAprobar(orden)}
-                        className="ripple inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
-                      >
-                        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        Aprobar
-                      </button>
-                    )}
-                    <button
-                      disabled={busy}
-                      onClick={() => { setRejectId(orden.id); setMotivo('') }}
-                      className="ripple inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      Rechazar
-                    </button>
-                  </>
-                )}
+                    </>
+                  )
+                })()}
                 <button
                   onClick={() => setOpenId(isOpen ? null : orden.id)}
                   className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 px-2 py-1.5"
