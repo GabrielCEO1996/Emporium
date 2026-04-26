@@ -25,91 +25,34 @@ export default async function OrdenesPage({ searchParams }: PageProps) {
 
   const estadoFilter = searchParams.estado || 'pendiente'
 
-  // ── Estrategia: query plana + joins manuales ───────────────────────────
-  // Tras varios intentos con embed nested de PostgREST que devolvía la
-  // lista vacía (counter=1, list=0) sin error visible, abandonamos los
-  // embeds y traemos las relaciones en queries separadas. Es algo más
-  // chatty (4-5 round-trips vs 1) pero cada uno es trivial y no falla
-  // silenciosamente. Mismo planteo que el counter — si counter ve la fila,
-  // este SELECT de ordenes plano también la ve.
-
-  // 1. Ordenes — exactamente las columnas que ya existen seguro. Las
-  // columnas opcionales (estado_pago, verificado_*, payment_proof_url) las
-  // pedimos con SELECT * para que vengan si existen y no rompan si no.
+  // Query con embeds nested. La FK al pedido derivado usa sintaxis
+  // basada en columna (`pedidos!orden_id`) en vez del nombre de constraint
+  // — más robusto si el constraint se auto-renombra.
   let ordenesQ = supabase
     .from('ordenes')
-    .select('*')
+    .select(`
+      *,
+      cliente:clientes(id, nombre, rif, email, telefono),
+      items:orden_items(
+        id, cantidad, precio_unitario, subtotal,
+        presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
+      ),
+      pedido:pedidos!orden_id(id, numero, estado)
+    `)
     .order('created_at', { ascending: false })
   if (estadoFilter && estadoFilter !== 'todas') {
     ordenesQ = ordenesQ.eq('estado', estadoFilter)
   }
-  const { data: ordenesPlanas, error: ordenesErr } = await ordenesQ
+  const { data: ordenes, error: ordenesErr } = await ordenesQ
 
   if (ordenesErr) {
-    console.error('[ordenes/page] flat select failed:', ordenesErr)
+    console.error('[ordenes/page] query failed:', ordenesErr)
   }
-  console.log('[ordenes/page] flat select loaded:', {
+  console.log('[ordenes/page] list loaded:', {
     estadoFilter,
-    rows: ordenesPlanas?.length ?? 0,
+    rows: ordenes?.length ?? 0,
     error: ordenesErr?.message ?? null,
   })
-
-  const ordenesBase = (ordenesPlanas ?? []) as any[]
-
-  // 2. Resolver clientes, items y pedidos en paralelo, sólo si hay órdenes
-  let clientesById: Record<string, any> = {}
-  let itemsByOrden: Record<string, any[]> = {}
-  let pedidosByOrden: Record<string, any> = {}
-
-  if (ordenesBase.length > 0) {
-    const ordenIds   = ordenesBase.map(o => o.id)
-    const clienteIds = Array.from(new Set(ordenesBase.map(o => o.cliente_id).filter(Boolean)))
-
-    const [clientesRes, itemsRes, pedidosRes] = await Promise.all([
-      clienteIds.length > 0
-        ? supabase
-            .from('clientes')
-            .select('id, nombre, rif, email, telefono')
-            .in('id', clienteIds)
-        : Promise.resolve({ data: [] as any[], error: null as any }),
-      supabase
-        .from('orden_items')
-        .select(`
-          id, orden_id, cantidad, precio_unitario, subtotal,
-          presentacion:presentaciones(id, nombre, producto:productos(id, nombre))
-        `)
-        .in('orden_id', ordenIds),
-      supabase
-        .from('pedidos')
-        .select('id, numero, estado, orden_id')
-        .in('orden_id', ordenIds),
-    ])
-
-    if (clientesRes.error) console.error('[ordenes/page] clientes lookup failed:', clientesRes.error)
-    if (itemsRes.error)    console.error('[ordenes/page] orden_items lookup failed:', itemsRes.error)
-    if (pedidosRes.error)  console.error('[ordenes/page] pedidos lookup failed:', pedidosRes.error)
-
-    for (const c of (clientesRes.data ?? [])) clientesById[c.id] = c
-    for (const it of (itemsRes.data ?? []) as any[]) {
-      const k = it.orden_id
-      if (!itemsByOrden[k]) itemsByOrden[k] = []
-      itemsByOrden[k].push(it)
-    }
-    for (const p of (pedidosRes.data ?? []) as any[]) {
-      // Una orden puede tener múltiples pedidos derivados (raro, pero
-      // posible si admin re-aprueba). Nos quedamos con el primero — el
-      // dashboard sólo muestra link, no lista de pedidos.
-      if (!pedidosByOrden[p.orden_id]) pedidosByOrden[p.orden_id] = p
-    }
-  }
-
-  // 3. Mergear todo en la forma que OrdenesClient espera
-  const ordenes = ordenesBase.map(o => ({
-    ...o,
-    cliente: clientesById[o.cliente_id] ?? null,
-    items:   itemsByOrden[o.id] ?? [],
-    pedido:  pedidosByOrden[o.id] ?? null,
-  }))
 
   // Filtered counts — use COUNT queries with the same estado filter so the
   // tab badges and the list can never disagree (previously the count query

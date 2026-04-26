@@ -12,7 +12,9 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { showConfirm } from '@/components/ui/ConfirmDialog'
 
 type TipoPago = 'pendiente' | 'zelle' | 'transferencia' | 'stripe' | 'credito' | 'cheque' | 'efectivo'
-type EstadoPago = 'verificado' | 'pendiente_verificacion' | 'rechazado'
+// 'no_aplica' agregado en ordenes_aprobacion_v3.sql — órdenes B2B "Generar
+// orden" no tienen pago directo, el método se decide al despachar.
+type EstadoPago = 'verificado' | 'pendiente_verificacion' | 'rechazado' | 'no_aplica'
 
 interface Orden {
   id: string
@@ -432,7 +434,12 @@ function TipoPagoBadge({
 
 function EstadoPagoBadge({ estadoPago }: { estadoPago: EstadoPago | null }) {
   if (!estadoPago) return null
-  const map: Record<EstadoPago, { cls: string; icon: React.ReactNode; label: string }> = {
+  // Órdenes B2B "Generar orden" nacen con estado_pago='no_aplica' — no hay
+  // pago directo asociado, el método se decide al despachar. No pintamos
+  // badge para estos casos: la columna tipo_pago ya está vacía y agregar
+  // un badge "no aplica" es ruido visual.
+  if (estadoPago === 'no_aplica') return null
+  const map: Record<Exclude<EstadoPago, 'no_aplica'>, { cls: string; icon: React.ReactNode; label: string }> = {
     verificado: {
       cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
       icon: <BadgeCheck className="w-3 h-3" />,
@@ -450,6 +457,9 @@ function EstadoPagoBadge({ estadoPago }: { estadoPago: EstadoPago | null }) {
     },
   }
   const m = map[estadoPago]
+  // Defensa: si en el futuro el CHECK constraint suma otro valor, no
+  // crashees el render — devolvemos null y el resto del card sigue.
+  if (!m) return null
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${m.cls}`}>
       {m.icon}
@@ -465,6 +475,7 @@ function EstadoBadge({ estado }: { estado: Orden['estado'] }) {
     rechazada: { cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300', icon: <XCircle className="w-3 h-3" />, label: 'Rechazada' },
     cancelada: { cls: 'bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300', icon: <XCircle className="w-3 h-3" />, label: 'Cancelada' },
   }[estado]
+  if (!map) return null
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${map.cls}`}>
       {map.icon}
