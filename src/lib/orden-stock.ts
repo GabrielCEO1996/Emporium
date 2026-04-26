@@ -48,11 +48,37 @@ export async function reserveOrdenStock(
       p_amount: it.cantidad,
     })
     if (error) {
+      // Log COMPLETO del error PostgREST para diagnóstico:
+      //   code    → '42501' (perm denied), 'PGRST202' (schema cache), 'P0001'
+      //              (raise_exception del propio RPC), '23514' (CHECK violation), etc.
+      //   message → human-readable string
+      //   details → contexto (a veces incluye el row que ofendió)
+      //   hint    → sugerencia (rara vez aparece)
+      // Además consultamos el estado actual de la presentación para saber si
+      // realmente había stock o si el bug es otra cosa.
+      const e: any = error
+      let presentacionStock: any = null
+      try {
+        const { data } = await supabase
+          .from('presentaciones')
+          .select('id, nombre, stock, stock_reservado')
+          .eq('id', it.presentacion_id)
+          .maybeSingle()
+        presentacionStock = data
+      } catch {
+        // best-effort, swallow
+      }
       // eslint-disable-next-line no-console
       console.error('[reserveOrdenStock] RPC reserve_stock failed:', {
         presentacion_id: it.presentacion_id,
-        cantidad: it.cantidad,
-        error: error.message,
+        cantidad_solicitada: it.cantidad,
+        rpc_error: {
+          code:    e?.code    ?? null,
+          message: e?.message ?? null,
+          details: e?.details ?? null,
+          hint:    e?.hint    ?? null,
+        },
+        presentacion_actual: presentacionStock,
       })
       return { ok: false, error: error.message, failedItem: it }
     }

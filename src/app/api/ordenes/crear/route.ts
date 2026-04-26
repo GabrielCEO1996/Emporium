@@ -200,6 +200,15 @@ export async function POST(req: Request) {
       // We can't know which ones succeeded vs failed without bookkeeping,
       // so release all items defensively. Idempotent — RPC clamps to 0.
       await rollbackOrdenStock(supabase, stockItems)
+      // Logueamos el contexto completo del intento — los items, el rol, el
+      // user. Combinado con el log detallado de reserveOrdenStock alcanza
+      // para reproducir el bug sin tener que pedirle datos al cliente.
+      console.error('[ordenes/crear] reserveOrdenStock failed — context:', {
+        user_id: user.id,
+        rol,
+        items: stockItems,
+        failedItem: reserveRes.failedItem,
+      })
       // Surface the specific RPC error if it's the user-friendly "stock
       // insuficiente" message (the only ERRCODE we raise from reserve_stock).
       // For everything else (function not found, perm denied, etc.) usamos
