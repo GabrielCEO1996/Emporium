@@ -370,20 +370,18 @@ function OrdenTimeline({ orden, factura }: { orden: Orden; factura: Factura | nu
 
 // ── Orden Card ────────────────────────────────────────────────────────────────
 function OrdenCard({ orden, factura }: { orden: Orden; factura: Factura | null | undefined }) {
-  const map = {
-    pendiente: {
-      label: 'Pendiente de aprobación', cls: 'bg-amber-50 text-amber-800 border-amber-200/60',
-    },
-    aprobada: {
-      label: 'Aprobada', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60',
-    },
-    rechazada: {
-      label: 'Rechazada', cls: 'bg-rose-50 text-rose-700 border-rose-200/60',
-    },
-    cancelada: {
-      label: 'Cancelada', cls: 'bg-stone-100 text-brand-charcoal border-stone-200/60',
-    },
-  }[orden.estado]
+  const mapByEstado: Record<string, { label: string; cls: string }> = {
+    pendiente: { label: 'Pendiente de aprobación', cls: 'bg-amber-50 text-amber-800 border-amber-200/60' },
+    aprobada:  { label: 'Aprobada',                cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60' },
+    rechazada: { label: 'Rechazada',               cls: 'bg-rose-50 text-rose-700 border-rose-200/60' },
+    cancelada: { label: 'Cancelada',               cls: 'bg-stone-100 text-brand-charcoal border-stone-200/60' },
+  }
+  // Fallback defensivo si en el futuro se agrega un estado al CHECK sin
+  // actualizar este componente.
+  const map = mapByEstado[orden.estado] ?? {
+    label: orden.estado,
+    cls: 'bg-stone-100 text-brand-charcoal border-stone-200/60',
+  }
 
   return (
     <motion.div
@@ -426,13 +424,22 @@ function OrdenCard({ orden, factura }: { orden: Orden; factura: Factura | null |
 
 // ── Factura Card ──────────────────────────────────────────────────────────────
 function FacturaCard({ factura }: { factura: Factura }) {
-  const map: Record<Factura['estado'], { cls: string; label: string }> = {
-    pagada:           { cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60', label: 'Pagada' },
-    emitida:          { cls: 'bg-sky-50 text-sky-800 border-sky-200/60',             label: 'Emitida' },
-    anulada:          { cls: 'bg-rose-50 text-rose-700 border-rose-200/60',           label: 'Anulada' },
-    con_nota_credito: { cls: 'bg-amber-50 text-amber-800 border-amber-200/60',        label: 'Con nota crédito' },
+  // Mapa con los 6 estados que admite el CHECK de facturas (Fase 3) +
+  // fallback genérico para cualquier valor futuro que se agregue al CHECK
+  // sin actualizar este componente — evita el crash 'cannot read .cls of
+  // undefined' que tuvimos en el dashboard.
+  const map: Record<string, { cls: string; label: string }> = {
+    pagada:                 { cls: 'bg-emerald-50 text-emerald-800 border-emerald-200/60', label: 'Pagada' },
+    pendiente_pago:         { cls: 'bg-amber-50 text-amber-800 border-amber-200/60',       label: 'Pendiente de pago' },
+    pendiente_verificacion: { cls: 'bg-amber-50 text-amber-800 border-amber-200/60',       label: 'Pendiente de verificación' },
+    emitida:                { cls: 'bg-sky-50 text-sky-800 border-sky-200/60',             label: 'Emitida' },
+    anulada:                { cls: 'bg-rose-50 text-rose-700 border-rose-200/60',           label: 'Anulada' },
+    con_nota_credito:       { cls: 'bg-amber-50 text-amber-800 border-amber-200/60',        label: 'Con nota crédito' },
   }
-  const m = map[factura.estado]
+  const m = map[factura.estado] ?? {
+    cls: 'bg-stone-100 text-brand-charcoal border-stone-200/60',
+    label: factura.estado,
+  }
   const saldo = Number(factura.total) - Number(factura.monto_pagado ?? 0)
   return (
     <motion.div layout className={`rounded-[22px] border p-6 ${m.cls}`}>
