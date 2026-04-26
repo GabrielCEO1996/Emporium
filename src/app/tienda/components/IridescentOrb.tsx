@@ -190,9 +190,11 @@ const particlesFragment = /* glsl */ `
 // ─── Constants ────────────────────────────────────────────────────────────
 const ORB_POSITION: [number, number, number] = [1.7, 0.05, 0]
 const ORB_RADIUS = 1.4
-// Detail 5 → ~10k vertices. Equivalente visual a SphereGeometry(96,96).
-// El usuario sugirió 64 pero esa magnitud cuelga WebGL.
-const ORB_DETAIL = 5
+// Detail 6 → ~80k triángulos. Detail 5 dejaba facetas low-poly visibles
+// que el shader fresnel acentuaba (efecto "calabaza" naranja/verde).
+// Detail 6 produce una esfera suave donde el displacement orgánico del
+// noise se lee como ondulación, no como aristas.
+const ORB_DETAIL = 6
 const PARTICLES_COUNT = 80
 
 // ─── Scene ────────────────────────────────────────────────────────────────

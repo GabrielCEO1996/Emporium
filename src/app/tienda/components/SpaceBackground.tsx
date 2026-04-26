@@ -286,13 +286,17 @@ function SpaceScene() {
     return Math.min(window.devicePixelRatio ?? 1, 1.5)
   }, [])
 
+  // Opacidades subidas para que las lucecitas SE VEAN sobre cream. Antes
+  // (cuando el bg era negro espacial) las opacidades 0.05–0.22 eran
+  // suficientes — sobre cream se evaporan. Estos rangos dan un campo
+  // visible de partículas sin convertirlo en distractor.
   const farGeometry = useMemo(
     () =>
       buildLayerGeometry({
         count: counts.far,
         zRange: [-12, -9],
-        sizeRange: [0.6, 1.6],
-        opacityRange: [0.05, 0.12], // sub-distractor on cream bg
+        sizeRange: [0.8, 1.8],
+        opacityRange: [0.15, 0.30],
       }),
     [counts.far],
   )
@@ -302,8 +306,8 @@ function SpaceScene() {
       buildLayerGeometry({
         count: counts.mid,
         zRange: [-8, -6],
-        sizeRange: [2.0, 3.5],
-        opacityRange: [0.10, 0.20],
+        sizeRange: [2.5, 4.0],
+        opacityRange: [0.20, 0.40],
       }),
     [counts.mid],
   )
@@ -313,8 +317,8 @@ function SpaceScene() {
       buildLayerGeometry({
         count: counts.motes,
         zRange: [-5, -3.5],
-        sizeRange: [1.4, 2.4],
-        opacityRange: [0.10, 0.22],
+        sizeRange: [1.6, 2.6],
+        opacityRange: [0.25, 0.45],
       }),
     [counts.motes],
   )
